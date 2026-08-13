@@ -17,8 +17,6 @@ class GetMakeNotifier extends StateNotifier<GetMakeState> {
       data.fold((l) {
         state = const GetMakeState.loading();
       }, (r) {
-        print(r.length);
-        print(r.first.name);
         state = GetMakeState.data(r);
       });
     } catch (e) {

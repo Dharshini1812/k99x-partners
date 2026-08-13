@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:dealer/core/common/data/datasource/remote_datasource.dart';
 import 'package:dealer/core/common/data/model/city_model.dart';
 import 'package:dealer/core/common/data/model/make_model_variant.dart';
+import 'package:dealer/core/common/data/model/rc_details.dart';
 import 'package:dealer/core/common/data/model/state_model.dart';
 import 'package:dealer/core/common/domain/repository/repository.dart';
 import 'package:dealer/core/error/failure.dart';
@@ -62,6 +63,16 @@ class CommonRepositoryImpl implements CommonRepository {
       return Right(data);
     } catch (e) {
       return Left(CustomFailure(msg: '$e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, RCDetailsModel>> getRcDetails(String vehRegId) async {
+    try {
+      final data = await _commonDatasource.getRcDetails(vehRegId);
+      return Right(data);
+    } catch (e) {
+      return Left(CustomFailure(msg: e.toString()));
     }
   }
 }

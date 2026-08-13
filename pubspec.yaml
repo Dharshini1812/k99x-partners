@@ -49,6 +49,8 @@ dependencies:
   dotted_border: ^2.1.0
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  flutter_svg: ^2.1.0
+  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:
@@ -77,6 +79,8 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - images/
+    - images/onboarding/
+    - images/logo/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

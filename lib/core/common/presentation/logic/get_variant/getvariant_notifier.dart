@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:dealer/core/common/domain/usecase/get_variant.dart';
 import 'package:dealer/core/common/presentation/logic/get_variant/getvariant_state.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,8 +18,10 @@ class GetVariantNotifier extends StateNotifier<GetVariantState> {
     try {
       final data = await _getLeadsUsecase.call(modelId: modelId);
       data.fold((l) {
+        log('Variant fetch failed for modelId=$modelId: $l');
         state = const GetVariantState.loading();
       }, (r) {
+        log('Variant fetch succeeded: ${r.length} variants');
         state = GetVariantState.data(r);
       });
     } catch (e) {

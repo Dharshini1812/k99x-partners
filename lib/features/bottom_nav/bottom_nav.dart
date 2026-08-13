@@ -1,7 +1,8 @@
 import 'package:auto_route/auto_route.dart';
-import 'package:dealer/features/my_listings/data/model/car_model.dart';
+import 'package:dealer/features/bottom_nav/provider.dart';
+import 'package:dealer/features/dashboard/presentation/d.page.dart';
 import 'package:dealer/features/my_listings/presentation/pages/my_list_page.dart';
-import 'package:dealer/features/my_listings/presentation/pages/vehicle_card.dart';
+import 'package:dealer/features/profile/presentation/pages/profile.dart';
 import 'package:dealer/features/upload/presentation/pages/vehicle_details_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,20 +19,18 @@ class BottomNavPage extends ConsumerStatefulWidget {
 class _BottomNavPageState extends ConsumerState<BottomNavPage> {
   int currentIndex = 0;
 
-  void changeTab(int index) {
-    setState(() {
-      currentIndex = index;
-    });
-  }
-
+  @override
   @override
   Widget build(BuildContext context) {
+    final currentIndex = ref.watch(bottomNavIndexProvider);
+
     final pages = [
-      Container(),
+      const DashboardPage(),
       const VehicleListingPage(),
-      MyListPage(),
-      Container(),
+      const MyListPage(),
+      const Profile(),
     ];
+
     return Scaffold(
       backgroundColor: const Color(0xffF5F6FA),
       body: IndexedStack(
@@ -42,7 +41,7 @@ class _BottomNavPageState extends ConsumerState<BottomNavPage> {
         child: BottomNavBar(
           currentIndex: currentIndex,
           onTap: (index) {
-            changeTab(index);
+            ref.read(bottomNavIndexProvider.notifier).state = index;
           },
         ),
       ),

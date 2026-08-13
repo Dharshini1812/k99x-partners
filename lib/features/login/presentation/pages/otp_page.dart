@@ -10,6 +10,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sms_autofill/sms_autofill.dart';
 
+// ── Palette — shared with the login page ────────────────────────────────────
+const _kLogoBlue = Color(0xFF1E2FE0);
+const _kAccentBlue = Color(0xFF3B4EF5);
+const _kDark = Color(0xFF11142A);
+const _kGrey = Color(0xFF8B8FA3);
+const _kFaintBg = Color(0xFFEDEFF7);
+const _kBoxBorder = Color(0xFFE3E5F2);
+const _kDisabledBg = Color(0xFFE3E6F7);
+
 @AutoRoute()
 class OtpPage extends ConsumerStatefulWidget {
   const OtpPage({super.key});
@@ -64,6 +73,7 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
         },
       );
     });
+
     return Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(
@@ -74,73 +84,106 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
             children: [
               const SizedBox(height: 16),
 
-              // ── Back ────────────────────────────────────────────────────
-              GestureDetector(
-                onTap: () {
-                  Navigator.pop(context);
-                },
-                child: const Icon(Icons.chevron_left_rounded,
-                    size: 32, color: AppColors.textDark),
-              ),
-
-              const SizedBox(height: 32),
-
-              // ── Title ───────────────────────────────────────────────────
-              const Center(
-                child: Text(
-                  'Welcome Back',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textDark,
+              // ── Header row: back button + logo badge ───────────────────
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        color: _kFaintBg,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.chevron_left_rounded,
+                          size: 26, color: _kAccentBlue),
+                    ),
                   ),
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              const Center(
-                child: Text(
-                  'Log in with OTP to manage inspections, leads,\nreports, and valuation tasks.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textGrey,
-                    height: 1.55,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      color: _kLogoBlue,
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(10),
+                    child: Image.asset(
+                      'images/logo/small-logo.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.directions_car_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
 
               const SizedBox(height: 28),
 
-              // ── "OTP sent to" banner ────────────────────────────────────
-              _OtpSentBanner(
-                phone: '+91 $phone',
-                onEdit: () {
-                  Navigator.pop(context);
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              // ── OTP label ───────────────────────────────────────────────
+              // ── Title ───────────────────────────────────────────────────
               const Text(
-                'Enter 4-digit OTP',
+                'Verify your number',
                 style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textDark,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: _kDark,
                 ),
               ),
 
               const SizedBox(height: 14),
 
+              const Text(
+                'Enter the 4-digit code sent to',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: _kGrey,
+                  height: 1.4,
+                ),
+              ),
+
+              const SizedBox(height: 4),
+
+              Row(
+                children: [
+                  Text(
+                    '+91 $phone',
+                    style: const TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
+                      color: _kDark,
+                    ),
+                  ),
+                  const Text(
+                    '  ·  ',
+                    style: TextStyle(fontSize: 15.5, color: _kGrey),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Text(
+                      'Edit',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                        color: _kAccentBlue,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 36),
+
               // ── 4 OTP boxes ─────────────────────────────────────────────
               Row(
-                children: List.generate(4, (i) {
-                  return Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(right: i < 3 ? 12 : 0),
+                children: [
+                  for (int i = 0; i < 4; i++) ...[
+                    Expanded(
                       child: _OtpBox(
                         controller: logic.otpCtrlList[i],
                         focusNode: logic.otpFocusList[i],
@@ -148,11 +191,39 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                         onBackspace: () => logic.onBackspace(i),
                       ),
                     ),
-                  );
-                }),
+                    if (i < 3) const SizedBox(width: 16),
+                  ],
+                ],
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
+
+              // ── Resend ──────────────────────────────────────────────────
+              Center(
+                child: GestureDetector(
+                  onTap: logic.resendOtp,
+                  child: RichText(
+                    text: TextSpan(
+                      style: const TextStyle(fontSize: 15, color: _kGrey),
+                      children: [
+                        const TextSpan(text: "Didn't get it? "),
+                        TextSpan(
+                          text: logic.resendSeconds > 0
+                              ? 'Resend OTP in ${logic.resendSeconds}s'
+                              : 'Resend OTP',
+                          style: TextStyle(
+                            color:
+                                logic.resendSeconds > 0 ? _kGrey : _kAccentBlue,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 28),
 
               // ── Verify button ───────────────────────────────────────────
               _VerifyButton(
@@ -164,98 +235,10 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                 onTap: logic.verifyOtp,
               ),
 
-              const SizedBox(height: 16),
-
-              // ── Resend ──────────────────────────────────────────────────
-              Center(
-                child: GestureDetector(
-                  onTap: logic.resendOtp,
-                  child: RichText(
-                    text: TextSpan(
-                      children: [
-                        const TextSpan(
-                          text: "Didn't receive? ",
-                          style: TextStyle(
-                              color: AppColors.textGrey,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold),
-                        ),
-                        TextSpan(
-                          text: logic.resendSeconds > 0
-                              ? 'RESEND OTP in ${logic.resendSeconds}s'
-                              : 'RESEND OTP',
-                          style: TextStyle(
-                            color: logic.resendSeconds > 0
-                                ? AppColors.textGrey
-                                : const Color(0xffff795f),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
               const SizedBox(height: 32),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _OtpSentBanner extends StatelessWidget {
-  final String phone;
-  final VoidCallback onEdit;
-
-  const _OtpSentBanner({required this.phone, required this.onEdit});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEEEBFF),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.check_circle_rounded,
-              color: Color(0xff064f86), size: 20),
-          const SizedBox(width: 8),
-          const Text(
-            'OTP sent to  ',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.textGrey,
-            ),
-          ),
-          Text(
-            phone,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Color(0xff064f86),
-            ),
-          ),
-          const Spacer(),
-          GestureDetector(
-            onTap: onEdit,
-            child: const Text(
-              'Edit',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Colors.red,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -284,12 +267,12 @@ class _OtpBox extends StatelessWidget {
         final isFocused = focusNode.hasFocus;
 
         return Container(
-          height: 64,
+          height: 70,
           decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(14),
+            color: _kFaintBg.withOpacity(0.4),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isFocused ? AppColors.loginColor : const Color(0xFFE5E7EB),
+              color: isFocused ? _kAccentBlue : _kBoxBorder,
               width: isFocused ? 2 : 1.5,
             ),
           ),
@@ -307,27 +290,32 @@ class _OtpBox extends StatelessWidget {
 
           return KeyEventResult.ignored;
         },
-        child: TextField(
-          controller: controller,
-          focusNode: focusNode,
-          textAlign: TextAlign.center,
-          keyboardType: TextInputType.number,
-          maxLength: 1,
-          onChanged: onChanged,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: AppColors.textDark,
-          ),
-          decoration: const InputDecoration(
-            counterText: '',
-            border: InputBorder.none,
+        child: Center(
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            textAlign: TextAlign.center,
+            keyboardType: TextInputType.number,
+            maxLength: 1,
+            onChanged: onChanged,
+            style: const TextStyle(
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              color: _kDark,
+            ),
+            decoration: const InputDecoration(
+              counterText: '',
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
           ),
         ),
       ),
     );
   }
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _VerifyButton extends StatelessWidget {
@@ -345,34 +333,36 @@ class _VerifyButton extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 18),
+        padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
-          color: isEnabled ? AppColors.primary : Colors.grey.shade300,
-          borderRadius: BorderRadius.circular(16),
+          color: isEnabled ? _kAccentBlue : _kDisabledBg,
+          borderRadius: BorderRadius.circular(22),
           boxShadow: [
             if (isEnabled)
               BoxShadow(
-                color: AppColors.primary.withOpacity(0.35),
-                blurRadius: 20,
+                color: _kAccentBlue.withOpacity(0.35),
+                blurRadius: 25,
                 offset: const Offset(0, 8),
               ),
           ],
         ),
         child: Center(
           child: isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   width: 22,
                   height: 22,
                   child: CircularProgressIndicator(
-                    color: Colors.white,
+                    color: isEnabled ? Colors.white : Colors.white70,
                     strokeWidth: 2.5,
                   ),
                 )
-              : const Text(
-                  'Verify & Open Portal',
+              : Text(
+                  'Verify & Continue',
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
+                    color: isEnabled
+                        ? Colors.white
+                        : Colors.white.withOpacity(0.85),
+                    fontSize: 16.5,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.3,
                   ),

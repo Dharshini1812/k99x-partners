@@ -18,16 +18,16 @@ class BottomNavBar extends StatelessWidget {
     return SafeArea(
       minimum: const EdgeInsets.only(left: 18, right: 18, bottom: 12),
       child: Container(
-        height: 70,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        height: 50,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(48),
+          borderRadius: BorderRadius.circular(25),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.10),
-              blurRadius: 30,
-              offset: const Offset(0, 10),
+              color: Colors.black.withOpacity(.08),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -42,7 +42,7 @@ class BottomNavBar extends StatelessWidget {
             ),
             _NavItem(
               icon: Icons.upload,
-              label: 'Upload',
+              label: 'Sell',
               isActive: currentIndex == 1,
               onTap: () => onTap(1),
             ),
@@ -85,32 +85,39 @@ class _NavItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(10),
-        height: 42,
+        padding: EdgeInsets.symmetric(
+          horizontal: isActive ? 12 : 8,
+          vertical: 6,
+        ),
         decoration: BoxDecoration(
-          color: isActive ? activeColor : Colors.white,
-          borderRadius: BorderRadius.circular(30),
+          color: isActive ? activeColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           children: [
             Container(
-              decoration: isActive
-                  ? null
-                  : BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: const BorderRadius.all(Radius.circular(30)),
-                      boxShadow: [
-                          BoxShadow(
-                              color: Colors.grey.withOpacity(.3), blurRadius: 4)
-                        ]),
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: isActive ? Colors.transparent : Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: isActive
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(.08),
+                          blurRadius: 4,
+                        )
+                      ],
+              ),
               child: Icon(
                 icon,
-                size: 20,
+                size: 18,
                 color: isActive ? Colors.white : activeColor,
               ),
             ),
             if (isActive) ...[
-              const SizedBox(width: 10),
+              const SizedBox(width: 6),
               Text(
                 label,
                 style: const TextStyle(

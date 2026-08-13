@@ -1,36 +1,67 @@
 class UserModel {
-  String? role;
-  String? phoneNumber;
-  bool? success;
-  String? message;
-  int? userId;
-  String? username;
+  final UserData data;
+  final bool success;
+  final String message;
 
-  UserModel(
-      {this.role,
-      this.phoneNumber,
-      this.success,
-      this.message,
-      this.userId,
-      this.username});
+  UserModel({
+    required this.data,
+    required this.success,
+    required this.message,
+  });
 
-  UserModel.fromJson(Map<String, dynamic> json) {
-    role = json['role'];
-    phoneNumber = json['phoneNumber'];
-    success = json['success'];
-    message = json['message'];
-    userId = json['userId'];
-    username = json['username'];
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel(
+      data: UserData.fromJson(json['data']),
+      success: json['success'],
+      message: json['message'],
+    );
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = <String, dynamic>{};
-    data['role'] = role;
-    data['phoneNumber'] = phoneNumber;
-    data['success'] = success;
-    data['message'] = message;
-    data['userId'] = userId;
-    data['username'] = username;
-    return data;
+    return {
+      'data': data.toJson(),
+      'success': success,
+      'message': message,
+    };
+  }
+}
+
+class UserData {
+  final String phoneNumber;
+  final String fullName;
+  final String userType;
+  final int userId;
+  final String email;
+  final String username;
+
+  UserData({
+    required this.phoneNumber,
+    required this.fullName,
+    required this.userType,
+    required this.userId,
+    required this.email,
+    required this.username,
+  });
+
+  factory UserData.fromJson(Map<String, dynamic> json) {
+    return UserData(
+      phoneNumber: json['phoneNumber'],
+      fullName: json['fullName'],
+      userType: json['userType'],
+      userId: json['userId'],
+      email: json['email'],
+      username: json['username'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'phoneNumber': phoneNumber,
+      'fullName': fullName,
+      'userType': userType,
+      'userId': userId,
+      'email': email,
+      'username': username,
+    };
   }
 }

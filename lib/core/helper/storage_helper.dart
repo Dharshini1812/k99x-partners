@@ -11,7 +11,7 @@ class SecureStorageService {
   static const _isLoggedInKey = 'isLoggedIn';
 
   Future<void> saveLogin({
-    required UserModel user,
+    required UserData user,
     required String password,
   }) async {
     await _storage.write(
@@ -21,7 +21,7 @@ class SecureStorageService {
 
     await _storage.write(
       key: _usernameKey,
-      value: user.username ?? '',
+      value: user.username,
     );
 
     await _storage.write(
@@ -35,14 +35,14 @@ class SecureStorageService {
     );
   }
 
-  Future<UserModel?> getUser() async {
+  Future<UserData?> getUser() async {
     final userString = await _storage.read(key: _userKey);
 
     if (userString == null || userString.isEmpty) {
       return null;
     }
 
-    return UserModel.fromJson(jsonDecode(userString));
+    return UserData.fromJson(jsonDecode(userString));
   }
 
   Future<String?> getUsername() async {
@@ -51,6 +51,11 @@ class SecureStorageService {
 
   Future<String?> getPassword() async {
     return _storage.read(key: _passwordKey);
+  }
+
+  Future<int?> getUserId() async {
+    final user = await getUser();
+    return user?.userId;
   }
 
   Future<bool> isLoggedIn() async {

@@ -9,6 +9,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
+// ── Palette pulled from the splash / brand screens ──────────────────────────
+const _kAccentBlue = Color(0xFF3B4EF5);
+const _kDark = Color(0xFF11142A);
+const _kGrey = Color(0xFF8B8FA3);
+const _kFaintBg = Color(0xFFEDEFF7);
+const _kBorder = Color(0xFFE7E8F0);
+
 @AutoRoute()
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -29,7 +36,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   void dispose() {
-    ref.read(loginLogicProvider).disposeControllers();
     super.dispose();
   }
 
@@ -38,24 +44,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final logic = ref.watch(loginLogicProvider);
     final state = ref.watch(sendOtpProvider);
 
-    // ── Navigate to loader → OTP after OTP is sent ──────────────────────
-    // ref.listen(authProvider, (prev, next) {
-    //   if (prev?.status != AuthStatus.otpSent &&
-    //       next.status == AuthStatus.otpSent) {
-    //     Navigator.pushNamed(context, '/auth-loader');
-    //   }
-    // });
     ref.listen(sendOtpProvider, (previous, next) {
       next.whenOrNull(
         data: (data) {
-          // Fluttertoast.showToast(
-          //   msg: 'OTP sent successfully',
-          //   toastLength: Toast.LENGTH_SHORT,
-          // );
           ref.read(loginPhoneProvider.notifier).state =
               logic.phoneCtrl.text.trim();
           ref.read(routeService).push(const OtpRoute(), context);
-          // Navigator.pushNamed(context, '/auth-loader');
         },
         error: (msg) {
           Fluttertoast.showToast(
@@ -65,6 +59,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         },
       );
     });
+
     Future<void> sendOtp() async {
       final phone = logic.phoneCtrl.text.trim();
       if (phone.length < 10) return;
@@ -73,7 +68,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final data = SendOtpModel(
         phone: logic.phoneCtrl.text,
         isRegistered: true,
-        role: 'VALUATOR',
+        role: 'DEALER',
         source: 2,
       );
       await ref.read(sendOtpProvider.notifier).sendOtp(data);
@@ -86,72 +81,85 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           builder: (context, constraints) {
             return SingleChildScrollView(
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: IntrinsicHeight(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Spacer(),
+                        const SizedBox(height: 32),
 
-                        // ── Shield icon ─────────────────────────────────────────────
-                        // const Center(child: ShieldIcon()),
+                        // ── Logo lockup ─────────────────────────────────
+                        Center(
+                          child: Image.asset(
+                            'images/logo/large-logo.png',
+                            width: MediaQuery.of(context).size.width * 0.6,
+                          ),
+                        ),
 
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 6),
 
-                        // ── Title ───────────────────────────────────────────────────
                         const Center(
                           child: Text(
-                            'Welcome',
+                            'PARTNER STOCKS',
                             style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textDark,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 3,
+                              color: _kGrey,
                             ),
                           ),
                         ),
 
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 48),
 
-                        // ── Subtitle ────────────────────────────────────────────────
-                        const Center(
-                          child: Text(
-                            'Log in with OTP to upload Vehicles',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              color: AppColors.textGrey,
-                              height: 1.55,
-                            ),
+                        // ── Headline ────────────────────────────────────
+                        const Text(
+                          'Upload it. Compare it.\nSell it faster.',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            height: 1.2,
+                            color: _kDark,
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        const Text(
+                          "Sign in to manage your dealership's stock from one place.",
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: _kGrey,
+                            height: 1.5,
                           ),
                         ),
 
                         const SizedBox(height: 36),
 
-                        // ── Phone number label ──────────────────────────────────────
+                        // ── Phone number label ──────────────────────────
                         const Text(
-                          'Phone Number',
+                          'MOBILE NUMBER',
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.textDark,
+                            letterSpacing: 1.5,
+                            color: _kGrey,
                           ),
                         ),
 
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
 
-                        // ── Phone input ─────────────────────────────────────────────
+                        // ── Phone input ──────────────────────────────────
                         _PhoneField(
                           controller: logic.phoneCtrl,
                           focusNode: logic.phoneFocus,
                         ),
 
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 28),
 
-                        // ── Send OTP button ─────────────────────────────────────────
+                        // ── Send OTP button ──────────────────────────────
                         _PrimaryButton(
                           label: 'Send OTP',
                           isLoading: state.maybeWhen(
@@ -160,17 +168,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           ),
                           isEnabled: logic.isPhoneValid,
                           onTap: () => sendOtp(),
-                          // onTap: () => logic.sendOtp(
-                          //   context,
-                          //   SendOtpModel(
-                          //     phone: logic.phoneCtrl.text,
-                          //     isRegistered: true,
-                          //   ),
-                          // ),
                         ),
 
-                        const SizedBox(height: 24),
-                        const Spacer()
+                        const SizedBox(height: 16),
+
+                        const Center(
+                          child: Text(
+                            "We'll text a one-time code to\nverify it's you",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: _kGrey,
+                              height: 1.5,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ),
+
+                        const Spacer(),
                       ],
                     ),
                   ),
@@ -185,6 +200,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Phone field — pill shaped, icon avatar + code + input
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _PhoneField extends StatelessWidget {
   final TextEditingController controller;
@@ -198,37 +215,53 @@ class _PhoneField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: _kBorder, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Row(
         children: [
-          // Country code
+          // Icon avatar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            width: 40,
+            height: 40,
             decoration: const BoxDecoration(
-              border: Border(
-                right: BorderSide(color: Color(0xFFE5E7EB), width: 1.5),
-              ),
+              color: _kFaintBg,
+              shape: BoxShape.circle,
             ),
-            child: const Text(
-              '+91',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: Color(0xff064f86),
-              ),
+            child: const Icon(
+              Icons.call_rounded,
+              size: 18,
+              color: _kAccentBlue,
             ),
           ),
+
+          const SizedBox(width: 12),
+
+          // Country code
+          const Text(
+            '+91',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: _kDark,
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          Container(width: 1.5, height: 24, color: _kBorder),
+
+          const SizedBox(width: 12),
 
           // Number input
           Expanded(
@@ -241,19 +274,21 @@ class _PhoneField extends StatelessWidget {
                 LengthLimitingTextInputFormatter(10),
               ],
               style: const TextStyle(
-                letterSpacing: 2,
-                fontSize: 20,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textDark,
+                letterSpacing: 1.5,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: _kDark,
               ),
               decoration: const InputDecoration(
-                hintText: 'Enter your phone number',
+                hintText: '98765 43210',
                 hintStyle: TextStyle(
-                  color: Color(0xFFB0B5C0),
-                  fontSize: 14,
+                  color: Color(0xFFC3C6D4),
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.w500,
                 ),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
               ),
             ),
           ),
@@ -263,6 +298,8 @@ class _PhoneField extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Primary button
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PrimaryButton extends StatelessWidget {
@@ -287,12 +324,12 @@ class _PrimaryButton extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
-          color: isEnabled ? AppColors.primary : Colors.grey.shade300,
-          borderRadius: BorderRadius.circular(16),
+          color: isEnabled ? _kAccentBlue : Colors.grey.shade300,
+          borderRadius: BorderRadius.circular(18),
           boxShadow: [
             if (isEnabled)
               BoxShadow(
-                color: AppColors.primary.withOpacity(0.35),
+                color: _kAccentBlue.withOpacity(0.35),
                 blurRadius: 25,
                 offset: const Offset(0, 8),
               ),

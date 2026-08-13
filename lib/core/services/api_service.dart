@@ -9,7 +9,7 @@ abstract class ApiService {
   Future post(String url, Map map);
   Future get1(String url);
   Future get2(String url);
-  Future post1(String url, Map map);
+  Future post1(String url, Map? map);
   Future post2(String url, Map map);
   Future uploadImage({
     required String url,
@@ -17,6 +17,7 @@ abstract class ApiService {
     required String imageType,
     required String filePath,
   });
+  Future postMultipart(String url, FormData formData);
 }
 
 class ApiServiceImpl extends ApiService {
@@ -41,12 +42,14 @@ class ApiServiceImpl extends ApiService {
 
     final username = await storage.getUsername();
     final password = await storage.getPassword();
+    final userId = await storage.getUserId();
 
     final basicAuth =
         'Basic ${base64Encode(utf8.encode('$username:$password'))}';
 
     return {
       'Authorization': basicAuth,
+      'X-USER-ID': userId.toString(),
     };
 
     // FUTURE JWT TOKEN
@@ -122,7 +125,7 @@ class ApiServiceImpl extends ApiService {
   }
 
   @override
-  Future post1(String url, Map map) async {
+  Future post1(String url, Map? map) async {
     try {
       log('POST => $url');
       log('DATA => $map');
@@ -172,43 +175,51 @@ class ApiServiceImpl extends ApiService {
     required String filePath,
   }) async {
     try {
-      vehicleId = vehicleId;
-      log('UPLOAD IMAGE => $url');
-      log('vehicleId => $vehicleId');
-      log('imageType => $imageType');
-      log('filePath => $filePath');
-
-      final fileName = filePath.split('/').last;
+      log('UPLOAD => $url');
 
       final formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(
+        "vehicleId": vehicleId,
+        imageType: await MultipartFile.fromFile(
           filePath,
-          filename: fileName,
+          filename: filePath.split('/').last,
         ),
       });
 
       final response = await dio.post(
         url,
-        queryParameters: {
-          'vehicleId': vehicleId,
-          'imageType': imageType,
-        },
         data: formData,
         options: Options(
           headers: await getAuthHeaders(),
-          contentType: 'multipart/form-data',
         ),
       );
 
-      log(
-        'UPLOAD RESPONSE => '
-        '${response.statusCode} - ${response.data}',
-      );
+      log(response.data.toString());
 
       return response;
     } on DioException catch (e) {
-      log('UPLOAD ERROR => ${e.response?.statusCode}');
-      log('UPLOAD ERROR DATA => ${e.response?.data}');
+      log(e.response?.data.toString() ?? '');
+      rethrow;
+    }
+  }
+
+  Future postMultipart(String url, FormData formData) async {
+    try {
+      log('POST(multipart) => $url');
+      log('FIELDS => ${formData.fields}');
+      log('FILES => ${formData.files.map((f) => f.key)}');
+
+      final response = await dio.post(
+        url,
+        data: formData,
+        options: Options(
+          headers: await getAuthHeaders(),
+        ),
+      );
+
+      log('Response from $url: ${response.statusCode} - ${response.data}');
+      return response;
+    } catch (e) {
+      log("Error during POST(multipart) request to $url: $e");
       rethrow;
     }
   }

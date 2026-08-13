@@ -6,5 +6,5 @@ import 'package:dealer/features/login/data/model/verify_model.dart';
 
 abstract class LoginRepository {
   Future<Either<Failure, SendOtpModel>> sendOtp(SendOtpModel model);
-  Future<Either<Failure, UserModel>> verifyOtp(VerifyOtpModel model);
+  Future<Either<Failure, UserData>> verifyOtp(VerifyOtpModel model);
 }

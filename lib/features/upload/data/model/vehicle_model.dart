@@ -1,5 +1,6 @@
 // lib/features/upload/data/model/vehicle_listing_model.dart
 import 'package:dealer/core/common/data/model/city_model.dart';
+import 'package:dealer/core/common/data/model/make_model_variant.dart';
 import 'package:dealer/core/common/data/model/state_model.dart';
 
 class VehicleListingModel {
@@ -8,9 +9,9 @@ class VehicleListingModel {
 
   // Specifications
   final String? year;
-  final String? make; // stores id (API-driven, like your CV/4W make dropdown)
-  final String? model; // stores id
-  final String? variant; // stores id
+  final MakeModel? make;
+  final ModelModel? model;
+  final VariantModel? variant;
   final String? mileageKm;
   final String? bodyStyle;
   final String? fuelType;
@@ -40,6 +41,18 @@ class VehicleListingModel {
   final String? dealerExpectedPrice;
   final bool agreedToTerms;
 
+  // Edit-mode reference data — read-only "what the API returned",
+  // used by _autoFillFromEdit to select matching dropdown entries.
+  // Made final + always forwarded in copyWith so they can never be
+  // silently wiped by an unrelated update.
+  final String? savedMakeName;
+  final String? savedModelName;
+  final String? savedVariantName;
+  final int? savedStateId;
+  final String? savedStateName;
+  final int? savedCityId;
+  final String? savedCityName;
+
   const VehicleListingModel({
     this.registrationNumber,
     this.year,
@@ -52,6 +65,8 @@ class VehicleListingModel {
     this.transmission,
     this.state,
     this.city,
+    this.selectedState,
+    this.selectedCity,
     this.engineCondition,
     this.exteriorCondition,
     this.interiorCondition,
@@ -66,22 +81,29 @@ class VehicleListingModel {
     this.estimatedMarketPrice,
     this.dealerExpectedPrice,
     this.agreedToTerms = false,
-    this.selectedCity,
-    this.selectedState,
+    this.savedMakeName,
+    this.savedModelName,
+    this.savedVariantName,
+    this.savedStateId,
+    this.savedStateName,
+    this.savedCityId,
+    this.savedCityName,
   });
 
   VehicleListingModel copyWith({
     String? registrationNumber,
     String? year,
-    String? make,
-    String? model,
-    String? variant,
+    MakeModel? make,
+    ModelModel? model,
+    VariantModel? variant,
     String? mileageKm,
     String? bodyStyle,
     String? fuelType,
     String? transmission,
     String? state,
     String? city,
+    StateModel? selectedState,
+    CityModel? selectedCity,
     String? engineCondition,
     String? exteriorCondition,
     String? interiorCondition,
@@ -96,8 +118,13 @@ class VehicleListingModel {
     double? estimatedMarketPrice,
     String? dealerExpectedPrice,
     bool? agreedToTerms,
-    StateModel? selectedState,
-    CityModel? selectedCity,
+    String? savedMakeName,
+    String? savedModelName,
+    String? savedVariantName,
+    int? savedStateId,
+    String? savedStateName,
+    int? savedCityId,
+    String? savedCityName,
   }) {
     return VehicleListingModel(
       registrationNumber: registrationNumber ?? this.registrationNumber,
@@ -111,6 +138,8 @@ class VehicleListingModel {
       transmission: transmission ?? this.transmission,
       state: state ?? this.state,
       city: city ?? this.city,
+      selectedState: selectedState ?? this.selectedState,
+      selectedCity: selectedCity ?? this.selectedCity,
       engineCondition: engineCondition ?? this.engineCondition,
       exteriorCondition: exteriorCondition ?? this.exteriorCondition,
       interiorCondition: interiorCondition ?? this.interiorCondition,
@@ -125,10 +154,16 @@ class VehicleListingModel {
       estimatedMarketPrice: estimatedMarketPrice ?? this.estimatedMarketPrice,
       dealerExpectedPrice: dealerExpectedPrice ?? this.dealerExpectedPrice,
       agreedToTerms: agreedToTerms ?? this.agreedToTerms,
+      savedMakeName: savedMakeName ?? this.savedMakeName,
+      savedModelName: savedModelName ?? this.savedModelName,
+      savedVariantName: savedVariantName ?? this.savedVariantName,
+      savedStateId: savedStateId ?? this.savedStateId,
+      savedStateName: savedStateName ?? this.savedStateName,
+      savedCityId: savedCityId ?? this.savedCityId,
+      savedCityName: savedCityName ?? this.savedCityName,
     );
   }
 
-  // For later API integration — adjust keys to match your backend contract
   Map<String, dynamic> toJson() => {
         'registrationNumber': registrationNumber,
         'year': year,
@@ -148,6 +183,5 @@ class VehicleListingModel {
         'accidentHistory': accidentHistory,
         'dealerExpectedPrice': dealerExpectedPrice,
         'agreedToTerms': agreedToTerms,
-        // media paths uploaded separately, URLs attached after upload
       };
 }

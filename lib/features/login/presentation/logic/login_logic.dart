@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dealer/features/login/data/model/send_otp.dart';
 import 'package:dealer/features/login/data/model/verify_model.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
 import 'package:flutter/material.dart';
@@ -15,14 +16,20 @@ class LoginLogic extends ChangeNotifier {
   final phoneFocus = FocusNode();
   final List<TextEditingController> otpCtrlList =
       List.generate(4, (_) => TextEditingController());
-
   final List<FocusNode> otpFocusList = List.generate(4, (_) => FocusNode());
 
   int resendSeconds = 30;
   Timer? resendTimer;
   bool isOtpValid = false;
   bool isPhoneValid = false;
+
+  // guards against double-fire (double tap, duplicate sms_autofill events, etc.)
+  bool _isSendingOtp = false;
+  bool _isVerifyingOtp = false;
+  String? _lastVerifiedOtp;
+
   String get fullOtp => otpCtrlList.map((c) => c.text).join();
+
   void init() {
     phoneCtrl.removeListener(_validatePhone);
     phoneCtrl.addListener(_validatePhone);
@@ -49,10 +56,6 @@ class LoginLogic extends ChangeNotifier {
       controller.removeListener(_validateOtp);
       controller.addListener(_validateOtp);
     }
-    // Future.delayed(const Duration(seconds: 1), () {
-    //   setAutoOtp('1234');
-    //   verifyOtp();
-    // });
   }
 
   void onOtpDigit(int index, String value) {
@@ -68,23 +71,44 @@ class LoginLogic extends ChangeNotifier {
     }
   }
 
-  // }
+  Future<void> sendOtp(SendOtpModel sendModel) async {
+    if (_isSendingOtp) return; // block double tap / re-entry
+
+    _isSendingOtp = true;
+    try {
+      // build model using the trimmed value passed in
+      await ref.read(sendOtpProvider.notifier).sendOtp(sendModel);
+    } finally {
+      _isSendingOtp = false;
+    }
+  }
+
   Future<void> verifyOtp() async {
+    if (_isVerifyingOtp) return; // block concurrent/duplicate calls
     if (fullOtp.length < 4) return;
+    if (_lastVerifiedOtp == fullOtp) {
+      return; // block duplicate sms_autofill fires
+    }
+
+    _isVerifyingOtp = true;
+    _lastVerifiedOtp = fullOtp;
 
     for (final f in otpFocusList) {
       f.unfocus();
     }
 
-    final params = VerifyOtpModel(
-      phone: phoneCtrl.text.trim(),
-      otp: fullOtp,
-      isRegistered: true,
-      role: 'VALUATOR',
-      source: 2,
-    );
-
-    await ref.read(verifyOtpProvider.notifier).verifyOtp(params);
+    try {
+      final params = VerifyOtpModel(
+        phone: phoneCtrl.text.trim(),
+        otp: fullOtp,
+        isRegistered: true,
+        role: 'DEALER',
+        source: 2,
+      );
+      await ref.read(verifyOtpProvider.notifier).verifyOtp(params);
+    } finally {
+      _isVerifyingOtp = false;
+    }
   }
 
   Future<void> resendOtp() async {
@@ -93,6 +117,10 @@ class LoginLogic extends ChangeNotifier {
     for (final c in otpCtrlList) {
       c.clear();
     }
+    _lastVerifiedOtp = null; // allow a fresh code to be verified
+
+    // actually re-request a code — this was missing before
+    await sendOtp(SendOtpModel(phone: phoneCtrl.text.trim()));
 
     startResendTimer();
   }
@@ -113,24 +141,6 @@ class LoginLogic extends ChangeNotifier {
     notifyListeners();
   }
 
-  @override
-  void dispose() {
-    phoneCtrl.dispose();
-    phoneFocus.dispose();
-
-    for (final c in otpCtrlList) {
-      c.dispose();
-    }
-
-    for (final f in otpFocusList) {
-      f.dispose();
-    }
-
-    resendTimer?.cancel();
-
-    super.dispose();
-  }
-
   void setAutoOtp(String otp) {
     if (otp.length != 4) return;
 
@@ -142,8 +152,19 @@ class LoginLogic extends ChangeNotifier {
     notifyListeners();
   }
 
-  void disposeControllers() {
+  @override
+  void dispose() {
     phoneCtrl.dispose();
     phoneFocus.dispose();
+
+    for (final c in otpCtrlList) {
+      c.dispose();
+    }
+    for (final f in otpFocusList) {
+      f.dispose();
+    }
+
+    resendTimer?.cancel();
+    super.dispose();
   }
 }

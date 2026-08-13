@@ -1,5 +1,6 @@
 // lib/core/widgets/common_text_field.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class CommonTextField extends StatelessWidget {
   final String label;
@@ -12,6 +13,7 @@ class CommonTextField extends StatelessWidget {
   final String? errorText;
   final Widget? suffixIcon;
   final int maxLines;
+  final List<TextInputFormatter>? inputFormatters;
 
   const CommonTextField({
     super.key,
@@ -25,6 +27,7 @@ class CommonTextField extends StatelessWidget {
     this.errorText,
     this.suffixIcon,
     this.maxLines = 1,
+    this.inputFormatters,
   });
 
   @override
@@ -48,6 +51,7 @@ class CommonTextField extends StatelessWidget {
           onTap: onTap,
           onChanged: onChanged,
           maxLines: maxLines,
+          inputFormatters: inputFormatters,
           style: const TextStyle(fontSize: 15),
           decoration: InputDecoration(
             hintText: hint,

@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:dealer/core/common/data/model/city_model.dart';
 import 'package:dealer/core/common/data/model/make_model_variant.dart';
+import 'package:dealer/core/common/data/model/rc_details.dart';
 import 'package:dealer/core/common/data/model/state_model.dart';
 import 'package:dealer/core/error/failure.dart';
 
@@ -15,4 +16,5 @@ abstract class CommonRepository {
   Future<Either<Failure, List<VariantModel>>> getVariant({
     required int modelId,
   });
+  Future<Either<Failure, RCDetailsModel>> getRcDetails(String vehRegId);
 }
