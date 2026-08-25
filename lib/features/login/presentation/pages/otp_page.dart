@@ -1,5 +1,6 @@
+// lib/features/login/presentation/pages/otp_page.dart
+
 import 'dart:async';
-import 'dart:developer';
 import 'package:auto_route/auto_route.dart';
 import 'package:dealer/core/route/router.gr.dart';
 import 'package:dealer/core/theme/colors.dart';
@@ -10,7 +11,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sms_autofill/sms_autofill.dart';
 
-// ── Palette — shared with the login page ────────────────────────────────────
 const _kLogoBlue = Color(0xFF1E2FE0);
 const _kAccentBlue = Color(0xFF3B4EF5);
 const _kDark = Color(0xFF11142A);
@@ -31,21 +31,20 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
   @override
   void initState() {
     super.initState();
-    // Auto-focus first box
-    Future.microtask(() {
-      ref.read(loginLogicProvider).initOtp();
-    });
-
+    Future.microtask(() => ref.read(loginLogicProvider).initOtp());
     listenForCode();
   }
 
   @override
   void codeUpdated() {
-    final otp = code ?? '';
-
+    final otp = code?.replaceAll(RegExp(r'\D'), '') ?? '';
     if (otp.length == 4) {
-      ref.read(loginLogicProvider).setAutoOtp(otp);
-      ref.read(loginLogicProvider).verifyOtp();
+      final logic = ref.read(loginLogicProvider);
+      for (int i = 0; i < 4; i++) {
+        logic.otpCtrlList[i].text = otp[i];
+      }
+      logic.setAutoOtp(otp);
+      logic.verifyOtp();
     }
   }
 
@@ -55,21 +54,60 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
     super.dispose();
   }
 
+  void _handleOtpInput(int index, String value, LoginLogic logic) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+
+    // Multi-character input (Clipboard paste or Autofill)
+    if (digits.length > 1) {
+      for (int i = 0; i < 4; i++) {
+        if (i < digits.length) {
+          logic.otpCtrlList[i].text = digits[i];
+        } else {
+          logic.otpCtrlList[i].clear();
+        }
+      }
+      if (digits.length >= 4) {
+        logic.otpFocusList[3].unfocus();
+        logic.setAutoOtp(digits.substring(0, 4));
+        logic.verifyOtp();
+      } else {
+        logic.otpFocusList[digits.length].requestFocus();
+      }
+      return;
+    }
+
+    // Single digit input
+    if (digits.isNotEmpty) {
+      logic.otpCtrlList[index].text = digits;
+      if (index < 3) {
+        logic.otpFocusList[index + 1].requestFocus();
+      } else {
+        logic.otpFocusList[index].unfocus();
+      }
+    } else {
+      logic.otpCtrlList[index].clear();
+    }
+    logic.onOtpDigit(index, digits);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(verifyOtpProvider);
     final logic = ref.watch(loginLogicProvider);
     final phone = ref.watch(loginPhoneProvider);
 
-    // Navigate after successful verification
     ref.listen(verifyOtpProvider, (previous, next) {
       next.whenOrNull(
         data: (data) {
-          log('success');
-          ref.read(routeService).push(const BottomNavRoute(), context);
-        },
-        error: (msg) {
-          // show toast here if needed
+          if (data.userType == 'CLIENT') {
+            ref
+                .read(routeService)
+                .pushAndRemoveUntil(const ClientBottomNavRoute(), context);
+          } else {
+            ref
+                .read(routeService)
+                .pushAndRemoveUntil(const BottomNavRoute(), context);
+          }
         },
       );
     });
@@ -83,15 +121,11 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
-
-              // ── Header row: back button + logo badge ───────────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                    },
+                    onTap: () => Navigator.pop(context),
                     child: Container(
                       width: 44,
                       height: 44,
@@ -123,10 +157,7 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                   ),
                 ],
               ),
-
               const SizedBox(height: 28),
-
-              // ── Title ───────────────────────────────────────────────────
               const Text(
                 'Verify your number',
                 style: TextStyle(
@@ -135,20 +166,12 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                   color: _kDark,
                 ),
               ),
-
               const SizedBox(height: 14),
-
               const Text(
                 'Enter the 4-digit code sent to',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: _kGrey,
-                  height: 1.4,
-                ),
+                style: TextStyle(fontSize: 15, color: _kGrey, height: 1.4),
               ),
-
               const SizedBox(height: 4),
-
               Row(
                 children: [
                   Text(
@@ -159,10 +182,8 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                       color: _kDark,
                     ),
                   ),
-                  const Text(
-                    '  ·  ',
-                    style: TextStyle(fontSize: 15.5, color: _kGrey),
-                  ),
+                  const Text('  ·  ',
+                      style: TextStyle(fontSize: 15.5, color: _kGrey)),
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: const Text(
@@ -176,10 +197,9 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                   ),
                 ],
               ),
-
               const SizedBox(height: 36),
 
-              // ── 4 OTP boxes ─────────────────────────────────────────────
+              // ── 4 OTP Boxes with Autofill & Paste support ──────────
               Row(
                 children: [
                   for (int i = 0; i < 4; i++) ...[
@@ -187,7 +207,7 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                       child: _OtpBox(
                         controller: logic.otpCtrlList[i],
                         focusNode: logic.otpFocusList[i],
-                        onChanged: (v) => logic.onOtpDigit(i, v),
+                        onChanged: (v) => _handleOtpInput(i, v, logic),
                         onBackspace: () => logic.onBackspace(i),
                       ),
                     ),
@@ -197,8 +217,6 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
               ),
 
               const SizedBox(height: 28),
-
-              // ── Resend ──────────────────────────────────────────────────
               Center(
                 child: GestureDetector(
                   onTap: logic.resendOtp,
@@ -222,10 +240,7 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                   ),
                 ),
               ),
-
               const SizedBox(height: 28),
-
-              // ── Verify button ───────────────────────────────────────────
               _VerifyButton(
                 isLoading: state.maybeWhen(
                   loading: () => true,
@@ -234,7 +249,6 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                 isEnabled: logic.isOtpValid,
                 onTap: logic.verifyOtp,
               ),
-
               const SizedBox(height: 32),
             ],
           ),
@@ -243,8 +257,6 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _OtpBox extends StatelessWidget {
   final TextEditingController controller;
@@ -265,12 +277,11 @@ class _OtpBox extends StatelessWidget {
       animation: focusNode,
       builder: (_, child) {
         final isFocused = focusNode.hasFocus;
-
         return Container(
           height: 70,
           decoration: BoxDecoration(
             color: _kFaintBg.withOpacity(0.4),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isFocused ? _kAccentBlue : _kBoxBorder,
               width: isFocused ? 2 : 1.5,
@@ -287,7 +298,6 @@ class _OtpBox extends StatelessWidget {
             onBackspace();
             return KeyEventResult.handled;
           }
-
           return KeyEventResult.ignored;
         },
         child: Center(
@@ -296,10 +306,10 @@ class _OtpBox extends StatelessWidget {
             focusNode: focusNode,
             textAlign: TextAlign.center,
             keyboardType: TextInputType.number,
-            maxLength: 1,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             onChanged: onChanged,
             style: const TextStyle(
-              fontSize: 30,
+              fontSize: 28,
               fontWeight: FontWeight.w800,
               color: _kDark,
             ),
@@ -316,15 +326,16 @@ class _OtpBox extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _VerifyButton extends StatelessWidget {
   final bool isLoading;
   final bool isEnabled;
   final VoidCallback onTap;
 
-  const _VerifyButton(
-      {required this.isLoading, required this.isEnabled, required this.onTap});
+  const _VerifyButton({
+    required this.isLoading,
+    required this.isEnabled,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -333,10 +344,10 @@ class _VerifyButton extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 20),
+        padding: const EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
           color: isEnabled ? _kAccentBlue : _kDisabledBg,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(18),
           boxShadow: [
             if (isEnabled)
               BoxShadow(
@@ -348,11 +359,11 @@ class _VerifyButton extends StatelessWidget {
         ),
         child: Center(
           child: isLoading
-              ? SizedBox(
+              ? const SizedBox(
                   width: 22,
                   height: 22,
                   child: CircularProgressIndicator(
-                    color: isEnabled ? Colors.white : Colors.white70,
+                    color: Colors.white,
                     strokeWidth: 2.5,
                   ),
                 )

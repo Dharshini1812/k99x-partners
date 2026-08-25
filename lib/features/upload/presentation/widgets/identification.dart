@@ -1,3 +1,5 @@
+// lib/features/upload/presentation/widgets/identification.dart
+
 import 'package:dealer/core/common/data/model/city_model.dart';
 import 'package:dealer/core/common/data/model/make_model_variant.dart';
 import 'package:dealer/core/common/data/model/rc_details.dart';
@@ -6,14 +8,30 @@ import 'package:dealer/core/common/presentation/logic/commonlogic.dart';
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/core/common/presentation/widgets/common_dropdown.dart';
 import 'package:dealer/core/common/presentation/widgets/common_textfield.dart';
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/upload/data/model/vehicle_model.dart';
 import 'package:dealer/features/upload/presentation/logic/upload_logic.dart';
 import 'package:dealer/features/upload/presentation/logic/vehicle_edit_logic.dart';
 import 'package:dealer/features/upload/presentation/pages/vehicle_details_page.dart';
 import 'package:dealer/features/upload/presentation/widgets/section_card.dart';
 import 'package:dealer/features/upload/presentation/widgets/step_scaffold.dart';
+import 'package:dealer/features/upload/presentation/widgets/upload_colors.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+final RegExp _regNoPattern = RegExp(r'^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$');
+
+class _UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    return newValue.copyWith(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
+  }
+}
 
 class IdentificationSpecsStep extends ConsumerStatefulWidget {
   final TextEditingController regNoController;
@@ -34,20 +52,56 @@ class IdentificationSpecsStep extends ConsumerStatefulWidget {
 
 class _IdentificationSpecsStepState
     extends ConsumerState<IdentificationSpecsStep> {
+  String? _regNoValidationError;
+  bool _regNoTouched = false;
+
+  final FocusNode _regNoFocus = FocusNode();
+  final FocusNode _mileageFocus = FocusNode();
+
   @override
   void initState() {
+    super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(getMakeProvider.notifier).getMake();
       ref.read(getStateProvider.notifier).getState();
     });
 
-    super.initState();
+    if (widget.regNoController.text.isNotEmpty) {
+      _validateRegNo(widget.regNoController.text, markTouched: false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _regNoFocus.dispose();
+    _mileageFocus.dispose();
+    super.dispose();
+  }
+
+  void _unfocusAll() {
+    _regNoFocus.unfocus();
+    _mileageFocus.unfocus();
+    FocusScope.of(context).unfocus();
+  }
+
+  void _validateRegNo(String value, {bool markTouched = true}) {
+    final trimmed = value.trim();
+    setState(() {
+      if (markTouched) _regNoTouched = true;
+      if (trimmed.isEmpty) {
+        _regNoValidationError = 'Registration number is required';
+      } else if (!_regNoPattern.hasMatch(trimmed)) {
+        _regNoValidationError =
+            'Enter a valid registration number (e.g. TN05AB9381)';
+      } else {
+        _regNoValidationError = null;
+      }
+    });
   }
 
   Future<void> _autoFillFromEdit(VehicleListingModel listing) async {
     final notifier = ref.read(listingProvider.notifier);
 
-    // ── MAKE → MODEL → VARIANT ─────────────────────────────────────────
     if (listing.make == null && (listing.savedMakeName ?? '').isNotEmpty) {
       await ref.read(getMakeProvider.notifier).getMake();
       final makeState = ref.read(getMakeProvider);
@@ -100,7 +154,7 @@ class _IdentificationSpecsStepState
         }
       }
     }
-// ── STATE → CITY ───────────────────────────────────────────────────
+
     if (listing.selectedState == null &&
         (listing.savedStateName ?? '').isNotEmpty) {
       await ref.read(getStateProvider.notifier).getState();
@@ -122,18 +176,13 @@ class _IdentificationSpecsStepState
             .read(getCityProvider.notifier)
             .getCity(id: matchedState!.stateId.toString());
         final cityData = ref.read(getCityProvider);
-        debugPrint('City state after fetch: $cityData'); // ← add this
         cityData.maybeWhen(
-          orElse: () =>
-              debugPrint('City fetch not in data state'), // ← add this
+          orElse: () {},
           data: (cities) {
-            debugPrint(
-                'Got ${cities.length} cities, looking for "${listing.savedCityName}"'); // ← add this
             if ((listing.savedCityName ?? '').isEmpty) return;
             final match = cities.where((c) =>
                 (c.cityName ?? '').trim().toLowerCase() ==
                 listing.savedCityName!.trim().toLowerCase());
-            debugPrint('Match found: ${match.isNotEmpty}'); // ← add this
             if (match.isNotEmpty) {
               notifier.update((s) => s.copyWith(selectedCity: match.first));
             }
@@ -148,19 +197,33 @@ class _IdentificationSpecsStepState
     final logic = ref.read(uploadLogic);
     final notifier = ref.read(listingProvider.notifier);
     final rcDetails = ref.watch(cLogic).rcDetails;
+    final rcFetchError = ref.watch(cLogic).error;
+
     ref.listen(editVehicleProvider, (previous, next) {
       if (next.model != null) {
         _autoFillFromEdit(next.model!);
+        if (next.model!.registrationNumber?.isNotEmpty ?? false) {
+          _validateRegNo(next.model!.registrationNumber!, markTouched: false);
+        }
       }
     });
 
+    final regNoErrorText = (_regNoTouched && _regNoValidationError != null)
+        ? _regNoValidationError
+        : rcFetchError;
+
     return StepScaffold(
-      onNext: widget.onNext,
+      onNext: () {
+        _unfocusAll();
+        widget.onNext();
+      },
       nextLabel: 'Next: Self Inspection',
+      nextEnabled: _regNoValidationError == null,
       children: [
         SectionCard(
           isReg: true,
           onTap: () async {
+            _unfocusAll();
             await ref.read(cLogic).fetchRc(widget.regNoController.text);
           },
           title: 'Identification',
@@ -169,10 +232,18 @@ class _IdentificationSpecsStepState
               label: 'Vehicle Registration Number',
               hint: 'Enter vehicle registration number',
               controller: widget.regNoController,
-              errorText: ref.watch(cLogic).error,
+              focusNode: _regNoFocus,
+              textInputAction: TextInputAction.next,
+              errorText: regNoErrorText,
+              inputFormatters: [
+                _UpperCaseTextFormatter(),
+                FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                LengthLimitingTextInputFormatter(10),
+              ],
               onChanged: (value) {
+                _validateRegNo(value);
                 notifier.update(
-                  (s) => s.copyWith(registrationNumber: value),
+                  (s) => s.copyWith(registrationNumber: value.toUpperCase()),
                 );
               },
             ),
@@ -189,7 +260,18 @@ class _IdentificationSpecsStepState
             _yearAndMake(logic, notifier),
             _model(logic),
             _variant(logic),
-            _mileageAndBodyStyle(logic, notifier),
+            CommonTextField(
+              label: 'Mileage (KM)',
+              hint: '0',
+              controller: widget.mileageController,
+              focusNode: _mileageFocus,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _unfocusAll(),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              onChanged: (v) =>
+                  notifier.update((s) => s.copyWith(mileageKm: v)),
+            ),
             _fuelAndTransmission(logic, notifier),
             _stateField(notifier),
             _cityField(logic, notifier),
@@ -213,11 +295,19 @@ class _IdentificationSpecsStepState
           options: logic.yearOptions
               .map((y) => DropdownOption(value: y, label: y))
               .toList(),
-          onChanged: (v) => notifier.update((s) => s.copyWith(year: v)),
+          onChanged: (v) {
+            _unfocusAll();
+            notifier.update((s) => s.copyWith(year: v));
+          },
         ),
         const SizedBox(height: 12),
         makeState.maybeWhen(
-          orElse: () => const CircularProgressIndicator(),
+          orElse: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(8.0),
+              child: CircularProgressIndicator(),
+            ),
+          ),
           error: (message) => Text(message),
           data: (data) => CommonDropdown<MakeModel>(
             searchable: true,
@@ -228,6 +318,14 @@ class _IdentificationSpecsStepState
                 .toList(),
             value: listing.make,
             onChanged: (v) {
+              _unfocusAll();
+              notifier.update(
+                (s) => s.copyWith(
+                  make: v,
+                  model: null,
+                  variant: null,
+                ),
+              );
               ref.read(getModelProvider.notifier).getModel(makeId: v?.sno ?? 0);
             },
           ),
@@ -251,7 +349,12 @@ class _IdentificationSpecsStepState
 
     final modelState = ref.watch(getModelProvider);
     return modelState.maybeWhen(
-      orElse: () => const CircularProgressIndicator(),
+      orElse: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(8.0),
+          child: CircularProgressIndicator(),
+        ),
+      ),
       error: (message) => Text(message),
       data: (data) => CommonDropdown<ModelModel>(
         searchable: true,
@@ -262,6 +365,13 @@ class _IdentificationSpecsStepState
             .toList(),
         value: listing.model,
         onChanged: (v) {
+          _unfocusAll();
+          ref.read(listingProvider.notifier).update(
+                (s) => s.copyWith(
+                  model: v,
+                  variant: null,
+                ),
+              );
           ref
               .read(getVariantProvider.notifier)
               .getVariants(modelId: v?.sno ?? 0);
@@ -285,70 +395,47 @@ class _IdentificationSpecsStepState
 
     final variantState = ref.watch(getVariantProvider);
     return variantState.maybeWhen(
-      orElse: () => const CircularProgressIndicator(),
+      orElse: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(8.0),
+          child: CircularProgressIndicator(),
+        ),
+      ),
       error: (message) => Text(message),
       data: (data) => CommonDropdown<VariantModel>(
         label: 'Variant',
         hint: 'Select Variant',
-        searchable: false,
+        searchable: true,
         value: listing.variant,
         options: data
             .map((m) => DropdownOption(value: m, label: m.name ?? ''))
             .toList(),
-        onChanged: (v) {},
+        onChanged: (v) {
+          _unfocusAll();
+          ref.read(listingProvider.notifier).update(
+                (s) => s.copyWith(variant: v),
+              );
+        },
       ),
-    );
-  }
-
-  Widget _mileageAndBodyStyle(UploadLogic logic, ListingNotifier notifier) {
-    final listing = ref.watch(listingProvider);
-    return Column(
-      children: [
-        CommonTextField(
-          label: 'Mileage (KM)',
-          hint: '0',
-          controller: widget.mileageController,
-          keyboardType: TextInputType.number,
-          onChanged: (v) => notifier.update((s) => s.copyWith(mileageKm: v)),
-        ),
-        const SizedBox(height: 12),
-        CommonDropdown<String>(
-          label: 'Body Style',
-          hint: 'Select Body Style',
-          searchable: false,
-          value: listing.bodyStyle,
-          options: logic.bodyStyleOptions
-              .map((b) => DropdownOption(value: b, label: b))
-              .toList(),
-          onChanged: (v) => notifier.update((s) => s.copyWith(bodyStyle: v)),
-        ),
-      ],
     );
   }
 
   Widget _fuelAndTransmission(UploadLogic logic, ListingNotifier notifier) {
     final listing = ref.watch(listingProvider);
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CommonDropdown<String>(
+        InlineSegmentSelector(
           label: 'Fuel Type',
-          hint: 'Select Fuel Type',
-          searchable: false,
           value: listing.fuelType,
-          options: logic.fuelOptions
-              .map((f) => DropdownOption(value: f, label: f))
-              .toList(),
+          options: logic.fuelOptions,
           onChanged: (v) => notifier.update((s) => s.copyWith(fuelType: v)),
         ),
-        const SizedBox(height: 12),
-        CommonDropdown<String>(
+        const SizedBox(height: 16),
+        InlineSegmentSelector(
           label: 'Transmission',
-          hint: 'Select Transmission',
-          searchable: false,
           value: listing.transmission,
-          options: logic.transmissionOptions
-              .map((t) => DropdownOption(value: t, label: t))
-              .toList(),
+          options: logic.transmissionOptions,
           onChanged: (v) => notifier.update((s) => s.copyWith(transmission: v)),
         ),
       ],
@@ -360,8 +447,8 @@ class _IdentificationSpecsStepState
     final stateData = ref.watch(getStateProvider);
 
     return stateData.when(
-      initial: () => const CircularProgressIndicator(),
-      loading: () => const CircularProgressIndicator(),
+      initial: () => const SizedBox.shrink(),
+      loading: () => const Center(child: CircularProgressIndicator()),
       error: (msg) => Text(msg),
       data: (data) => CommonDropdown<StateModel>(
         searchable: true,
@@ -372,8 +459,9 @@ class _IdentificationSpecsStepState
             .map((s) => DropdownOption(value: s, label: s.stateName ?? ''))
             .toList(),
         onChanged: (v) {
+          _unfocusAll();
           notifier.update(
-            (s) => s.copyWith(selectedState: v),
+            (s) => s.copyWith(selectedState: v, selectedCity: null),
           );
           ref.read(getCityProvider.notifier).getCity(id: v?.stateId.toString());
         },
@@ -397,7 +485,7 @@ class _IdentificationSpecsStepState
     final cityData = ref.watch(getCityProvider);
 
     return cityData.when(
-      loading: () => const CircularProgressIndicator(),
+      loading: () => const Center(child: CircularProgressIndicator()),
       error: (msg) => Text(msg),
       initial: () => const SizedBox(),
       data: (data) => CommonDropdown<CityModel>(
@@ -408,28 +496,211 @@ class _IdentificationSpecsStepState
         options: data
             .map((e) => DropdownOption(value: e, label: e.cityName ?? ''))
             .toList(),
-        onChanged: (v) => notifier.update((s) => s.copyWith(selectedCity: v)),
+        onChanged: (v) {
+          _unfocusAll();
+          notifier.update((s) => s.copyWith(selectedCity: v));
+        },
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RC REFERENCE CARD
-//
-// Why this exists: `_autoFill` in commonlogic.dart tries to auto-select the
-// Make/Model/Variant dropdowns by fuzzy-matching the RC's raw strings
-// (e.g. makerModel = "1916 LPT DCR53CBC 160B6M5") against your friendly
-// dropdown option names. For commercial vehicles / uncommon variants that
-// match often fails silently, and the user has no way to know what the RC
-// actually said. This card shows the raw values read-only, right under the
-// registration field, so the user can eyeball them and pick the correct
-// Make / Model / Variant manually below even when auto-fill comes up empty.
-//
-// Only Registration No. / Maker / Model are shown per the current ask —
-// add more _RcRefRow lines below if you want Chassis No., Engine No., or
-// Owner count surfaced here too.
+// POLISHED INLINE SEGMENT SELECTOR
+// Handles 2/3 items (full segmented rail) and 5 items (3 + 2 balanced grid)
 // ─────────────────────────────────────────────────────────────────────────────
+
+class InlineSegmentSelector extends StatelessWidget {
+  final String label;
+  final String? value;
+  final List<String> options;
+  final ValueChanged<String> onChanged;
+
+  const InlineSegmentSelector({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  Widget _buildItem(String opt, BuildContext context) {
+    final isSelected = value?.trim().toLowerCase() == opt.trim().toLowerCase();
+
+    return InkWell(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        onChanged(opt);
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        height: 42,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color:
+              isSelected ? AppColors.primary.withOpacity(0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : const Color(0xFFD0D5DD),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          opt,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? AppColors.primary : const Color(0xFF344054),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF344054),
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // ── 2 or 3 Items (e.g., Manual / Automatic) ──
+        if (options.length <= 3)
+          Container(
+            height: 44,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF2F4F7),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE4E7EC)),
+            ),
+            child: Row(
+              children: options.map((opt) {
+                final isSelected =
+                    value?.trim().toLowerCase() == opt.trim().toLowerCase();
+
+                return Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      FocusScope.of(context).unfocus();
+                      onChanged(opt);
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.06),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Text(
+                        opt,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight:
+                              isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected
+                              ? AppColors.primary
+                              : const Color(0xFF667085),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          )
+
+        // ── 5 Items (Petrol, Diesel, CNG / Electric, Hybrid) ──
+        else if (options.length == 5)
+          Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(child: _buildItem(options[0], context)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildItem(options[1], context)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildItem(options[2], context)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: _buildItem(options[3], context)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildItem(options[4], context)),
+                ],
+              ),
+            ],
+          )
+
+        // ── Generic Fallback Grid ──
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: options.map((opt) {
+              final isSelected =
+                  value?.trim().toLowerCase() == opt.trim().toLowerCase();
+              return InkWell(
+                onTap: () {
+                  FocusScope.of(context).unfocus();
+                  onChanged(opt);
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primary.withOpacity(0.08)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.primary
+                          : const Color(0xFFD0D5DD),
+                      width: isSelected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Text(
+                    opt,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: isSelected
+                          ? AppColors.primary
+                          : const Color(0xFF344054),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+      ],
+    );
+  }
+}
 
 class _RcReferenceCard extends StatelessWidget {
   final RCDetailsModel rc;

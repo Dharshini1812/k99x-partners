@@ -1,9 +1,11 @@
 import 'package:dartz/dartz.dart';
 import 'package:dealer/core/error/failure.dart';
 import 'package:dealer/features/my_listings/data/datasource/remote_datasource.dart';
+import 'package:dealer/features/my_listings/data/model/add_wanted_list_model.dart';
 import 'package:dealer/features/my_listings/data/model/filter_model.dart';
 import 'package:dealer/features/my_listings/data/model/kyc_submit_model.dart';
 import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
+import 'package:dealer/features/my_listings/data/model/wanted_list_model.dart';
 import 'package:dealer/features/my_listings/domain/repository/repository.dart';
 
 class MyListingsRepositoryImpl implements MyListingsRepository {
@@ -44,6 +46,28 @@ class MyListingsRepositoryImpl implements MyListingsRepository {
     try {
       final response = await dataSource.addKyc(request);
       return Right(response);
+    } catch (e) {
+      return Left(CustomFailure(msg: e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, WantedListResponseModel>> getWantedList() async {
+    try {
+      final response = await dataSource.getWantedListings();
+      return Right(response);
+    } catch (e) {
+      return Left(CustomFailure(msg: e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, WantedListingSaveResponseModel>> saveWantedListing(
+    WantedListingRequestModel request,
+  ) async {
+    try {
+      final result = await dataSource.saveWantedListing(request);
+      return Right(result);
     } catch (e) {
       return Left(CustomFailure(msg: e.toString()));
     }

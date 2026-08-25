@@ -3,7 +3,11 @@ import 'package:dealer/core/common/data/model/city_model.dart';
 import 'package:dealer/core/common/data/model/make_model_variant.dart';
 import 'package:dealer/core/common/data/model/state_model.dart';
 
+const _unset = Object();
+
 class VehicleListingModel {
+  final String? vehicleId;
+
   // Identification
   final String? registrationNumber;
 
@@ -41,10 +45,7 @@ class VehicleListingModel {
   final String? dealerExpectedPrice;
   final bool agreedToTerms;
 
-  // Edit-mode reference data — read-only "what the API returned",
-  // used by _autoFillFromEdit to select matching dropdown entries.
-  // Made final + always forwarded in copyWith so they can never be
-  // silently wiped by an unrelated update.
+  // Edit-mode reference data
   final String? savedMakeName;
   final String? savedModelName;
   final String? savedVariantName;
@@ -54,6 +55,7 @@ class VehicleListingModel {
   final String? savedCityName;
 
   const VehicleListingModel({
+    this.vehicleId,
     this.registrationNumber,
     this.year,
     this.make,
@@ -91,19 +93,23 @@ class VehicleListingModel {
   });
 
   VehicleListingModel copyWith({
+    String? vehicleId,
     String? registrationNumber,
     String? year,
-    MakeModel? make,
-    ModelModel? model,
-    VariantModel? variant,
+    // ── sentinel-pattern fields — pass `null` explicitly to CLEAR,
+    // omit entirely to leave untouched ──────────────────────────────
+    Object? make = _unset,
+    Object? model = _unset,
+    Object? variant = _unset,
+    Object? selectedState = _unset,
+    Object? selectedCity = _unset,
+    // ──────────────────────────────────────────────────────────────
     String? mileageKm,
     String? bodyStyle,
     String? fuelType,
     String? transmission,
     String? state,
     String? city,
-    StateModel? selectedState,
-    CityModel? selectedCity,
     String? engineCondition,
     String? exteriorCondition,
     String? interiorCondition,
@@ -127,19 +133,24 @@ class VehicleListingModel {
     String? savedCityName,
   }) {
     return VehicleListingModel(
+      vehicleId: vehicleId ?? this.vehicleId,
       registrationNumber: registrationNumber ?? this.registrationNumber,
       year: year ?? this.year,
-      make: make ?? this.make,
-      model: model ?? this.model,
-      variant: variant ?? this.variant,
+      make: make == _unset ? this.make : make as MakeModel?,
+      model: model == _unset ? this.model : model as ModelModel?,
+      variant: variant == _unset ? this.variant : variant as VariantModel?,
       mileageKm: mileageKm ?? this.mileageKm,
       bodyStyle: bodyStyle ?? this.bodyStyle,
       fuelType: fuelType ?? this.fuelType,
       transmission: transmission ?? this.transmission,
       state: state ?? this.state,
       city: city ?? this.city,
-      selectedState: selectedState ?? this.selectedState,
-      selectedCity: selectedCity ?? this.selectedCity,
+      selectedState: selectedState == _unset
+          ? this.selectedState
+          : selectedState as StateModel?,
+      selectedCity: selectedCity == _unset
+          ? this.selectedCity
+          : selectedCity as CityModel?,
       engineCondition: engineCondition ?? this.engineCondition,
       exteriorCondition: exteriorCondition ?? this.exteriorCondition,
       interiorCondition: interiorCondition ?? this.interiorCondition,
@@ -165,6 +176,7 @@ class VehicleListingModel {
   }
 
   Map<String, dynamic> toJson() => {
+        'vehicleId': vehicleId,
         'registrationNumber': registrationNumber,
         'year': year,
         'make': make,

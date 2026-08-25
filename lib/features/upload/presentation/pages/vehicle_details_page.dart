@@ -1,19 +1,15 @@
-// lib/features/upload/presentation/pages/vehicle_listing_page.dart
-//
-// Entry point for the 4-step vehicle listing flow. This file only
-// owns the app bar, back-button/PopScope handling, the text controllers,
-// and the IndexedStack that switches between steps — all step-specific
-// UI now lives in pages/steps/*.dart.
+// lib/features/upload/presentation/pages/vehicle_details_page.dart
 
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/features/upload/data/model/vehicle_model.dart';
+import 'package:dealer/features/upload/data/model/vehicle_request_model.dart';
+import 'package:dealer/features/upload/presentation/logic/upload_provider.dart';
 import 'package:dealer/features/upload/presentation/logic/vehicle_edit_logic.dart';
 import 'package:dealer/features/upload/presentation/widgets/identification.dart';
 import 'package:dealer/features/upload/presentation/widgets/media_capture_step.dart';
 import 'package:dealer/features/upload/presentation/widgets/review_step.dart';
 import 'package:dealer/features/upload/presentation/widgets/self_inspection_step.dart';
 import 'package:dealer/features/upload/presentation/widgets/upload_colors.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,6 +26,8 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
   final _ownersController = TextEditingController();
   final _dealerPriceController = TextEditingController();
 
+  bool _isSubmittingVehicle = false;
+
   @override
   void initState() {
     super.initState();
@@ -45,36 +43,105 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
     super.dispose();
   }
 
-  void _goToStep(int step) =>
-      ref.read(listingStepProvider.notifier).state = step;
+  void _goToStep(int step) {
+    FocusScope.of(context).unfocus();
+    ref.read(listingStepProvider.notifier).state = step;
+
+    if (step == 3) {
+      final vehicleId = ref.read(listingProvider).vehicleId;
+      if (vehicleId != null && vehicleId.isNotEmpty) {
+        ref.read(vehicleReviewNotifier.notifier).fetchReview(vehicleId);
+      }
+    }
+  }
 
   void _handleBack() {
     final step = ref.read(listingStepProvider);
-    if (step == 0) {
-      Navigator.maybePop(context);
-    } else {
+    if (step > 0) {
       _goToStep(step - 1);
     }
+  }
+
+  double _conditionScore(String? label) {
+    switch (label) {
+      case 'Excellent':
+        return 5.0;
+      case 'Good':
+        return 4.0;
+      case 'Average':
+        return 3.0;
+      case 'Poor':
+        return 2.0;
+      default:
+        return 0.0;
+    }
+  }
+
+  Future<void> _submitVehicleAndProceed() async {
+    if (_isSubmittingVehicle) return;
+
+    final listing = ref.read(listingProvider);
+    final notifier = ref.read(listingProvider.notifier);
+
+    setState(() => _isSubmittingVehicle = true);
+
+    final request = AddVehicleRequestModel(
+      regNo: listing.registrationNumber ?? '',
+      makeName: listing.make?.name ?? '',
+      modelName: listing.model?.name ?? '',
+      variantName: listing.variant?.name ?? '',
+      mfgYear: int.tryParse(listing.year ?? '') ?? 0,
+      transmission: listing.transmission ?? '',
+      fuelType: listing.fuelType ?? '',
+      kmDriven: int.tryParse(listing.mileageKm ?? '') ?? 0,
+      bodyStyle: listing.bodyStyle ?? '',
+      stateId: listing.selectedState?.stateId ?? 0,
+      cityId: listing.selectedCity?.cityId ?? 0,
+      dealerVehicleInspection: DealerVehicleInspection(
+        rc: 0,
+        engineCondition: _conditionScore(listing.engineCondition),
+        interiorCondition: _conditionScore(listing.interiorCondition),
+        exteriorCondition: _conditionScore(listing.exteriorCondition),
+        ownerCount: int.tryParse(listing.numberOfOwners ?? '') ?? 0,
+        accidentHistory: listing.accidentHistory ?? '',
+        remarks: '',
+        overallCondition: 0,
+      ),
+    );
+
+    final response =
+        await ref.read(addVehicleData.notifier).addVehicleData(data: request);
+
+    if (!mounted) return;
+    setState(() => _isSubmittingVehicle = false);
+
+    if (response == null || !response.success) {
+      final errorMsg = ref.read(addVehicleData).maybeWhen(
+            error: (msg) => msg,
+            orElse: () => 'Could not save vehicle details. Please try again.',
+          );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    notifier.update((s) => s.copyWith(vehicleId: response.data.vehicleId));
+    _goToStep(2);
   }
 
   @override
   Widget build(BuildContext context) {
     final step = ref.watch(listingStepProvider);
 
-    // ─────────────────────────────────────────────────────────────
-    // ✅ UPDATE: READ THE MODEL PROPERTY
-    // ─────────────────────────────────────────────────────────────
     ref.listen(editVehicleProvider, (previous, next) {
-      final modelData = next.model; // Extract the actual vehicle data
-
+      final modelData = next.model;
       if (modelData != null) {
-        // Edit mode: Populating controller text with data.
         _regNoController.text = modelData.registrationNumber ?? '';
         _mileageController.text = modelData.mileageKm ?? '';
         _ownersController.text = modelData.numberOfOwners ?? '';
         _dealerPriceController.text = modelData.dealerExpectedPrice ?? '';
       } else {
-        // Clear mode: Clear controllers.
         _regNoController.clear();
         _mileageController.clear();
         _ownersController.clear();
@@ -83,7 +150,7 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
     });
 
     return PopScope(
-      canPop: false,
+      canPop: step == 0,
       onPopInvoked: (didPop) {
         if (didPop) return;
         _handleBack();
@@ -94,10 +161,13 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
           backgroundColor: UploadColors.surface,
           elevation: 0.5,
           title: const Text('Upload Vehicle', style: UploadText.pageTitle),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: UploadColors.textPrimary),
-            onPressed: _handleBack,
-          ),
+          leading: step == 0
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.arrow_back,
+                      color: UploadColors.textPrimary),
+                  onPressed: _handleBack,
+                ),
         ),
         body: SafeArea(
           child: IndexedStack(
@@ -110,7 +180,7 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
               ),
               SelfInspectionStep(
                 ownersController: _ownersController,
-                onNext: () => _goToStep(2),
+                onNext: _submitVehicleAndProceed,
               ),
               MediaCaptureStep(onNext: () => _goToStep(3)),
               ReviewStep(dealerPriceController: _dealerPriceController),
@@ -122,17 +192,11 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
   }
 }
 
-// lib/features/upload/presentation/logic/listing_provider.dart
-//
-// State for the listing flow. Unchanged from the original — just kept
-// as its own file since it's already separate from the widget tree.
-
 class ListingNotifier extends StateNotifier<VehicleListingModel> {
   ListingNotifier() : super(const VehicleListingModel());
 
   int currentStep = 0;
-  static const int totalSteps =
-      4; // Identification+Specs, Inspection, Media, Review
+  static const int totalSteps = 4;
 
   void update(VehicleListingModel Function(VehicleListingModel) updater) {
     state = updater(state);
@@ -157,5 +221,4 @@ final listingProvider =
   (ref) => ListingNotifier(),
 );
 
-// Local step tracker as its own provider so widgets can watch it independently
 final listingStepProvider = StateProvider<int>((ref) => 0);

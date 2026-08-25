@@ -17,12 +17,12 @@ class Profile extends ConsumerWidget {
       backgroundColor: const Color(0xFFF7F8FA),
       body: CustomScrollView(
         slivers: [
-          SliverAppBar(
+          const SliverAppBar(
             pinned: true,
             elevation: 0,
-            backgroundColor: const Color(0xFFF7F8FA),
-            surfaceTintColor: const Color(0xFFF7F8FA),
-            title: const Text(
+            backgroundColor: Color(0xFFF7F8FA),
+            surfaceTintColor: Color(0xFFF7F8FA),
+            title: Text(
               'Profile',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
@@ -31,13 +31,6 @@ class Profile extends ConsumerWidget {
               ),
             ),
             centerTitle: false,
-            actions: [
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.settings_outlined,
-                    color: Color(0xFF6B7280)),
-              ),
-            ],
           ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -81,10 +74,7 @@ class Profile extends ConsumerWidget {
                   onTap: () {},
                 ),
                 const SizedBox(height: 30),
-                _LogoutButton(
-                  context: context,
-                  ref: ref,
-                ),
+                const _LogoutButton(),
               ]),
             ),
           ),
@@ -104,7 +94,7 @@ class _HeroCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final logic = ref.read(dLogic);
+    final logic = ref.watch(dLogic);
     final name = logic.user?.fullName ?? '';
     final initials = name
         .trim()
@@ -409,15 +399,32 @@ class _ModernTile extends StatelessWidget {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOGOUT BUTTON
+//
+// Now a ConsumerWidget that watches logoutNotifierProvider directly,
+// instead of the original design of stashing `context`/`ref` as
+// constructor fields (which is unusual — a StatelessWidget can always
+// reach its own BuildContext via its build() method's parameter, and
+// ConsumerWidget's build() already provides `ref`, so neither needed to
+// be threaded in manually).
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _LogoutButton extends StatelessWidget {
-  final BuildContext context;
-  final WidgetRef ref;
-  const _LogoutButton({required this.context, required this.ref});
+class _LogoutButton extends ConsumerWidget {
+  const _LogoutButton();
+
+  Future<void> _handleLogout(BuildContext context, WidgetRef ref) async {
+    await ref.read(logoutNotifierProvider.notifier).logout();
+    if (!context.mounted) return;
+    ref.read(routeService).pushAndRemoveUntil(const LoginRoute(), context);
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final logoutState = ref.watch(logoutNotifierProvider);
+    final isLoggingOut = logoutState.maybeWhen(
+      loading: () => true,
+      orElse: () => false,
+    );
+
     return SizedBox(
       width: double.infinity,
       height: 54,
@@ -426,20 +433,30 @@ class _LogoutButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => ref.read(routeService).push(const LoginRoute(), context),
+          onTap: isLoggingOut ? null : () => _handleLogout(context, ref),
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.red.shade100, width: 1),
             ),
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.logout_rounded, color: Colors.red, size: 18),
-                SizedBox(width: 8),
+                if (isLoggingOut)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(Colors.red),
+                    ),
+                  )
+                else
+                  const Icon(Icons.logout_rounded, color: Colors.red, size: 18),
+                const SizedBox(width: 8),
                 Text(
-                  'Logout',
-                  style: TextStyle(
+                  isLoggingOut ? 'Logging out…' : 'Logout',
+                  style: const TextStyle(
                     color: Colors.red,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,

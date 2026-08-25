@@ -9,9 +9,21 @@
 import 'package:dealer/features/upload/data/datasource/remote_datasource.dart';
 import 'package:dealer/features/upload/data/repository/repositoryimpl.dart';
 import 'package:dealer/features/upload/domain/repository/repository.dart';
+import 'package:dealer/features/upload/domain/usecase/add_vehicle_data.dart';
+import 'package:dealer/features/upload/domain/usecase/complete_review.dart';
+import 'package:dealer/features/upload/domain/usecase/get_vehicle_review.dart';
 import 'package:dealer/features/upload/domain/usecase/upload_media.dart';
+import 'package:dealer/features/upload/domain/usecase/vehicle_edit.dart';
+import 'package:dealer/features/upload/presentation/logic/add_vehicle_data/add_vehicle_notifier.dart';
+import 'package:dealer/features/upload/presentation/logic/add_vehicle_data/add_vehicle_state.dart';
+import 'package:dealer/features/upload/presentation/logic/complete_review/complete_review_notifier.dart';
+import 'package:dealer/features/upload/presentation/logic/complete_review/complete_review_state.dart';
+import 'package:dealer/features/upload/presentation/logic/get_review/get_review_notifier.dart';
+import 'package:dealer/features/upload/presentation/logic/get_review/get_review_state.dart';
 import 'package:dealer/features/upload/presentation/logic/upload/upload_notifier.dart';
 import 'package:dealer/features/upload/presentation/logic/upload/upload_state.dart';
+import 'package:dealer/features/upload/presentation/logic/upload_edit/vehicle_edit_notifier.dart';
+import 'package:dealer/features/upload/presentation/logic/upload_edit/vehicle_edit_state.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Datasource
@@ -35,8 +47,51 @@ final uploadProvider =
   (ref, slotKey) => UploadNotifier(ref.read(uploadUseCaseProvider)),
 );
 
-/// The set of slot keys used across the media step — keep this in sync
-/// with the mediaType strings your backend expects.
+final _addVehicleUsecase = Provider<AddvehicleDataUsecase>((ref) =>
+    AddvehicleDataUsecase(repository: ref.read(uploadRepositoryProvider)));
+
+final addVehicleData =
+    StateNotifierProvider<AddVehicleNotifier, AddVehicleState>((ref) =>
+        AddVehicleNotifier(
+            addvehicleDataUsecase: ref.read(_addVehicleUsecase)));
+
+//review
+
+final _reviewUsecase = Provider<GetVehicleReview>(
+    (ref) => GetVehicleReview(ref.read(uploadRepositoryProvider)));
+
+final vehicleReviewNotifier =
+    StateNotifierProvider<VehicleReviewNotifier, VehicleReviewState>(
+  (ref) => VehicleReviewNotifier(
+    usecase: ref.read(_reviewUsecase),
+  ),
+);
+
+//complete
+
+final _completeUsecase = Provider<CompleteVehicleListing>(
+    (ref) => CompleteVehicleListing(ref.read(uploadRepositoryProvider)));
+
+final completeVehicleNotifier =
+    StateNotifierProvider<CompleteVehicleNotifier, CompleteVehicleState>(
+  (ref) => CompleteVehicleNotifier(
+    usecase: ref.read(_completeUsecase),
+  ),
+);
+
+//edit
+
+final _editusecase = Provider<GetVehicleForEdit>(
+    (ref) => GetVehicleForEdit(ref.read(uploadRepositoryProvider)));
+
+final editVehicleFetchNotifier =
+    StateNotifierProvider<EditVehicleFetchNotifier, EditVehicleFetchState>(
+  (ref) => EditVehicleFetchNotifier(
+    usecase: ref.read(_editusecase),
+    ref: ref,
+  ),
+);
+
 class MediaSlot {
   MediaSlot._();
   static const front = 'front';

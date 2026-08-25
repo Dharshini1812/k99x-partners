@@ -202,6 +202,7 @@ class ApiServiceImpl extends ApiService {
     }
   }
 
+  @override
   Future postMultipart(String url, FormData formData) async {
     try {
       log('POST(multipart) => $url');

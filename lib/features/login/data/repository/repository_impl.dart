@@ -1,10 +1,12 @@
 import 'package:dartz/dartz.dart';
 import 'package:dealer/core/error/failure.dart';
 import 'package:dealer/features/login/data/datasource/remote_datasource.dart';
+import 'package:dealer/features/login/data/model/logout_model.dart';
 import 'package:dealer/features/login/data/model/send_otp.dart';
 import 'package:dealer/features/login/data/model/user_model.dart';
 import 'package:dealer/features/login/data/model/verify_model.dart';
 import 'package:dealer/features/login/domain/repository/repository.dart';
+import 'package:dio/dio.dart';
 
 class LoginRepositoryImpl extends LoginRepository {
   final LoginRemoteDataSource _loginRemoteDataSource;
@@ -26,6 +28,21 @@ class LoginRepositoryImpl extends LoginRepository {
     try {
       final data = await _loginRemoteDataSource.verifyOtp(model);
       return Right(data);
+    } catch (e) {
+      return Left(CustomFailure(msg: e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, LogoutResponseModel>> logout() async {
+    try {
+      final result = await _loginRemoteDataSource.logout();
+      return Right(result);
+    } on DioException catch (e) {
+      return Left(CustomFailure(
+        msg:
+            e.response?.data?['message'] ?? e.message ?? 'Something went wrong',
+      ));
     } catch (e) {
       return Left(CustomFailure(msg: e.toString()));
     }

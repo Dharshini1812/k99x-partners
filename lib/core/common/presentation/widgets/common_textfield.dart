@@ -1,4 +1,5 @@
 // lib/core/widgets/common_text_field.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -14,6 +15,10 @@ class CommonTextField extends StatelessWidget {
   final Widget? suffixIcon;
   final int maxLines;
   final List<TextInputFormatter>? inputFormatters;
+  final FocusNode? focusNode;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onFieldSubmitted; // Alias for compatibility
 
   const CommonTextField({
     super.key,
@@ -28,6 +33,10 @@ class CommonTextField extends StatelessWidget {
     this.suffixIcon,
     this.maxLines = 1,
     this.inputFormatters,
+    this.focusNode,
+    this.textInputAction,
+    this.onSubmitted,
+    this.onFieldSubmitted,
   });
 
   @override
@@ -46,6 +55,10 @@ class CommonTextField extends StatelessWidget {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
+          focusNode: focusNode,
+          textInputAction: textInputAction,
+          onSubmitted:
+              onSubmitted ?? onFieldSubmitted, // Standard Flutter property
           keyboardType: keyboardType,
           readOnly: readOnly,
           onTap: onTap,

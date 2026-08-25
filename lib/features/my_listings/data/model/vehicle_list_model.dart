@@ -70,7 +70,7 @@ class VehicleData {
   final double? loanAmount;
 
   final int? wantedMatchCount;
-  final String? wantedMatchesDetails;
+  final List<WantedMatchList>? wantedMatchesDetails;
 
   final bool? kycExists;
 
@@ -168,7 +168,9 @@ class VehicleData {
         tenureMonths: json['tenureMonths'],
         loanAmount: (json['loanAmount'] as num?)?.toDouble(),
         wantedMatchCount: json['wantedMatchCount'],
-        wantedMatchesDetails: json['wantedMatchesDetails'],
+        wantedMatchesDetails: (json['wantedMatchesList'] as List<dynamic>)
+            .map((e) => WantedMatchList.fromJson(e))
+            .toList(),
         kycExists: json['kycExists'],
         dealerFirstName: json['dealerFirstName'],
         similarPlatformCount: json['similarPlatformCount'],
@@ -410,6 +412,59 @@ class AllLoanOffers {
     data['tenureMonths'] = tenureMonths;
     data['lenderName'] = lenderName;
     data['loanAmount'] = loanAmount;
+    return data;
+  }
+}
+
+class WantedMatchList {
+  String? createdAt;
+  String? dealerName;
+  String? phoneNumber;
+  String? notes;
+  String? city;
+  String? dealerId;
+  double? budgetFrom;
+  String? state;
+  double? budgetTo;
+  String? neededBy;
+
+  WantedMatchList(
+      {this.createdAt,
+      this.dealerName,
+      this.phoneNumber,
+      this.notes,
+      this.city,
+      this.dealerId,
+      this.budgetFrom,
+      this.state,
+      this.budgetTo,
+      this.neededBy});
+
+  WantedMatchList.fromJson(Map<String, dynamic> json) {
+    createdAt = json['createdAt'];
+    dealerName = json['dealerName'];
+    phoneNumber = json['phoneNumber'];
+    notes = json['notes'];
+    city = json['city'];
+    dealerId = json['dealerId'];
+    budgetFrom = json['budgetFrom'];
+    state = json['state'];
+    budgetTo = json['budgetTo'];
+    neededBy = json['neededBy'];
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['createdAt'] = createdAt;
+    data['dealerName'] = dealerName;
+    data['phoneNumber'] = phoneNumber;
+    data['notes'] = notes;
+    data['city'] = city;
+    data['dealerId'] = dealerId;
+    data['budgetFrom'] = budgetFrom;
+    data['state'] = state;
+    data['budgetTo'] = budgetTo;
+    data['neededBy'] = neededBy;
     return data;
   }
 }

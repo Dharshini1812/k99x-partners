@@ -1,3 +1,4 @@
+import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
 import 'package:intl/intl.dart';
 
 String formatDate(dynamic timestamp) {
@@ -44,4 +45,57 @@ String getFlutterImageUrl(String url) {
   }
 
   return url;
+}
+
+/// Groups vehicles by make+model+variant, keeping only the first of each
+/// group to render as a card. Returns the deduped list to display, plus
+/// a lookup from that representative vehicle's id -> all vehicles in its
+/// group (including itself) so the card can compute its own +N and pass
+/// the full group to the sheet.
+({List<VehicleData> display, Map<String, List<VehicleData>> groups})
+    dedupeByVariant(List<VehicleData> items) {
+  final Map<String, List<VehicleData>> groups = {};
+  final List<VehicleData> display = [];
+
+  for (final v in items) {
+    final key = '${v.make}_${v.model}_${v.variant}';
+    if (groups.containsKey(key)) {
+      groups[key]!.add(v);
+    } else {
+      groups[key] = [v];
+      display.add(v); // first occurrence becomes the representative card
+    }
+  }
+
+  return (display: display, groups: groups);
+}
+
+// Helper class to hold grouped stock info
+class GroupedVehicleStock {
+  final dynamic primaryVehicle;
+  final List<dynamic> matchingVehicles;
+
+  GroupedVehicleStock({
+    required this.primaryVehicle,
+    required this.matchingVehicles,
+  });
+
+  int get count => matchingVehicles.length;
+}
+
+List<GroupedVehicleStock> groupVehicles(List<dynamic> vehicles) {
+  final Map<String, List<dynamic>> groupedMap = {};
+
+  for (final v in vehicles) {
+    // Unique key combination: Make_Model_Variant
+    final key = '${v.make}_${v.model}_${v.variant}'.toLowerCase();
+    groupedMap.putIfAbsent(key, () => []).add(v);
+  }
+
+  return groupedMap.values.map((group) {
+    return GroupedVehicleStock(
+      primaryVehicle: group.first,
+      matchingVehicles: group,
+    );
+  }).toList();
 }

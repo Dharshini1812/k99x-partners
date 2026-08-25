@@ -2,14 +2,20 @@ import 'package:dealer/features/my_listings/data/datasource/remote_datasource.da
 import 'package:dealer/features/my_listings/data/repository/repository_impl.dart';
 import 'package:dealer/features/my_listings/domain/repository/repository.dart';
 import 'package:dealer/features/my_listings/domain/usecase/add_kyc.dart';
+import 'package:dealer/features/my_listings/domain/usecase/add_wanted.dart';
 import 'package:dealer/features/my_listings/domain/usecase/live_stock.dart';
 import 'package:dealer/features/my_listings/domain/usecase/my_stock.dart';
+import 'package:dealer/features/my_listings/domain/usecase/wanted_list.dart';
 import 'package:dealer/features/my_listings/presentation/logic/add_kyc/add_kyc_notifier.dart';
 import 'package:dealer/features/my_listings/presentation/logic/add_kyc/add_kyc_state.dart';
+import 'package:dealer/features/my_listings/presentation/logic/add_wanted/add_wanted_notifier.dart';
+import 'package:dealer/features/my_listings/presentation/logic/add_wanted/add_wanted_state.dart';
 import 'package:dealer/features/my_listings/presentation/logic/live_list/live_list_notifier.dart';
 import 'package:dealer/features/my_listings/presentation/logic/live_list/live_list_state.dart';
 import 'package:dealer/features/my_listings/presentation/logic/my_list/my_list_notifier.dart';
 import 'package:dealer/features/my_listings/presentation/logic/my_list/my_list_state.dart';
+import 'package:dealer/features/my_listings/presentation/logic/wanted_list/wanted_list_notifier.dart';
+import 'package:dealer/features/my_listings/presentation/logic/wanted_list/wanted_list_state.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final _listingDatasource =
@@ -37,3 +43,18 @@ final _addKycUsecase =
 
 final addKycNotifier = StateNotifierProvider<AddKycNotifier, AddKycState>(
     (ref) => AddKycNotifier(addKycUsecase: ref.read(_addKycUsecase)));
+
+final _wantedListUsecase = Provider<WantedList>(
+    (ref) => WantedList(listingsRepository: ref.read(_listingRepository)));
+
+final wantedListProvider =
+    StateNotifierProvider<WantedListNotifier, WantedListState>((ref) =>
+        WantedListNotifier(wantedUsecase: ref.read(_wantedListUsecase)));
+
+final _saveWantedListingUsecase = Provider<SaveWantedListing>(
+  (ref) => SaveWantedListing(ref.read(_listingRepository)),
+);
+final wantedSaveProvider =
+    StateNotifierProvider<WantedSaveNotifier, WantedSaveState>(
+  (ref) => WantedSaveNotifier(usecase: ref.read(_saveWantedListingUsecase)),
+);

@@ -1,7 +1,9 @@
 import 'package:dartz/dartz.dart';
 import 'package:dealer/core/error/failure.dart';
+import 'package:dealer/features/my_listings/data/model/add_wanted_list_model.dart';
 import 'package:dealer/features/my_listings/data/model/kyc_submit_model.dart';
 import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
+import 'package:dealer/features/my_listings/data/model/wanted_list_model.dart';
 
 abstract class MyListingsRepository {
   Future<Either<Failure, VehicleResponse>> getMyListings(
@@ -11,4 +13,9 @@ abstract class MyListingsRepository {
 
   Future<Either<Failure, KycSubmitResponse>> addKycUpload(
       KycSubmitRequest? request);
+
+  Future<Either<Failure, WantedListResponseModel>> getWantedList();
+  Future<Either<Failure, WantedListingSaveResponseModel>> saveWantedListing(
+    WantedListingRequestModel request,
+  );
 }

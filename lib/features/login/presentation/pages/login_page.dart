@@ -1,3 +1,5 @@
+// lib/features/login/presentation/pages/login_page.dart
+
 import 'package:auto_route/auto_route.dart';
 import 'package:dealer/core/route/router.gr.dart';
 import 'package:dealer/core/theme/colors.dart';
@@ -9,7 +11,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
-// ── Palette pulled from the splash / brand screens ──────────────────────────
 const _kAccentBlue = Color(0xFF3B4EF5);
 const _kDark = Color(0xFF11142A);
 const _kGrey = Color(0xFF8B8FA3);
@@ -28,15 +29,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   void initState() {
     super.initState();
-
     Future.microtask(() {
       ref.read(loginLogicProvider).init();
     });
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   @override
@@ -52,10 +47,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ref.read(routeService).push(const OtpRoute(), context);
         },
         error: (msg) {
-          Fluttertoast.showToast(
-            msg: msg,
-            toastLength: Toast.LENGTH_SHORT,
-          );
+          Fluttertoast.showToast(msg: msg, toastLength: Toast.LENGTH_SHORT);
         },
       );
     });
@@ -77,131 +69,95 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     return Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: IntrinsicHeight(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 32),
-
-                        // ── Logo lockup ─────────────────────────────────
-                        Center(
-                          child: Image.asset(
-                            'images/logo/large-logo.png',
-                            width: MediaQuery.of(context).size.width * 0.6,
-                          ),
-                        ),
-
-                        const SizedBox(height: 6),
-
-                        const Center(
-                          child: Text(
-                            'PARTNER STOCKS',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 3,
-                              color: _kGrey,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 48),
-
-                        // ── Headline ────────────────────────────────────
-                        const Text(
-                          'Upload it. Compare it.\nSell it faster.',
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            height: 1.2,
-                            color: _kDark,
-                          ),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        const Text(
-                          "Sign in to manage your dealership's stock from one place.",
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: _kGrey,
-                            height: 1.5,
-                          ),
-                        ),
-
-                        const SizedBox(height: 36),
-
-                        // ── Phone number label ──────────────────────────
-                        const Text(
-                          'MOBILE NUMBER',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.5,
-                            color: _kGrey,
-                          ),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        // ── Phone input ──────────────────────────────────
-                        _PhoneField(
-                          controller: logic.phoneCtrl,
-                          focusNode: logic.phoneFocus,
-                        ),
-
-                        const SizedBox(height: 28),
-
-                        // ── Send OTP button ──────────────────────────────
-                        _PrimaryButton(
-                          label: 'Send OTP',
-                          isLoading: state.maybeWhen(
-                            loading: () => true,
-                            orElse: () => false,
-                          ),
-                          isEnabled: logic.isPhoneValid,
-                          onTap: () => sendOtp(),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        const Center(
-                          child: Text(
-                            "We'll text a one-time code to\nverify it's you",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: _kGrey,
-                              height: 1.5,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                        ),
-
-                        const Spacer(),
-                      ],
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 32),
+                Center(
+                  child: Image.asset(
+                    'images/logo/large-logo.png',
+                    width: MediaQuery.of(context).size.width * 0.6,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Center(
+                  child: Text(
+                    'PARTNER STOCKS',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 3,
+                      color: _kGrey,
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+                const SizedBox(height: 48),
+                const Text(
+                  'Upload it. Compare it.\nSell it faster.',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                    color: _kDark,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  "Sign in to manage your dealership's stock from one place.",
+                  style: TextStyle(fontSize: 16, color: _kGrey, height: 1.5),
+                ),
+                const SizedBox(height: 36),
+                const Text(
+                  'MOBILE NUMBER',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5,
+                    color: _kGrey,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _PhoneField(
+                  controller: logic.phoneCtrl,
+                  focusNode: logic.phoneFocus,
+                ),
+                const SizedBox(height: 28),
+                _PrimaryButton(
+                  label: 'Send OTP',
+                  isLoading: state.maybeWhen(
+                    loading: () => true,
+                    orElse: () => false,
+                  ),
+                  isEnabled: logic.isPhoneValid,
+                  onTap: sendOtp,
+                ),
+                const SizedBox(height: 16),
+                const Center(
+                  child: Text(
+                    "We'll text a one-time code to\nverify it's you",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: _kGrey,
+                      height: 1.5,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Phone field — pill shaped, icon avatar + code + input
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _PhoneField extends StatelessWidget {
   final TextEditingController controller;
@@ -215,7 +171,7 @@ class _PhoneField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(30),
@@ -230,7 +186,6 @@ class _PhoneField extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Icon avatar
           Container(
             width: 40,
             height: 40,
@@ -244,26 +199,18 @@ class _PhoneField extends StatelessWidget {
               color: _kAccentBlue,
             ),
           ),
-
           const SizedBox(width: 12),
-
-          // Country code
           const Text(
             '+91',
             style: TextStyle(
-              fontSize: 17,
+              fontSize: 16,
               fontWeight: FontWeight.w700,
               color: _kDark,
             ),
           ),
-
           const SizedBox(width: 12),
-
           Container(width: 1.5, height: 24, color: _kBorder),
-
           const SizedBox(width: 12),
-
-          // Number input
           Expanded(
             child: TextField(
               controller: controller,
@@ -275,7 +222,7 @@ class _PhoneField extends StatelessWidget {
               ],
               style: const TextStyle(
                 letterSpacing: 1.5,
-                fontSize: 18,
+                fontSize: 17,
                 fontWeight: FontWeight.w600,
                 color: _kDark,
               ),
@@ -297,10 +244,6 @@ class _PhoneField extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Primary button
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _PrimaryButton extends StatelessWidget {
   final String label;

@@ -1,5 +1,6 @@
+// lib/features/dashboard/presentation/pages/dashboard_page.dart
+
 import 'package:dealer/core/helper/other_helper.dart';
-import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/dashboard/data/model/d_stats_model.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
@@ -19,22 +20,42 @@ class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
 
   @override
-  ConsumerState<ConsumerStatefulWidget> createState() => _DashboardPageState();
+  ConsumerState<DashboardPage> createState() => _DashboardPageState();
 }
 
 class _DashboardPageState extends ConsumerState<DashboardPage> {
   @override
   void initState() {
+    super.initState();
     Future.microtask(() {
       ref.read(dStatsProvider.notifier).getDashboardStats();
       ref
           .read(myStockNotifierProvider.notifier)
           .getMyStock(offset: 0, limit: 20);
     });
-
-    super.initState();
   }
 
+  int calculateWantedVehicleCount(VehicleResponse response) {
+    final Map<String, int> wantedCounts = {};
+
+    for (final vehicle in response.data) {
+      final key = '${vehicle.make}_${vehicle.model}_${vehicle.variant}';
+      if (!wantedCounts.containsKey(key)) {
+        wantedCounts[key] = vehicle.wantedMatchCount ?? 0;
+      }
+    }
+
+    return wantedCounts.values.fold(0, (sum, count) => sum + count);
+  }
+
+  int calculatePreApprovedLoanCount(VehicleResponse response) {
+    return response.data.where((vehicle) {
+      return vehicle.approvedLoanDetails != null &&
+          vehicle.approvedLoanDetails!.trim().isNotEmpty;
+    }).length;
+  }
+
+  @override
   @override
   Widget build(BuildContext context) {
     final statsAsync = ref.watch(dStatsProvider);
@@ -44,65 +65,114 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Header ───────────────────────────────────────────────
-              _DashboardHeader(name: logic.user?.fullName ?? ''),
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await Future.wait([
+              ref.read(dStatsProvider.notifier).getDashboardStats(),
+              ref
+                  .read(myStockNotifierProvider.notifier)
+                  .getMyStock(offset: 0, limit: 20),
+            ]);
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Header ───────────────────────────────────────────────
+                _DashboardHeader(name: logic.user?.fullName ?? 'Partner'),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              // ── Stat grid ────────────────────────────────────────────
-              statsAsync.maybeWhen(
-                orElse: () => const CircularProgressIndicator(),
-                data: (statscount) => _StatGrid(stats: statscount),
-              ),
-
-              const SizedBox(height: 28),
-
-              // ── Stock by Age ─────────────────────────────────────────
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Stock by Age',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: _kDark,
+                // ── Stat Grid with Shimmer Skeleton ──────────────────────
+                statsAsync.when(
+                  initial: () => const _StatGridSkeleton(),
+                  loading: () => const _StatGridSkeleton(),
+                  error: (msg) => const _ErrorStateCard(
+                    message: 'Could not load dashboard statistics',
+                  ),
+                  data: (statscount) => _StatGrid(
+                    stats: statscount,
+                    wantedVehicleCount: myStockAsync.maybeWhen(
+                      data: (stock) => calculateWantedVehicleCount(stock),
+                      orElse: () => 0,
+                    ),
+                    preApprovedLoanCount: myStockAsync.maybeWhen(
+                      data: (stock) => calculatePreApprovedLoanCount(stock),
+                      orElse: () => 0,
                     ),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      ref.read(bottomNavIndexProvider.notifier).state = 2;
-                    },
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'View All',
+                ),
+
+                const SizedBox(height: 28),
+
+                // ── Stock by Age Header ──────────────────────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Stock by Age',
                       style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
-                        color: _kAccentBlue,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: _kDark,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        ref.read(bottomNavIndexProvider.notifier).state = 2;
+                      },
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'View All',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                          color: _kAccentBlue,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+
+                // ── Stock By Age Horizontal List with Skeleton ───────────
+                myStockAsync.when(
+                  initial: () => const _StockByAgeSkeleton(),
+                  loading: () => const _StockByAgeSkeleton(),
+                  error: (msg) => const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: Text(
+                        'Unable to load recent stock',
+                        style: TextStyle(color: _kGrey),
                       ),
                     ),
                   ),
-                ],
-              ),
-
-              const SizedBox(height: 14),
-              myStockAsync.maybeWhen(
-                  orElse: () => const CircularProgressIndicator(),
                   data: (myStock) {
+                    if (myStock.data.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(
+                          child: Text(
+                            'No vehicles in stock yet',
+                            style: TextStyle(color: _kGrey),
+                          ),
+                        ),
+                      );
+                    }
                     return _StockByAgeRow(myStock);
-                  }),
-            ],
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -145,7 +215,7 @@ class _DashboardHeader extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                name,
+                name.isEmpty ? 'Partner' : name,
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
@@ -159,8 +229,8 @@ class _DashboardHeader extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             Container(
-              width: 52,
-              height: 52,
+              width: 50,
+              height: 50,
               decoration: const BoxDecoration(
                 color: _kBellBg,
                 shape: BoxShape.circle,
@@ -191,12 +261,19 @@ class _DashboardHeader extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STAT GRID — 6 tiles, each with its own distinct color scheme
+// STAT GRID & SKELETON LOADER
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _StatGrid extends StatelessWidget {
   final DashboardStats stats;
-  const _StatGrid({required this.stats});
+  final int wantedVehicleCount;
+  final int preApprovedLoanCount;
+
+  const _StatGrid({
+    required this.stats,
+    required this.wantedVehicleCount,
+    required this.preApprovedLoanCount,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -204,7 +281,6 @@ class _StatGrid extends StatelessWidget {
       children: [
         Row(
           children: [
-            // 1 — Live Stock (Indigo/Blue)
             Expanded(
               child: _StatTile(
                 bg: const Color(0xFFE7E9FB),
@@ -216,7 +292,6 @@ class _StatGrid extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 14),
-            // 2 — My Stock (Teal/Green)
             Expanded(
               child: _StatTile(
                 bg: const Color(0xFFDFF5F0),
@@ -230,28 +305,26 @@ class _StatGrid extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
-        const Row(
+        Row(
           children: [
-            // 3 — Pre-Approved Loans (Amber/Gold)
             Expanded(
               child: _StatTile(
-                bg: Color(0xFFFCEFD3),
-                iconBg: Color(0xFFF6D89A),
-                iconColor: Color(0xFFB5750E),
+                bg: const Color(0xFFFCEFD3),
+                iconBg: const Color(0xFFF6D89A),
+                iconColor: const Color(0xFFB5750E),
                 icon: Icons.verified_user_rounded,
-                value: 34,
+                value: preApprovedLoanCount,
                 label: 'PRE-APPROVED LOANS',
               ),
             ),
-            SizedBox(width: 14),
-            // 4 — Wanted Vehicles (Purple/Violet)
+            const SizedBox(width: 14),
             Expanded(
               child: _StatTile(
-                bg: Color(0xFFEDEAFB),
-                iconBg: Color(0xFFD3CAF5),
-                iconColor: Color(0xFF6237C4),
+                bg: const Color(0xFFEDEAFB),
+                iconBg: const Color(0xFFD3CAF5),
+                iconColor: const Color(0xFF6237C4),
                 icon: Icons.search_rounded,
-                value: 52,
+                value: wantedVehicleCount,
                 label: 'WANTED VEHICLES',
               ),
             ),
@@ -260,7 +333,6 @@ class _StatGrid extends StatelessWidget {
         const SizedBox(height: 14),
         Row(
           children: [
-            // 5 — Total Sold Vehicles (Coral/Pink)
             Expanded(
               child: _StatTile(
                 bg: const Color(0xFFFBE3E3),
@@ -272,7 +344,6 @@ class _StatGrid extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 14),
-            // 6 — Total Earnings (Cyan/Sky)
             Expanded(
               child: _StatTile(
                 bg: const Color(0xFFDCF1FB),
@@ -286,6 +357,70 @@ class _StatGrid extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _StatGridSkeleton extends StatelessWidget {
+  const _StatGridSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (int i = 0; i < 3; i++) ...[
+          Row(
+            children: [
+              Expanded(child: _buildTileSkeleton()),
+              const SizedBox(width: 14),
+              Expanded(child: _buildTileSkeleton()),
+            ],
+          ),
+          if (i < 2) const SizedBox(height: 14),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTileSkeleton() {
+    return Container(
+      height: 135,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(13),
+            ),
+          ),
+          const Spacer(),
+          Container(
+            width: 60,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 85,
+            height: 12,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -345,6 +480,8 @@ class _StatTile extends StatelessWidget {
               letterSpacing: 0.6,
               color: Color(0xFF6B7280),
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -353,33 +490,75 @@ class _StatTile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STOCK BY AGE — compact horizontal cards: thumbnail + name/reg + age pill
+// STOCK BY AGE ROW & SKELETON
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _StockByAgeRow extends StatelessWidget {
   final VehicleResponse data;
   const _StockByAgeRow(this.data);
 
+  int _calculateAgeInDays(int? createdAt) {
+    if (createdAt == null || createdAt == 0) return 0;
+    final createdDate = DateTime.fromMillisecondsSinceEpoch(createdAt);
+    return DateTime.now().difference(createdDate).inDays;
+  }
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 130,
+      height: 125,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         clipBehavior: Clip.none,
+        itemCount: data.data.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
           final stock = data.data[i];
           return _StockByAgeCard(
             name: stock.makeName ?? '',
-            days: 12,
+            days: _calculateAgeInDays(stock.createdAt),
             imagePath:
                 stock.dealerVehicleInspection?.frontVehicleImageUrl?.url ?? '',
-            // days: stock.days,
             regNumber: stock.regNo ?? '',
           );
         },
+      ),
+    );
+  }
+}
+
+class _StockByAgeSkeleton extends StatelessWidget {
+  const _StockByAgeSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 125,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: 4,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemCount: data.data.length,
+        itemBuilder: (_, __) => Column(
+          children: [
+            Container(
+              width: 58,
+              height: 22,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              width: 76,
+              height: 84,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -420,22 +599,20 @@ class _StockByAgeCard extends StatelessWidget {
 
     return InkWell(
       onTap: () => _showDetails(context),
-      borderRadius: BorderRadius.circular(20),
-      child:
-          // Thumbnail
-          Column(
+      borderRadius: BorderRadius.circular(14),
+      child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: badgeBg,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              '$days days',
+              '$days d',
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
                 color: badgeText,
               ),
             ),
@@ -444,37 +621,27 @@ class _StockByAgeCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(14),
             child: Container(
+              width: 76,
+              height: 84,
+              color: const Color(0xFFECEDF1),
+              child: Image.network(
+                getFlutterImageUrl(imagePath),
                 width: 76,
                 height: 84,
-                color: const Color(0xFFECEDF1),
-                child: Image.network(
-                  getFlutterImageUrl(imagePath),
-                  width: 76,
-                  height: 84,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 76,
-                    height: 84,
-                    color: const Color(0xFFECEDF1),
-                    child: const Icon(
-                      Icons.directions_car_rounded,
-                      size: 30,
-                      color: Color(0xFFBFC2CC),
-                    ),
-                  ),
-                )),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.directions_car_rounded,
+                  size: 30,
+                  color: Color(0xFFBFC2CC),
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ENLARGED VIEW — matches RecentArrivalsCard's _EnlargedVehicleView pattern:
-// transparent dialog, near-black barrier, full-size rounded photo, bottom
-// black pill with reg no., age pill top-left, close (X) top-right.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _EnlargedStockView extends StatelessWidget {
   final String name;
@@ -505,18 +672,11 @@ class _EnlargedStockView extends StatelessWidget {
               color: const Color(0xFF1D2748),
               child: Image.network(
                 getFlutterImageUrl(imgPath),
-                width: 76,
-                height: 84,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 76,
-                  height: 84,
-                  color: const Color(0xFFECEDF1),
-                  child: const Icon(
-                    Icons.directions_car_rounded,
-                    size: 30,
-                    color: Color(0xFFBFC2CC),
-                  ),
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.directions_car_rounded,
+                  size: 40,
+                  color: Colors.white54,
                 ),
               ),
             ),
@@ -549,33 +709,61 @@ class _EnlargedStockView extends StatelessWidget {
             ),
           ),
           Positioned(
-            bottom: 6,
+            bottom: 10,
             child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.65),
-                  borderRadius: BorderRadius.circular(30),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.65),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Text(
+                regNumber,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.5,
+                  letterSpacing: 0.5,
                 ),
-                child: Text(
-                  regNumber,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12.5,
-                    letterSpacing: 0.5,
-                  ),
-                )),
+              ),
+            ),
           ),
           Positioned(
             top: 6,
             right: 6,
             child: IconButton(
               onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.close_rounded, color: AppColors.primary),
+              icon: const Icon(Icons.close_rounded, color: Colors.white),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ErrorStateCard extends StatelessWidget {
+  final String message;
+  const _ErrorStateCard({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFCA5A5)),
+      ),
+      child: Center(
+        child: Text(
+          message,
+          style: const TextStyle(
+            color: Color(0xFFDC2626),
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }

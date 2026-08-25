@@ -3,8 +3,11 @@ import 'package:dealer/core/services/route_service.dart';
 import 'package:dealer/features/login/data/datasource/remote_datasource.dart';
 import 'package:dealer/features/login/data/repository/repository_impl.dart';
 import 'package:dealer/features/login/domain/repository/repository.dart';
+import 'package:dealer/features/login/domain/usecase/logout.dart';
 import 'package:dealer/features/login/domain/usecase/send_otp.dart';
 import 'package:dealer/features/login/domain/usecase/verify_otp.dart';
+import 'package:dealer/features/login/presentation/logic/logout/logout_notifier.dart';
+import 'package:dealer/features/login/presentation/logic/logout/logout_state.dart';
 import 'package:dealer/features/login/presentation/logic/send_otp/send_notifier.dart';
 import 'package:dealer/features/login/presentation/logic/send_otp/send_state.dart';
 import 'package:dealer/features/login/presentation/logic/verify_otp/verify_notifier.dart';
@@ -39,3 +42,12 @@ final verifyOtpProvider =
         (ref) => VerifyOtpNotifier(usecase: ref.read(_verifyOtp)));
 
 final loginPhoneProvider = StateProvider<String>((ref) => '');
+
+final logoutUsecase = Provider<Logout>(
+  (ref) => Logout(ref.read(_repository)),
+);
+
+final logoutNotifierProvider =
+    StateNotifierProvider<LogoutNotifier, LogoutState>(
+  (ref) => LogoutNotifier(usecase: ref.read(logoutUsecase), ref: ref),
+);

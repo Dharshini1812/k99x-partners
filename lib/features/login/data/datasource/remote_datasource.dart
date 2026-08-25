@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'package:dealer/core/helper/storage_helper.dart';
 import 'package:dealer/core/utils/url.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
+import 'package:dealer/features/login/data/model/logout_model.dart';
 import 'package:dealer/features/login/data/model/send_otp.dart';
 import 'package:dealer/features/login/data/model/user_model.dart';
 import 'package:dealer/features/login/data/model/verify_model.dart';
@@ -12,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 abstract class LoginRemoteDataSource {
   Future<SendOtpModel> sendOtp(SendOtpModel model);
   Future<UserData> verifyOtp(VerifyOtpModel model);
+  Future<LogoutResponseModel> logout();
 }
 
 class LoginRemoteDataSourceImpl implements LoginRemoteDataSource {
@@ -109,5 +111,23 @@ class LoginRemoteDataSourceImpl implements LoginRemoteDataSource {
     if (msg == null) return fallback;
     if (msg is String) return msg;
     return msg.toString();
+  }
+
+  @override
+  Future<LogoutResponseModel> logout() async {
+    try {
+      final api = ref.read(apiService);
+      // post1 attaches getAuthHeaders() (Basic auth + X-USER-ID) — same
+      // as every other authenticated call in this app. No body needed;
+      // the server identifies the session from those headers.
+      final response = await api.post1(Url.logoutUrl, null);
+
+      // post1 returns the full Dio Response — the JSON body is in
+      // response.data, not the Response wrapper itself.
+      return LogoutResponseModel.fromJson(response.data);
+    } catch (e) {
+      log("Logout Error : $e");
+      rethrow;
+    }
   }
 }

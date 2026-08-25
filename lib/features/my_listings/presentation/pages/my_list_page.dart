@@ -3,7 +3,7 @@ import 'package:dealer/features/my_listings/data/model/filter_model.dart';
 import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
 import 'package:dealer/features/my_listings/presentation/logic/provider.dart';
 import 'package:dealer/features/my_listings/presentation/pages/vehicle_card.dart';
-import 'package:dealer/features/my_listings/presentation/pages/wanted_vehicle_page.dart';
+import 'package:dealer/features/my_listings/presentation/pages/add_wanted_vehicle_page.dart';
 import 'package:dealer/features/my_listings/presentation/widgets/vehicle_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +29,8 @@ class _MyListPageState extends ConsumerState<MyListPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
+    Future.microtask(
+        () => ref.read(wantedListProvider.notifier).getWantedList());
   }
 
   @override
@@ -83,6 +85,36 @@ class _TabItem {
 }
 
 double _lerp(double a, double b, double t) => a + (b - a) * t;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEDUP HELPER — groups vehicles by make+model+variant. Only the first of
+// each group is rendered as a top-level card; the rest of that group are
+// returned as "duplicates" so the representative card can fold them into
+// its own +N similar-stock count instead of rendering as separate cards.
+//
+// Whichever item comes FIRST in the input list becomes the representative
+// for its group — so callers that care about which one shows (e.g. "the
+// newest of any duplicate set") need to sort the list before calling this,
+// not after. See MyStockTab.build below for the sort-then-dedupe order.
+// ─────────────────────────────────────────────────────────────────────────────
+
+({List<VehicleData> display, Map<String, List<VehicleData>> groups})
+    dedupeByVariant(List<VehicleData> items) {
+  final Map<String, List<VehicleData>> groups = {};
+  final List<VehicleData> display = [];
+
+  for (final v in items) {
+    final key = '${v.make}_${v.model}_${v.variant}';
+    if (groups.containsKey(key)) {
+      groups[key]!.add(v);
+    } else {
+      groups[key] = [v];
+      display.add(v); // first occurrence becomes the representative card
+    }
+  }
+
+  return (display: display, groups: groups);
+}
 
 /// Matches the Swiggy strip exactly: one continuous flat rail, each tab's
 /// card has ONLY its top corners rounded (flat bottom, flush with the
@@ -284,12 +316,10 @@ class _PeekTabBar extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DEMO DATA — one CarListingData per stock item. Replace these lists with
-// real data mapped from your `Car` model / myListLogic (see
-// CarListingData.fromCar in vehicle_card.dart for where that mapping goes).
-// This is the actual fix for "cards all look the same": each item below
-// carries its own title/price/status, and the SAME CarInspectionCard widget
-// renders whichever one it's given.
+// LIVE STOCK TAB — fetches the full live listing set and renders each one
+// through CarInspectionCard. No dedup here: Live Stock represents the
+// broader market (other dealers too), so duplicates across dealers are
+// real distinct listings, not accidental re-entries of the same stock.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SellVehicleTab extends ConsumerStatefulWidget {
@@ -304,7 +334,7 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
   void initState() {
     Future.microtask(() => ref
         .read(liveStockNotifier.notifier)
-        .getLiveStock(offset: 0, limit: 20));
+        .getLiveStock(offset: 0, limit: 50));
     super.initState();
   }
 
@@ -403,6 +433,7 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
     );
   }
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MY STOCK TAB — sub-tabs for "Approved" vs "Pending", both built from the
 // same fetched vehicle list, split by status: live → Approved, draft →
@@ -421,7 +452,7 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
     with SingleTickerProviderStateMixin {
   late final TabController _subTabController;
 
-  static const List<String> _subTabs = ['Approved Stock', 'Pending Stock'];
+  static const List<String> _subTabs = ['Pending Stock', 'Approved Stock'];
 
   @override
   void initState() {
@@ -493,18 +524,40 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
             // isn't confirmed — tighten to an exact match if needed.
             // Anything with a different status (sold, rejected, etc.)
             // won't currently show in either tab.
+            //
+            // Sorted newest-first by createdAt so a draft you just
+            // created shows up at the top of Pending Stock instead of
+            // wherever the API happened to return it. This has to
+            // happen BEFORE dedupeByVariant — dedupe picks whichever
+            // item comes first in the list as the group's representative
+            // card, so sorting first also means the newest of any
+            // duplicate-variant group is the one that actually renders.
+            //
+            // ADAPT: assumes VehicleData.createdAt is an int (epoch
+            // millis), matching what the /review and /edit endpoints
+            // returned earlier (e.g. "createdAt": 1787044957000). If
+            // it's actually a String or DateTime on your model, swap the
+            // comparator accordingly — e.g. for a DateTime:
+            //   ..sort((a, b) => (b.createdAt ?? DateTime(0))
+            //       .compareTo(a.createdAt ?? DateTime(0)))
             final approvedList = vehicleResponse.data
                 .where((v) => (v.status ?? '').toLowerCase() == 'live')
-                .toList();
+                .toList()
+              ..sort((a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
+
             final pendingList = vehicleResponse.data
                 .where((v) => (v.status ?? '').toLowerCase() == 'draft')
-                .toList();
+                .toList()
+              ..sort((a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
 
             return TabBarView(
               controller: _subTabController,
               children: [
-                _StockList(items: approvedList),
-                _StockList(items: pendingList),
+                _StockList(
+                    items: pendingList, expandFirstItem: false), // Pending tab
+                _StockList(
+                    items: approvedList,
+                    expandFirstItem: true), // 👈 Approved tab expands 1st item
               ],
             );
           },
@@ -514,10 +567,21 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// STOCK LIST — dedupes by make+model+variant before rendering so identical
+// My Stock entries collapse into ONE displayed card per group. The card
+// itself (via CarInspectionCard) independently computes its own +N count
+// by watching both providers and excluding its own id — this list's job
+// is only to decide which ONE card per group gets rendered.
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _StockList extends StatelessWidget {
   final List<VehicleData> items;
-
-  const _StockList({required this.items});
+  final bool expandFirstItem;
+  const _StockList({
+    required this.items,
+    this.expandFirstItem = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -530,14 +594,24 @@ class _StockList extends StatelessWidget {
       );
     }
 
+    final deduped = dedupeByVariant(items);
+
     return ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        itemCount: items.length,
+        itemCount:
+            deduped.display.length, // ✅ matches deduped list, not items.length
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (_, index) {
-          final vehicleData = items[index];
-
-          return CarInspectionCard(data: vehicleData);
+          final vehicleData = deduped.display[index];
+          // No myStockDuplicates plumbing needed here anymore — the card
+          // itself watches myStockNotifierProvider and self-excludes by
+          // id, so it computes the same +N total regardless of which
+          // tab/list it's rendered from. dedupeByVariant is only used
+          // here to decide which ONE card to render per group.
+          return CarInspectionCard(
+            data: vehicleData,
+            initiallyExpanded: expandFirstItem && index == 0,
+          );
         });
   }
 }

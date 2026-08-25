@@ -1,10 +1,13 @@
+import 'dart:convert';
 import 'dart:developer';
 
 import 'package:dealer/core/utils/url.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
+import 'package:dealer/features/my_listings/data/model/add_wanted_list_model.dart';
 import 'package:dealer/features/my_listings/data/model/filter_model.dart';
 import 'package:dealer/features/my_listings/data/model/kyc_submit_model.dart';
 import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
+import 'package:dealer/features/my_listings/data/model/wanted_list_model.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +15,10 @@ abstract class ListingDataSource {
   Future<VehicleResponse> getMyListings({int? offset, int? limit});
   Future<VehicleResponse> getLiveListings({int? offset, int? limit});
   Future<KycSubmitResponse> addKyc(KycSubmitRequest? request);
+  Future<WantedListResponseModel> getWantedListings();
+  Future<WantedListingSaveResponseModel> saveWantedListing(
+    WantedListingRequestModel request,
+  );
 }
 
 class ListingDatasourceImpl implements ListingDataSource {
@@ -53,7 +60,6 @@ class ListingDatasourceImpl implements ListingDataSource {
   }
 
   @override
-  @override
   Future<KycSubmitResponse> addKyc(KycSubmitRequest? request) async {
     try {
       const url = Url.uploadKyc;
@@ -67,6 +73,39 @@ class ListingDatasourceImpl implements ListingDataSource {
       return KycSubmitResponse.fromJson(response.data);
     } catch (e) {
       log("Add KYC Error : $e");
+      rethrow;
+    }
+  }
+
+  @override
+  Future<WantedListResponseModel> getWantedListings() async {
+    try {
+      const url = Url.wantedListUrl;
+      final api = ref.read(apiService);
+      final response = await api.get2(url);
+      return WantedListResponseModel.fromJson(response);
+    } catch (e) {
+      log('$e');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<WantedListingSaveResponseModel> saveWantedListing(
+    WantedListingRequestModel request,
+  ) async {
+    try {
+      const url = Url.addWantedVehicle;
+      final api = ref.read(apiService);
+      final response = await api.post2(url, request.toJson());
+
+      final Map<String, dynamic> json = response.data is String
+          ? jsonDecode(response.data as String) as Map<String, dynamic>
+          : response.data as Map<String, dynamic>;
+
+      return WantedListingSaveResponseModel.fromJson(json);
+    } catch (e) {
+      log('$e');
       rethrow;
     }
   }

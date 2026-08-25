@@ -14,18 +14,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 extension VehicleDataMappingX on VehicleData {
   VehicleListingModel toListingModel() {
     return VehicleListingModel(
+      vehicleId: id,
       registrationNumber: regNo,
-      // Map year as string
       year: mfgYear?.toString(),
-
-      // MAPPING COMPLEX MODELS
-      // Note: IdentificationSpecsStep expects the full model objects in
-      // listing.make, listing.model, listing.variant to populate the dropdowns.
-      // Make sure the APIs return these correctly.
-      // make: ...map from dealerVehicleInspection?.make
-      // model: ...map from dealerVehicleInspection?.model
-      // variant: ...map from dealerVehicleInspection?.variant
-
       mileageKm: kmDriven?.toString(),
       bodyStyle: bodyStyle,
       fuelType: toTitleCase(fuelType),

@@ -15,8 +15,22 @@ class Url {
   static const modelUrl =
       'https://devvehcheck.k99x.com/servlet/vehicle/getModels/';
 
-  static const uploadUrl = '$baseUrl/dealer/add/media';
+  static const uploadUrl = '$baseUrl/dealer/vehicle/sell/add/media';
   static const getRCDetails = 'https://k99x.com/servlet/vehicle/rc/';
   static const statsUrl = '$baseUrl/dealer/mylisting/stats';
-  static const uploadKyc = '$baseUrl//dealer/kyc/submit';
+  static const uploadKyc = '$baseUrl/dealer/kyc/submit';
+  static const uploadVehicleW = '$baseUrl/dealer/vehicle/sell/add';
+  static const vehicleReviewUrl = '$baseUrl/dealer/vehicle/sell/review';
+  static const completeVehicleUrl = '$baseUrl/dealer/vehicle/sell/complete';
+  static const editVehicleurl = '$baseUrl/dealer/vehicle/sell/edit';
+  static const wantedListUrl = '$baseUrl/dealer/wanted-listing';
+  static const addWantedVehicle = '$baseUrl/dealer/wanted-listing/save';
+  static const logoutUrl = '$baseUrl/auth/logout';
+
+  //clent
+
+  static const dashboardStatsUrl = '$baseUrl/client/dashboard';
+  static const clientStocksUrl = '$baseUrl/client/stocks';
+  static const loanApproveUrl = '$baseUrl/client/loan/approve';
+  static const clientKycViewUrl = '$baseUrl/client/kyc/view/';
 }

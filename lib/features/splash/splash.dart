@@ -46,18 +46,29 @@ class _SplashPageState extends ConsumerState<SplashPage>
     )..repeat();
 
     Future.delayed(const Duration(milliseconds: 2600), () async {
-      final isLoggedIn = await SecureStorageService().isLoggedIn();
+      final storage = SecureStorageService();
+      final user = await storage.getUser();
 
       if (!mounted) return;
 
-      if (isLoggedIn) {
-        ref
-            .read(routeService)
-            .pushAndRemoveUntil(const BottomNavRoute(), context);
-      } else {
-        ref
-            .read(routeService)
-            .pushAndRemoveUntil(const DealerOnboardingRoute(), context);
+      if (user == null) {
+        ref.read(routeService).pushAndRemoveUntil(
+              const DealerOnboardingRoute(),
+              context,
+            );
+        return;
+      }
+
+      if (user.userType == 'CLIENT') {
+        ref.read(routeService).pushAndRemoveUntil(
+              const ClientBottomNavRoute(),
+              context,
+            );
+      } else if (user.userType == 'DEALER') {
+        ref.read(routeService).pushAndRemoveUntil(
+              const BottomNavRoute(),
+              context,
+            );
       }
     });
   }

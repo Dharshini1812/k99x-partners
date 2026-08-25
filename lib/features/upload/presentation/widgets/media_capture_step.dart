@@ -7,13 +7,12 @@
 // provider, so each of the 6 slots has its own isolated loading/
 // success/error state (see logic/upload/upload_provider.dart).
 //
-// ASSUMPTION (adjust if wrong): a `vehicleId` already exists by the time
-// the user reaches this step — e.g. created when step 1 was submitted —
-// and lives at `listing.vehicleId`. If your VehicleListingModel doesn't
-// have that field yet, add `final String? vehicleId;` to it. If the
-// vehicle isn't created until final submit, this step needs to hold
-// files locally and defer all uploads to the review step's submit
-// instead — say so and I'll restructure this for that flow.
+// vehicleId now comes from listing.vehicleId — set by
+// _submitVehicleAndProceed() in VehicleListingPage right before this
+// step is shown, so by the time this widget builds it should always be
+// populated. (Previously this was a hardcoded placeholder string, which
+// meant every upload here silently went to the wrong vehicle regardless
+// of which one the user was actually listing.)
 
 import 'package:dealer/features/upload/presentation/logic/upload/upload_state_x.dart';
 import 'package:dealer/features/upload/presentation/logic/upload_provider.dart';
@@ -34,16 +33,8 @@ class MediaCaptureStep extends ConsumerWidget {
     final listing = ref.watch(listingProvider);
     final notifier = ref.read(listingProvider.notifier);
     final picker = ImagePicker();
-    const vehicleId =
-        'KL782101448124617385'; // ADAPT: see note above if this field doesn't exist yet
+    final vehicleId = listing.vehicleId ?? '';
 
-    // Fires after a file is picked for [slotKey]: stores the local path
-    // immediately (so the preview shows), kicks off the upload, then on
-    // success stores the returned URL via [storeUrl].
-    //
-    // ADAPT: `result.data?.url` assumes UploadModel has a `url` field —
-    // rename to whatever your UploadModel actually calls the uploaded
-    // file's location.
     Future<void> handlePicked(
       String slotKey,
       XFile file,
@@ -52,7 +43,11 @@ class MediaCaptureStep extends ConsumerWidget {
     ) async {
       storeLocalPath(file.path);
       if (vehicleId.isEmpty) {
-        return; // nothing to upload against yet
+        // Shouldn't happen in the normal flow — Self Inspection creates
+        // the vehicle before this step is reachable — but guards against
+        // uploading against nothing if someone lands here with stale
+        // state (e.g. hot reload during dev, or a future flow change).
+        return;
       }
       await ref.read(uploadProvider(slotKey).notifier).uploadMedia(
             vehicleId: vehicleId,
@@ -61,9 +56,6 @@ class MediaCaptureStep extends ConsumerWidget {
           );
       final result = ref.read(uploadProvider(slotKey));
       if (result.isSuccess) {
-        // ADAPT: assumes UploadModel.data.url — if your backend's data
-        // object uses a different key, change it in UploadMediaData
-        // (data/model/upload_model.dart), not here.
         storeUrl(result.uploadedModel?.data?.url);
       }
     }
@@ -114,6 +106,7 @@ class MediaCaptureStep extends ConsumerWidget {
             Expanded(
               child: _buildSlot(
                 ref: ref,
+                vehicleId: vehicleId,
                 slotKey: MediaSlot.front,
                 title: 'Front Vehicle Image',
                 subtitle: "Capture a clear image of the car's front.",
@@ -139,6 +132,7 @@ class MediaCaptureStep extends ConsumerWidget {
             Expanded(
               child: _buildSlot(
                 ref: ref,
+                vehicleId: vehicleId,
                 slotKey: MediaSlot.odometer,
                 title: 'Vehicle Odometer Image',
                 subtitle: "Capture a clear image of the car's odometer.",
@@ -168,6 +162,7 @@ class MediaCaptureStep extends ConsumerWidget {
             Expanded(
               child: _buildSlot(
                 ref: ref,
+                vehicleId: vehicleId,
                 slotKey: MediaSlot.exteriorVideo,
                 title: 'Vehicle Exterior',
                 subtitle: 'Walk around the entire car, showing all sides.',
@@ -193,6 +188,7 @@ class MediaCaptureStep extends ConsumerWidget {
             Expanded(
               child: _buildSlot(
                 ref: ref,
+                vehicleId: vehicleId,
                 slotKey: MediaSlot.interiorVideo,
                 title: 'Vehicle Interior',
                 subtitle: 'Pan across the dashboard, seats, and cabin.',
@@ -222,6 +218,7 @@ class MediaCaptureStep extends ConsumerWidget {
             Expanded(
               child: _buildSlot(
                 ref: ref,
+                vehicleId: vehicleId,
                 slotKey: MediaSlot.engineBayVideo,
                 title: 'Vehicle Engine Bay',
                 subtitle: 'Show engine running if possible.',
@@ -247,6 +244,7 @@ class MediaCaptureStep extends ConsumerWidget {
             Expanded(
               child: _buildSlot(
                 ref: ref,
+                vehicleId: vehicleId,
                 slotKey: MediaSlot.tyresVideo,
                 title: 'Vehicle Tyres',
                 subtitle: 'Close-up of each tyre.',
@@ -274,11 +272,9 @@ class MediaCaptureStep extends ConsumerWidget {
     );
   }
 
-  /// Reads this slot's upload state and builds the MediaCard with
-  /// progress/error reflected. Retry re-runs the same upload against
-  /// the already-picked local file, so no re-picking is needed.
   Widget _buildSlot({
     required WidgetRef ref,
+    required String vehicleId,
     required String slotKey,
     required String title,
     required String subtitle,
@@ -291,9 +287,7 @@ class MediaCaptureStep extends ConsumerWidget {
     final uploadState = ref.watch(uploadProvider(slotKey));
 
     Future<void> retry() async {
-      if (path == null) return;
-      const vehicleId = 'KL782101448124617385'; // ADAPT: see file-header note
-      if (vehicleId.isEmpty) return;
+      if (path == null || vehicleId.isEmpty) return;
       await ref.read(uploadProvider(slotKey).notifier).uploadMedia(
             vehicleId: vehicleId,
             mediaType: slotKey,

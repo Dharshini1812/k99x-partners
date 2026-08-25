@@ -59,9 +59,42 @@ class LoginLogic extends ChangeNotifier {
   }
 
   void onOtpDigit(int index, String value) {
-    if (value.isNotEmpty && index < 3) {
-      otpFocusList[index + 1].requestFocus();
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+
+    // ── Handle multi-digit paste (e.g., pasting "1234") ─────────
+    if (digits.length > 1) {
+      for (int i = 0; i < 4; i++) {
+        if (i < digits.length) {
+          otpCtrlList[i].text = digits[i];
+        } else {
+          otpCtrlList[i].clear();
+        }
+      }
+
+      // Move focus to the last filled box or unfocus if all 4 are filled
+      if (digits.length >= 4) {
+        otpFocusList[3].unfocus();
+      } else {
+        otpFocusList[digits.length].requestFocus();
+      }
+
+      notifyListeners();
+      return;
     }
+
+    // ── Handle single digit input ────────────────────────────────
+    if (digits.isNotEmpty) {
+      otpCtrlList[index].text = digits;
+      if (index < 3) {
+        otpFocusList[index + 1].requestFocus();
+      } else {
+        otpFocusList[index].unfocus();
+      }
+    } else {
+      otpCtrlList[index].clear();
+    }
+
+    notifyListeners();
   }
 
   void onBackspace(int index) {
