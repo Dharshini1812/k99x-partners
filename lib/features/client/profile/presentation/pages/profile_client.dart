@@ -411,7 +411,47 @@ class _ModernTile extends StatelessWidget {
 class _LogoutButton extends ConsumerWidget {
   const _LogoutButton();
 
+  Future<bool> _confirmLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Log out?',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: const Text(
+          'Are you sure you want to logout?',
+          style: TextStyle(color: Color(0xFF6B7280)),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF6B7280),
+            ),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text(
+              'Yes, Logout',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
   Future<void> _handleLogout(BuildContext context, WidgetRef ref) async {
+    final confirmed = await _confirmLogout(context);
+    if (!confirmed) return;
+    if (!context.mounted) return;
+
     await ref.read(logoutNotifierProvider.notifier).logout();
     if (!context.mounted) return;
     ref.read(routeService).pushAndRemoveUntil(const LoginRoute(), context);

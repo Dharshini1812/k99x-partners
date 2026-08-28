@@ -1,9 +1,11 @@
+// lib/features/my_listings/presentation/pages/my_list_page.dart
+
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/my_listings/data/model/filter_model.dart';
 import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
 import 'package:dealer/features/my_listings/presentation/logic/provider.dart';
-import 'package:dealer/features/my_listings/presentation/pages/vehicle_card.dart';
 import 'package:dealer/features/my_listings/presentation/pages/add_wanted_vehicle_page.dart';
+import 'package:dealer/features/my_listings/presentation/pages/vehicle_card.dart';
 import 'package:dealer/features/my_listings/presentation/widgets/vehicle_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,7 +72,7 @@ class _MyListPageState extends ConsumerState<MyListPage>
         controller: _tabController,
         children: const [
           SellVehicleTab(),
-          MyStockTab(), // "My Stock" — has its own Approved / My Stock sub-tabs
+          MyStockTab(),
           AddWantedVehiclePage(),
         ],
       ),
@@ -80,23 +82,12 @@ class _MyListPageState extends ConsumerState<MyListPage>
 
 class _TabItem {
   final String label;
-
   const _TabItem({required this.label});
 }
 
 double _lerp(double a, double b, double t) => a + (b - a) * t;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DEDUP HELPER — groups vehicles by make+model+variant. Only the first of
-// each group is rendered as a top-level card; the rest of that group are
-// returned as "duplicates" so the representative card can fold them into
-// its own +N similar-stock count instead of rendering as separate cards.
-//
-// Whichever item comes FIRST in the input list becomes the representative
-// for its group — so callers that care about which one shows (e.g. "the
-// newest of any duplicate set") need to sort the list before calling this,
-// not after. See MyStockTab.build below for the sort-then-dedupe order.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── DEDUP HELPER (Includes Manufacturing Year + Make + Model + Variant) ──────
 
 ({List<VehicleData> display, Map<String, List<VehicleData>> groups})
     dedupeByVariant(List<VehicleData> items) {
@@ -104,23 +95,34 @@ double _lerp(double a, double b, double t) => a + (b - a) * t;
   final List<VehicleData> display = [];
 
   for (final v in items) {
-    final key = '${v.make}_${v.model}_${v.variant}';
+    final yearStr = v.mfgYear != null && v.mfgYear! > 0 ? '${v.mfgYear}_' : '';
+    final makeStr =
+        (v.makeName?.isNotEmpty == true ? v.makeName : v.make?.toString()) ??
+            '';
+    final modelStr =
+        (v.modelName?.isNotEmpty == true ? v.modelName : v.model?.toString()) ??
+            '';
+    final variantStr = (v.variantName?.isNotEmpty == true
+            ? v.variantName
+            : v.variant?.toString()) ??
+        '';
+
+    final key =
+        '$yearStr${makeStr}_${modelStr}_$variantStr'.toLowerCase().trim();
+
     if (groups.containsKey(key)) {
       groups[key]!.add(v);
     } else {
       groups[key] = [v];
-      display.add(v); // first occurrence becomes the representative card
+      display.add(v);
     }
   }
 
   return (display: display, groups: groups);
 }
 
-/// Matches the Swiggy strip exactly: one continuous flat rail, each tab's
-/// card has ONLY its top corners rounded (flat bottom, flush with the
-/// rail — no floating pill), and the active tab rises above the shared
-/// baseline while two small circles carve the concave "S" joint into its
-/// base corners so it visually merges into its neighbors.
+// ── PEEK TAB BAR ─────────────────────────────────────────────────────────────
+
 class _PeekTabBar extends StatelessWidget {
   final TabController controller;
   final List<_TabItem> tabs;
@@ -151,7 +153,6 @@ class _PeekTabBar extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Flat rail — full width, fixed height, sits at the bottom.
           Positioned(
             left: 0,
             right: 0,
@@ -164,7 +165,6 @@ class _PeekTabBar extends StatelessWidget {
               ),
             ),
           ),
-
           Positioned.fill(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -188,8 +188,6 @@ class _PeekTabBar extends StatelessWidget {
                             final bg = Color.lerp(_railBg, _activeColor, t)!;
                             final textColor =
                                 Color.lerp(_textInactive, _textActive, t)!;
-
-                            // final lift = _peekHeight * t;
                             final topRadius = _lerp(16, _cardTopRadius, t);
 
                             return Expanded(
@@ -259,9 +257,6 @@ class _PeekTabBar extends StatelessWidget {
     );
   }
 
-  /// Carves the concave "S" curve at the base corners of the raised tab —
-  /// this is what makes it read as merging into the rail instead of
-  /// floating as a separate pill on top of it.
   List<Widget> _buildNotches(List<double> ts, double tabWidth) {
     int peakIndex = 0;
     double peakT = ts[0];
@@ -315,12 +310,7 @@ class _PeekTabBar extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LIVE STOCK TAB — fetches the full live listing set and renders each one
-// through CarInspectionCard. No dedup here: Live Stock represents the
-// broader market (other dealers too), so duplicates across dealers are
-// real distinct listings, not accidental re-entries of the same stock.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── LIVE STOCK TAB ───────────────────────────────────────────────────────────
 
 class SellVehicleTab extends ConsumerStatefulWidget {
   const SellVehicleTab({super.key});
@@ -332,16 +322,13 @@ class SellVehicleTab extends ConsumerStatefulWidget {
 class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
   @override
   void initState() {
+    super.initState();
     Future.microtask(() => ref
         .read(liveStockNotifier.notifier)
         .getLiveStock(offset: 0, limit: 50));
-    super.initState();
   }
 
   void _search(VehicleFilterState filters) {
-    debugPrint('applyFilter → query="${filters.query}" make=${filters.make} '
-        'model=${filters.model} year=${filters.year} owners=${filters.owners}');
-
     ref.read(liveStockNotifier.notifier).applyFilter(
           LiveStockFilter(
             query: filters.query,
@@ -365,9 +352,6 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
     return ListView(
       children: [
         VehicleFilterBar(
-          // NOTE: also fire search the instant ANY pill/chip changes, not
-          // just on text submit. Requires VehicleFilterBar to call this
-          // from every setState that changes a filter — see patch below.
           onSearch: _search,
           onFilterChanged: _search,
           onClear: () {
@@ -405,8 +389,8 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
             ),
           ),
           orElse: () => const SizedBox.shrink(),
-          data: (vehcile) {
-            if (vehcile.data.isEmpty) {
+          data: (vehicle) {
+            if (vehicle.data.isEmpty) {
               return const Padding(
                 padding: EdgeInsets.only(top: 40),
                 child: Center(
@@ -417,14 +401,21 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
                 ),
               );
             }
+
+            // ── Fixed: Deduplicate Live Stock by (Year + Make + Model + Variant) ──
+            final deduped = dedupeByVariant(vehicle.data);
+
             return ListView.separated(
               physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(6),
-              itemCount: vehcile.data.length,
+              padding: const EdgeInsets.all(12),
+              itemCount: deduped.display.length,
               shrinkWrap: true,
-              separatorBuilder: (_, __) => const SizedBox(height: 7),
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (_, index) {
-                return CarInspectionCard(data: vehcile.data[index]);
+                return CarInspectionCard(
+                  data: deduped.display[index],
+                  initiallyExpanded: index == 0,
+                );
               },
             );
           },
@@ -434,12 +425,7 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MY STOCK TAB — sub-tabs for "Approved" vs "Pending", both built from the
-// same fetched vehicle list, split by status: live → Approved, draft →
-// Pending. Both sub-tabs reuse CarInspectionCard so the list matches Live
-// Stock's visual design exactly — only the filtered data differs per tab.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── MY STOCK TAB ─────────────────────────────────────────────────────────────
 
 class MyStockTab extends ConsumerStatefulWidget {
   const MyStockTab({super.key});
@@ -458,9 +444,12 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
   void initState() {
     super.initState();
     _subTabController = TabController(length: _subTabs.length, vsync: this);
-    Future.microtask(() => ref
-        .read(myStockNotifierProvider.notifier)
-        .getMyStock(offset: 0, limit: 10));
+    Future.microtask(() {
+      ref
+          .read(myStockNotifierProvider.notifier)
+          .getMyStock(offset: 0, limit: 50);
+      ref.read(liveStockNotifier.notifier).getLiveStock(offset: 0, limit: 50);
+    });
   }
 
   @override
@@ -470,10 +459,7 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
   }
 
   void _search(VehicleFilterState filters) {
-    debugPrint('applyFilter → query="${filters.query}" make=${filters.make} '
-        'model=${filters.model} year=${filters.year} owners=${filters.owners}');
-
-    ref.read(liveStockNotifier.notifier).applyFilter(
+    ref.read(myStockNotifierProvider.notifier).applyFilter(
           LiveStockFilter(
             query: filters.query,
             make: filters.make,
@@ -492,16 +478,15 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
   @override
   Widget build(BuildContext context) {
     final myListingAsync = ref.watch(myStockNotifierProvider);
+    final liveListingAsync = ref.watch(liveStockNotifier);
+
     return Column(
       children: [
         VehicleFilterBar(
-          // NOTE: also fire search the instant ANY pill/chip changes, not
-          // just on text submit. Requires VehicleFilterBar to call this
-          // from every setState that changes a filter — see patch below.
           onSearch: _search,
           onFilterChanged: _search,
           onClear: () {
-            ref.read(liveStockNotifier.notifier).clearFilter();
+            ref.read(myStockNotifierProvider.notifier).clearFilter();
           },
         ),
         Padding(
@@ -512,72 +497,60 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
           ),
         ),
         Expanded(
-            child: myListingAsync.maybeWhen(
-          error: (msg) => Text(msg),
-          orElse: () => const Center(
-              child: CircularProgressIndicator(
-            color: AppColors.primary,
-          )),
-          data: (vehicleResponse) {
-            // live → Approved Stock, draft → Pending Stock. Compared
-            // case-insensitively since the exact casing the API returns
-            // isn't confirmed — tighten to an exact match if needed.
-            // Anything with a different status (sold, rejected, etc.)
-            // won't currently show in either tab.
-            //
-            // Sorted newest-first by createdAt so a draft you just
-            // created shows up at the top of Pending Stock instead of
-            // wherever the API happened to return it. This has to
-            // happen BEFORE dedupeByVariant — dedupe picks whichever
-            // item comes first in the list as the group's representative
-            // card, so sorting first also means the newest of any
-            // duplicate-variant group is the one that actually renders.
-            //
-            // ADAPT: assumes VehicleData.createdAt is an int (epoch
-            // millis), matching what the /review and /edit endpoints
-            // returned earlier (e.g. "createdAt": 1787044957000). If
-            // it's actually a String or DateTime on your model, swap the
-            // comparator accordingly — e.g. for a DateTime:
-            //   ..sort((a, b) => (b.createdAt ?? DateTime(0))
-            //       .compareTo(a.createdAt ?? DateTime(0)))
-            final approvedList = vehicleResponse.data
-                .where((v) => (v.status ?? '').toLowerCase() == 'live')
-                .toList()
-              ..sort((a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
+          child: myListingAsync.maybeWhen(
+            error: (msg) => Center(child: Text(msg)),
+            orElse: () => const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            ),
+            data: (vehicleResponse) {
+              final liveStocks = liveListingAsync.maybeWhen(
+                data: (res) => res.data,
+                orElse: () => <VehicleData>[],
+              );
 
-            final pendingList = vehicleResponse.data
-                .where((v) => (v.status ?? '').toLowerCase() == 'draft')
-                .toList()
-              ..sort((a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
+              final Map<String, VehicleData> mergedMap = {};
+              for (final v in [...vehicleResponse.data, ...liveStocks]) {
+                if (v.id != null && v.id!.isNotEmpty) {
+                  mergedMap[v.id!] = v;
+                }
+              }
+              final combinedList = mergedMap.values.toList();
 
-            return TabBarView(
-              controller: _subTabController,
-              children: [
-                _StockList(
-                    items: pendingList, expandFirstItem: false), // Pending tab
-                _StockList(
-                    items: approvedList,
-                    expandFirstItem: true), // 👈 Approved tab expands 1st item
-              ],
-            );
-          },
-        )),
+              final approvedList = combinedList.where((v) {
+                final status = (v.status ?? '').trim().toUpperCase();
+                return status == 'LIVE' || status == 'APPROVED';
+              }).toList()
+                ..sort(
+                    (a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
+
+              final pendingList = vehicleResponse.data.where((v) {
+                final status = (v.status ?? '').trim().toUpperCase();
+                return status == 'DRAFT' || status == 'PENDING';
+              }).toList()
+                ..sort(
+                    (a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
+
+              return TabBarView(
+                controller: _subTabController,
+                children: [
+                  _StockList(items: pendingList, expandFirstItem: false),
+                  _StockList(items: approvedList, expandFirstItem: true),
+                ],
+              );
+            },
+          ),
+        ),
       ],
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STOCK LIST — dedupes by make+model+variant before rendering so identical
-// My Stock entries collapse into ONE displayed card per group. The card
-// itself (via CarInspectionCard) independently computes its own +N count
-// by watching both providers and excluding its own id — this list's job
-// is only to decide which ONE card per group gets rendered.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── STOCK LIST ───────────────────────────────────────────────────────────────
 
 class _StockList extends StatelessWidget {
   final List<VehicleData> items;
   final bool expandFirstItem;
+
   const _StockList({
     required this.items,
     this.expandFirstItem = false,
@@ -597,29 +570,22 @@ class _StockList extends StatelessWidget {
     final deduped = dedupeByVariant(items);
 
     return ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        itemCount:
-            deduped.display.length, // ✅ matches deduped list, not items.length
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (_, index) {
-          final vehicleData = deduped.display[index];
-          // No myStockDuplicates plumbing needed here anymore — the card
-          // itself watches myStockNotifierProvider and self-excludes by
-          // id, so it computes the same +N total regardless of which
-          // tab/list it's rendered from. dedupeByVariant is only used
-          // here to decide which ONE card to render per group.
-          return CarInspectionCard(
-            data: vehicleData,
-            initiallyExpanded: expandFirstItem && index == 0,
-          );
-        });
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      itemCount: deduped.display.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (_, index) {
+        final vehicleData = deduped.display[index];
+        return CarInspectionCard(
+          data: vehicleData,
+          initiallyExpanded: expandFirstItem && index == 0,
+        );
+      },
+    );
   }
 }
 
-/// A compact dark segmented pill for switching between sub-tabs — same
-/// neutral charcoal-on-light-rail style as the app's other segmented
-/// controls, sized down so it reads as a secondary control beneath the
-/// main Peek tab bar rather than competing with it.
+// ── SUB-TAB SWITCHER ─────────────────────────────────────────────────────────
+
 class _SubTabSwitcher extends StatelessWidget {
   final TabController controller;
   final List<String> labels;
@@ -715,38 +681,6 @@ class _SubTabSwitcher extends StatelessWidget {
           );
         },
       ),
-    );
-  }
-}
-
-class WantedVehicleTab extends StatelessWidget {
-  const WantedVehicleTab({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: 5,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (_, index) {
-        return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: Colors.grey.shade200),
-          ),
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            title: Text(
-              "Wanted Vehicle ${index + 1}",
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: const Text("Vehicle details"),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-          ),
-        );
-      },
     );
   }
 }

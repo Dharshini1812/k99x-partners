@@ -35,6 +35,8 @@ class MediaCaptureStep extends ConsumerWidget {
     final picker = ImagePicker();
     final vehicleId = listing.vehicleId ?? '';
 
+    // lib/features/upload/presentation/pages/steps/media_capture_step.dart
+
     Future<void> handlePicked(
       String slotKey,
       XFile file,
@@ -42,21 +44,22 @@ class MediaCaptureStep extends ConsumerWidget {
       void Function(String? url) storeUrl,
     ) async {
       storeLocalPath(file.path);
-      if (vehicleId.isEmpty) {
-        // Shouldn't happen in the normal flow — Self Inspection creates
-        // the vehicle before this step is reachable — but guards against
-        // uploading against nothing if someone lands here with stale
-        // state (e.g. hot reload during dev, or a future flow change).
-        return;
-      }
+
+      if (vehicleId.isEmpty) return;
+
       await ref.read(uploadProvider(slotKey).notifier).uploadMedia(
             vehicleId: vehicleId,
             mediaType: slotKey,
             filePath: file.path,
           );
+
       final result = ref.read(uploadProvider(slotKey));
       if (result.isSuccess) {
-        storeUrl(result.uploadedModel?.data?.url);
+        final remoteUrl = result.uploadedModel?.data?.url;
+        // Only overwrite local path if the server returns a valid URL string
+        if (remoteUrl != null && remoteUrl.trim().isNotEmpty) {
+          storeUrl(remoteUrl);
+        }
       }
     }
 

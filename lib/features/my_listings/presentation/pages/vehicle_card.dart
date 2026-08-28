@@ -1,5 +1,6 @@
 // lib/features/my_listings/presentation/pages/vehicle_card.dart
 
+import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
 import 'package:dealer/features/my_listings/data/model/wanted_list_model.dart';
@@ -29,60 +30,6 @@ extension StockStatusX on StockStatus {
       };
 }
 
-class CarListingData {
-  final String title;
-  final String specs;
-  final int km;
-  final int owners;
-  final String plate;
-  final int ageInDays;
-  final StockStatus status;
-  final String imagePath;
-  final double exteriorRating;
-  final double interiorRating;
-  final double engineRating;
-  final double avgPrice;
-  final double sellingPrice;
-  final double valuation;
-  final double lastSoldPrice;
-  final List<double> avgTrend;
-  final List<double> sellingTrend;
-  final List<double> valuationTrend;
-  final List<double> lastSoldTrend;
-  final String stockId;
-  final String registration;
-  final String location;
-  final String type;
-  final String listedDate;
-
-  const CarListingData({
-    required this.title,
-    required this.specs,
-    required this.km,
-    required this.owners,
-    required this.plate,
-    required this.ageInDays,
-    required this.status,
-    this.imagePath = 'images/img2.webp',
-    this.exteriorRating = 5,
-    this.interiorRating = 5,
-    this.engineRating = 5,
-    required this.avgPrice,
-    required this.sellingPrice,
-    required this.valuation,
-    required this.lastSoldPrice,
-    required this.avgTrend,
-    required this.sellingTrend,
-    required this.valuationTrend,
-    required this.lastSoldTrend,
-    required this.stockId,
-    required this.registration,
-    required this.location,
-    required this.type,
-    required this.listedDate,
-  });
-}
-
 class CarInspectionCard extends ConsumerStatefulWidget {
   final VehicleData data;
   final VoidCallback? onRatingAdjust;
@@ -103,21 +50,100 @@ class CarInspectionCard extends ConsumerStatefulWidget {
 }
 
 class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
-  bool _isExpanded = false;
+  late bool _isExpanded;
   _CardTab _activeTab = _CardTab.pricing;
 
   final ScrollController _tabScrollController = ScrollController();
   static const double _tabFixedContentHeight = 142.0;
 
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.initiallyExpanded;
+  }
+
+  @override
+  void didUpdateWidget(covariant CarInspectionCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data.id != widget.data.id) {
+      _isExpanded = widget.initiallyExpanded;
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabScrollController.dispose();
+    super.dispose();
+  }
+
+  void _toggleExpanded() => setState(() => _isExpanded = !_isExpanded);
+
+  void _selectTab(_CardTab tab) {
+    setState(() => _activeTab = tab);
+    if (_tabScrollController.hasClients) {
+      _tabScrollController.jumpTo(0);
+    }
+  }
+
+  String _cleanStr(dynamic val) => (val?.toString() ?? '').trim().toLowerCase();
+
+  String _buildVehicleTitle(VehicleData v) {
+    final year = v.mfgYear != null && v.mfgYear! > 0 ? '${v.mfgYear}' : '';
+    final make =
+        ((v.makeName?.isNotEmpty == true ? v.makeName : v.make?.toString()) ??
+                '')
+            .toUpperCase();
+    final model = ((v.modelName?.isNotEmpty == true
+                ? v.modelName
+                : v.model?.toString()) ??
+            '')
+        .toUpperCase();
+    final variant = ((v.variantName?.isNotEmpty == true
+                ? v.variantName
+                : v.variant?.toString()) ??
+            '')
+        .toUpperCase();
+
+    return [year, make, model, variant].where((s) => s.isNotEmpty).join(' ');
+  }
+
   double _calculateAverageMarketPrice({
     required VehicleData currentVehicle,
     required List<VehicleData> vehicles,
   }) {
+    final curMake = _cleanStr(currentVehicle.makeName?.isNotEmpty == true
+        ? currentVehicle.makeName
+        : currentVehicle.make);
+    final curModel = _cleanStr(currentVehicle.modelName?.isNotEmpty == true
+        ? currentVehicle.modelName
+        : currentVehicle.model);
+    final curVariant = _cleanStr(currentVehicle.variantName?.isNotEmpty == true
+        ? currentVehicle.variantName
+        : currentVehicle.variant);
+    final curYear = currentVehicle.mfgYear ?? 0;
+
     final matchingVehicles = vehicles.where((vehicle) {
-      return vehicle.make == currentVehicle.make &&
-          vehicle.model == currentVehicle.model &&
-          vehicle.variant == currentVehicle.variant &&
-          vehicle.mfgYear == currentVehicle.mfgYear &&
+      final vMake = _cleanStr(vehicle.makeName?.isNotEmpty == true
+          ? vehicle.makeName
+          : vehicle.make);
+      final vModel = _cleanStr(vehicle.modelName?.isNotEmpty == true
+          ? vehicle.modelName
+          : vehicle.model);
+      final vVariant = _cleanStr(vehicle.variantName?.isNotEmpty == true
+          ? vehicle.variantName
+          : vehicle.variant);
+      final vYear = vehicle.mfgYear ?? 0;
+
+      final matchesMake = vMake.isNotEmpty && vMake == curMake;
+      final matchesModel = vModel.isNotEmpty && vModel == curModel;
+      final matchesVariant =
+          curVariant.isEmpty || vVariant.isEmpty || vVariant == curVariant;
+      final matchesYear = curYear == 0 || vYear == 0 || vYear == curYear;
+
+      return matchesMake &&
+          matchesModel &&
+          matchesVariant &&
+          matchesYear &&
           vehicle.marketPrice != null &&
           vehicle.marketPrice! > 0;
     }).toList();
@@ -136,21 +162,6 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
     return DateTime.now().difference(createdDate).inDays;
   }
 
-  @override
-  void dispose() {
-    _tabScrollController.dispose();
-    super.dispose();
-  }
-
-  void _toggleExpanded() => setState(() => _isExpanded = !_isExpanded);
-
-  void _selectTab(_CardTab tab) {
-    setState(() => _activeTab = tab);
-    if (_tabScrollController.hasClients) {
-      _tabScrollController.jumpTo(0);
-    }
-  }
-
   void _showMarketSheet(
     BuildContext context, {
     required bool isSupply,
@@ -164,26 +175,12 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
       backgroundColor: Colors.transparent,
       builder: (_) => _MarketDemandSheet(
         isSupply: isSupply,
-        brandModel: widget.data.makeName ?? '',
+        brandModel: _buildVehicleTitle(widget.data),
         matches: matches,
         demandMatches: demandMatches ?? [],
         address: address,
       ),
     );
-  }
-
-  @override
-  void initState() {
-    _isExpanded = widget.initiallyExpanded;
-    super.initState();
-  }
-
-  @override
-  void didUpdateWidget(covariant CarInspectionCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.data.id != widget.data.id) {
-      _isExpanded = widget.initiallyExpanded;
-    }
   }
 
   @override
@@ -201,16 +198,45 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
 
     final vehicleMap = <String, VehicleData>{};
     for (final vehicle in [...liveList, ...myStockList]) {
-      if (vehicle.id != null) {
+      if (vehicle.id != null && vehicle.id!.isNotEmpty) {
         vehicleMap[vehicle.id!] = vehicle;
       }
     }
     final allVehicles = vehicleMap.values.toList();
 
-    bool sameVariant(VehicleData v) =>
-        v.make == data.make &&
-        v.model == data.model &&
-        v.variant == data.variant;
+    bool sameVariant(VehicleData v) {
+      final vMake =
+          _cleanStr(v.makeName?.isNotEmpty == true ? v.makeName : v.make);
+      final dataMake = _cleanStr(
+          data.makeName?.isNotEmpty == true ? data.makeName : data.make);
+
+      final vModel =
+          _cleanStr(v.modelName?.isNotEmpty == true ? v.modelName : v.model);
+      final dataModel = _cleanStr(
+          data.modelName?.isNotEmpty == true ? data.modelName : data.model);
+
+      final vVariant = _cleanStr(
+          v.variantName?.isNotEmpty == true ? v.variantName : v.variant);
+      final dataVariant = _cleanStr(data.variantName?.isNotEmpty == true
+          ? data.variantName
+          : data.variant);
+
+      final vYear = v.mfgYear ?? 0;
+      final dataYear = data.mfgYear ?? 0;
+
+      if (dataMake.isEmpty || dataModel.isEmpty) return false;
+      if (vMake.isEmpty || vModel.isEmpty) return false;
+
+      final makeMatches = vMake == dataMake;
+      final modelMatches = vModel == dataModel;
+      final variantMatches =
+          dataVariant.isEmpty || vVariant.isEmpty || vVariant == dataVariant;
+      final yearMatches =
+          (dataYear > 0 && vYear > 0) ? (vYear == dataYear) : true;
+
+      return makeMatches && modelMatches && variantMatches && yearMatches;
+    }
+
     final bool selfIsDraft = (data.status ?? '').toUpperCase() == 'DRAFT';
     bool isDraft(VehicleData v) => (v.status ?? '').toUpperCase() == 'DRAFT';
 
@@ -231,18 +257,20 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
     final similarCount = similarVehicles.length;
     final allMatchesIncludingSelf = [data, ...similarVehicles];
 
+    final fullVehicleTitle = _buildVehicleTitle(data);
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 10,
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
             ],
@@ -252,7 +280,7 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
             children: [
               // ── Summary Row ───────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -269,14 +297,17 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            data.makeName ?? '',
+                            fullVehicleTitle.isNotEmpty
+                                ? fullVehicleTitle
+                                : 'VEHICLE DETAILS',
                             style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
                               color: Color(0xFF111111),
-                              height: 1.3,
+                              height: 1.25,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -285,11 +316,12 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                           Text(
                             '${data.fuelType ?? ''} · ${data.transmission ?? ''} · ${data.bodyStyle ?? ''}',
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
                               color: Color(0xFF666666),
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 3),
                           Text.rich(
                             TextSpan(
                               children: [
@@ -297,8 +329,8 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                                   text:
                                       '${_formatKm(data.kmDriven ?? 0)} km · ',
                                   style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
                                     color: Colors.black,
                                   ),
                                 ),
@@ -308,8 +340,8 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                                     text:
                                         '${data.dealerVehicleInspection!.ownerCount} Owner${data.dealerVehicleInspection!.ownerCount == 1 ? '' : 's'} · ',
                                     style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
                                       color: Colors.black,
                                     ),
                                   ),
@@ -317,14 +349,14 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                                 TextSpan(
                                   text: data.regNo ?? '-',
                                   style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
                                     color: Colors.black,
                                   ),
                                 ),
                               ],
                             ),
-                            maxLines: 2,
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
@@ -351,9 +383,9 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                               );
                             },
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 4),
                           _RatingButton(
-                            label: '-${data.wantedMatchCount}',
+                            label: '-${data.wantedMatchCount ?? 0}',
                             isNegative: true,
                             onPressed: () {
                               widget.onRatingAdjust?.call();
@@ -375,7 +407,7 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
 
               // ── Ratings & Expand ──────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
                 child: Row(
                   children: [
                     Expanded(
@@ -416,14 +448,10 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                 ),
               ),
 
-              // ── Fixed Compact Height Tab Content Container ──────────────────────────────
-
-// Inside build() -> if (_isExpanded) ...
+              // ── Tab Content ────────────────────────────────────────────────
               if (_isExpanded) ...[
                 const Divider(height: 1, color: Color(0xFFEEEEEE)),
                 _TabsRow(activeTab: _activeTab, onSelect: _selectTab),
-
-                // Enforces the EXACT same height across all 3 tabs
                 SizedBox(
                   height: _tabFixedContentHeight,
                   child: SingleChildScrollView(
@@ -479,7 +507,7 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                         ),
                       );
                   ref.read(listingProvider.notifier).state = logic;
-                  ref.read(bottomNavIndexProvider.notifier).state = 1;
+                  ref.read(bottomNavIndexProvider.notifier).state = 2;
                   ref.read(listingStepProvider.notifier).state = 0;
                 },
                 borderRadius: BorderRadius.circular(20),
@@ -538,40 +566,54 @@ class _Thumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasImg = imagePath.trim().isNotEmpty;
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
         Container(
-          width: 70,
-          height: 70,
+          width: 72,
+          height: 72,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: const Color(0xFFEEEEEE)),
-            color: const Color(0xFFF5F5F5),
+            color: const Color(0xFFF3F4F6),
           ),
           clipBehavior: Clip.antiAlias,
-          child: Image.network(
-            imagePath,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Icon(
-              Icons.directions_car_rounded,
-              size: 32,
-              color: Color(0xFFCCCCCC),
-            ),
-          ),
+          child: hasImg
+              ? Image.network(
+                  getFlutterImageUrl(imagePath),
+                  fit: BoxFit.cover,
+                  width: 72,
+                  height: 72,
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Icon(
+                      Icons.directions_car_rounded,
+                      size: 28,
+                      color: Color(0xFFBFC2CC),
+                    ),
+                  ),
+                )
+              : const Center(
+                  child: Icon(
+                    Icons.directions_car_rounded,
+                    size: 28,
+                    color: Color(0xFFBFC2CC),
+                  ),
+                ),
         ),
         Positioned(
-          top: -6,
-          left: -6,
+          top: -4,
+          left: -4,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
             decoration: BoxDecoration(
               color: statusColor,
               borderRadius: BorderRadius.circular(4),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 4,
+                  color: Colors.black.withOpacity(0.18),
+                  blurRadius: 3,
                 ),
               ],
             ),
@@ -579,7 +621,7 @@ class _Thumbnail extends StatelessWidget {
               statusLabel,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 9,
+                fontSize: 8.5,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -692,8 +734,6 @@ class AgeCalendarBadge extends StatelessWidget {
   }
 }
 
-// ── 1. RATING BUTTON (Hierarchy: +N Large & Prominent, -N Small & Compact) ────
-
 class _RatingButton extends StatelessWidget {
   final String label;
   final bool isNegative;
@@ -709,10 +749,9 @@ class _RatingButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Prominent large size for +N (Supply), compact for -N (Wanted demand)
     final double width = isPositive ? 42 : 32;
-    final double height = isPositive ? 40 : 26;
-    final double fontSize = isPositive ? 16.5 : 12;
+    final double height = isPositive ? 36 : 24;
+    final double fontSize = isPositive ? 15 : 11.5;
 
     final bg = isNegative
         ? const Color(0xFFFEF5F4)
@@ -1117,12 +1156,14 @@ class _MarketDemandSheetState extends State<_MarketDemandSheet> {
       final fuel = (v.fuelType ?? '').toLowerCase();
       final trans = (v.transmission ?? '').toLowerCase();
       final model = (v.modelName ?? '').toLowerCase();
+      final year = '${v.mfgYear ?? ''}'.toLowerCase();
 
       final searchMatch = query.isEmpty ||
           reg.contains(query) ||
           fuel.contains(query) ||
           trans.contains(query) ||
-          model.contains(query);
+          model.contains(query) ||
+          year.contains(query);
 
       bool ageMatch = true;
       if (_selectedStockAge != 'ALL' &&
@@ -1131,8 +1172,9 @@ class _MarketDemandSheetState extends State<_MarketDemandSheet> {
         final created = DateTime.fromMillisecondsSinceEpoch(v.createdAt!);
         final days = DateTime.now().difference(created).inDays;
         if (_selectedStockAge == '0-15' && days > 15) ageMatch = false;
-        if (_selectedStockAge == '16-30' && (days < 16 || days > 30))
+        if (_selectedStockAge == '16-30' && (days < 16 || days > 30)) {
           ageMatch = false;
+        }
         if (_selectedStockAge == '30+' && days <= 30) ageMatch = false;
       }
 
@@ -1216,7 +1258,7 @@ class _MarketDemandSheetState extends State<_MarketDemandSheet> {
                     Expanded(
                       child: Text(
                         widget.isSupply
-                            ? '${widget.brandModel} Stock (${widget.matches.length})'
+                            ? '${widget.brandModel} (${widget.matches.length})'
                             : 'Buyer Demand (${widget.demandMatches.length})',
                         style: const TextStyle(
                           fontSize: 16,

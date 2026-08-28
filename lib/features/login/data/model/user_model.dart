@@ -1,25 +1,25 @@
 class UserModel {
-  final UserData data;
+  final UserData? data;
   final bool success;
-  final String message;
+  final String? message;
 
   UserModel({
-    required this.data,
-    required this.success,
-    required this.message,
+    this.data,
+    this.success = false,
+    this.message,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      data: UserData.fromJson(json['data']),
-      success: json['success'],
+      data: json['data'] != null ? UserData.fromJson(json['data']) : null,
+      success: json['success'] ?? false,
       message: json['message'],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'data': data.toJson(),
+      'data': data?.toJson(),
       'success': success,
       'message': message,
     };
@@ -27,30 +27,36 @@ class UserModel {
 }
 
 class UserData {
-  final String phoneNumber;
-  final String fullName;
-  final String userType;
-  final int userId;
-  final String email;
-  final String username;
+  final String? phoneNumber;
+  final String? fullName;
+  final String? userType;
+  final int? userId;
+  final String? email;
+  final String? username;
+  final String? lenderName;
+  final int? lenderId;
 
   UserData({
-    required this.phoneNumber,
-    required this.fullName,
-    required this.userType,
-    required this.userId,
-    required this.email,
-    required this.username,
+    this.phoneNumber,
+    this.fullName,
+    this.userType,
+    this.userId,
+    this.email,
+    this.username,
+    this.lenderName,
+    this.lenderId,
   });
 
   factory UserData.fromJson(Map<String, dynamic> json) {
     return UserData(
-      phoneNumber: json['phoneNumber'],
-      fullName: json['fullName'],
-      userType: json['userType'],
-      userId: json['userId'],
-      email: json['email'],
-      username: json['username'],
+      phoneNumber: json['phoneNumber'] as String?,
+      fullName: json['fullName'] as String?,
+      userType: json['userType'] as String?,
+      userId: json['userId'] as int?,
+      email: json['email'] as String?,
+      username: json['username'] as String?,
+      lenderName: json['lenderName'] as String?,
+      lenderId: json['lenderId'] as int?,
     );
   }
 
@@ -62,6 +68,8 @@ class UserData {
       'userId': userId,
       'email': email,
       'username': username,
+      'lenderName': lenderName,
+      'lenderId': lenderId,
     };
   }
 }

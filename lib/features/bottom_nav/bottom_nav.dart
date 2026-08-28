@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/dashboard/presentation/d.page.dart';
+import 'package:dealer/features/live_auction/presentation/pages/auction_homepage.dart';
 import 'package:dealer/features/my_listings/presentation/pages/my_list_page.dart';
 import 'package:dealer/features/profile/presentation/pages/profile.dart';
 import 'package:dealer/features/upload/presentation/pages/vehicle_details_page.dart';
@@ -25,6 +26,7 @@ class _BottomNavPageState extends ConsumerState<BottomNavPage> {
     final currentIndex = ref.watch(bottomNavIndexProvider);
 
     final pages = [
+      const AuctionHomePage(),
       const DashboardPage(),
       const VehicleListingPage(),
       const MyListPage(),

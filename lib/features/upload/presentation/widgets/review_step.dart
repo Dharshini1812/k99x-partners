@@ -1,8 +1,10 @@
+// lib/features/upload/presentation/widgets/review_step.dart
+
 import 'package:dealer/core/common/presentation/widgets/common_textfield.dart';
-import 'package:dealer/core/route/router.gr.dart';
-import 'package:dealer/features/login/presentation/logic/provider.dart';
+import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/upload/data/model/complete_vehicle_model.dart';
 import 'package:dealer/features/upload/presentation/logic/upload_provider.dart';
+import 'package:dealer/features/upload/presentation/logic/vehicle_edit_logic.dart';
 import 'package:dealer/features/upload/presentation/pages/vehicle_details_page.dart';
 import 'package:dealer/features/upload/presentation/widgets/review_grid.dart';
 import 'package:dealer/features/upload/presentation/widgets/section_card.dart';
@@ -22,11 +24,6 @@ class ReviewStep extends ConsumerStatefulWidget {
 
 class _ReviewStepState extends ConsumerState<ReviewStep> {
   bool _isCompleting = false;
-
-  @override
-  void initState() {
-    super.initState();
-  }
 
   Future<void> _submit(BuildContext context) async {
     if (_isCompleting) return;
@@ -81,18 +78,39 @@ class _ReviewStepState extends ConsumerState<ReviewStep> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(response.message.isNotEmpty
-            ? response.message
-            : 'Vehicle listed successfully and sent for review'),
+        content: Text(
+          response.message.isNotEmpty
+              ? response.message
+              : 'Vehicle listed successfully!',
+        ),
         backgroundColor: Colors.green,
       ),
     );
 
-    // ADAPT: pop back to My Listings, or push a dedicated success page —
-    // whichever matches the rest of the app's post-submit flow. Popping
-    // twice here assumes ReviewStep sits inside the same
-    // VehicleListingPage this whole flow has been built around.
-    ref.read(routeService).pushAndRemoveUntil(const BottomNavRoute(), context);
+    // ── 1. Clear All Local Controllers ─────────────────────────────────────────
+    widget.dealerPriceController.clear();
+
+    // ── 2. Reset All Upload Form Riverpod States ──────────────────────────────
+    ref.read(listingStepProvider.notifier).state = 0;
+    ref.read(listingProvider.notifier).reset();
+    ref.read(editVehicleProvider.notifier).state = (model: null, refreshKey: 0);
+
+    // ── 3. Reset All Media Upload Slot Providers ──────────────────────────────
+    const mediaSlots = [
+      MediaSlot.front,
+      MediaSlot.odometer,
+      MediaSlot.exteriorVideo,
+      MediaSlot.interiorVideo,
+      MediaSlot.engineBayVideo,
+      MediaSlot.tyresVideo,
+    ];
+    for (final slot in mediaSlots) {
+      ref.read(uploadProvider(slot).notifier).reset();
+    }
+
+    // ── 4. Redirect Back to Dashboard Tab (Index 0) ───────────────────────────
+    ref.read(bottomNavIndexProvider.notifier).state = 0;
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
@@ -113,8 +131,6 @@ class _ReviewStepState extends ConsumerState<ReviewStep> {
         ),
         const SizedBox(height: 16),
 
-        // Market price: prefer the server's figure (from the review
-        // fetch) once it's loaded, fall back to local state before that.
         reviewState.maybeWhen(
           data: (review) =>
               _EstimatedPrice(amount: review.data.vehicle.marketPrice),
@@ -182,9 +198,6 @@ class _ReviewStepState extends ConsumerState<ReviewStep> {
               ]),
             ],
           ),
-          // Fallback while the fetch hasn't started/finished yet, or if
-          // it never ran (missing vehicleId) — shows local form state
-          // instead of leaving the screen blank.
           orElse: () => SectionCard(
             title: 'Vehicle Details',
             children: [
@@ -208,31 +221,62 @@ class _ReviewStepState extends ConsumerState<ReviewStep> {
         ),
 
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Checkbox(
-              value: listing.agreedToTerms,
-              onChanged: (v) =>
-                  notifier.update((s) => s.copyWith(agreedToTerms: v)),
-            ),
-            const Expanded(
-              child: Text(
-                'I agree to the Auction Listing Terms and Conditions and Privacy Policy',
-                style: TextStyle(fontSize: 12),
-              ),
-            ),
-          ],
-        ),
-        if (_isCompleting) ...[
-          const SizedBox(height: 8),
-          const Center(
+
+        // ── Full-Width Tappable Terms Agreement Row ──────────────────────────
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () {
+              notifier
+                  .update((s) => s.copyWith(agreedToTerms: !s.agreedToTerms));
+            },
             child: Padding(
-              padding: EdgeInsets.all(8.0),
-              child: SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: Checkbox(
+                      value: listing.agreedToTerms,
+                      activeColor: UploadColors.primary,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      onChanged: (v) {
+                        notifier.update(
+                            (s) => s.copyWith(agreedToTerms: v ?? false));
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'I agree to the Auction Listing Terms and Conditions and Privacy Policy',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Color(0xFF344054),
+                        fontWeight: FontWeight.w500,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+            ),
+          ),
+        ),
+
+        if (_isCompleting) ...[
+          const SizedBox(height: 12),
+          const Center(
+            child: SizedBox(
+              height: 22,
+              width: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
           ),
         ],

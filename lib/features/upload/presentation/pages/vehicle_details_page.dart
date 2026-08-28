@@ -43,6 +43,13 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
     super.dispose();
   }
 
+  void _clearAllControllers() {
+    _regNoController.clear();
+    _mileageController.clear();
+    _ownersController.clear();
+    _dealerPriceController.clear();
+  }
+
   void _goToStep(int step) {
     FocusScope.of(context).unfocus();
     ref.read(listingStepProvider.notifier).state = step;
@@ -134,6 +141,7 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
   Widget build(BuildContext context) {
     final step = ref.watch(listingStepProvider);
 
+    // ── Sync with Edit Form State ───────────────────────────────────────────
     ref.listen(editVehicleProvider, (previous, next) {
       final modelData = next.model;
       if (modelData != null) {
@@ -142,10 +150,17 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
         _ownersController.text = modelData.numberOfOwners ?? '';
         _dealerPriceController.text = modelData.dealerExpectedPrice ?? '';
       } else {
-        _regNoController.clear();
-        _mileageController.clear();
-        _ownersController.clear();
-        _dealerPriceController.clear();
+        _clearAllControllers();
+      }
+    });
+
+    // ── Auto-clear text controllers when listing state resets ───────────────
+    ref.listen(listingProvider, (previous, next) {
+      if (next.registrationNumber == null &&
+          next.mileageKm == null &&
+          next.numberOfOwners == null &&
+          next.dealerExpectedPrice == null) {
+        _clearAllControllers();
       }
     });
 

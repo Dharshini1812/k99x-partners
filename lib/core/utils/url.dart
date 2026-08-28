@@ -33,4 +33,5 @@ class Url {
   static const clientStocksUrl = '$baseUrl/client/stocks';
   static const loanApproveUrl = '$baseUrl/client/loan/approve';
   static const clientKycViewUrl = '$baseUrl/client/kyc/view/';
+  static const String vehicleReportUrl = "${base2url}dealer/vehicle/report/";
 }

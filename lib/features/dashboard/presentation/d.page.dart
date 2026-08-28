@@ -1,6 +1,5 @@
-// lib/features/dashboard/presentation/pages/dashboard_page.dart
-
 import 'package:dealer/core/helper/other_helper.dart';
+import 'package:dealer/core/location/location_provider.dart';
 import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/dashboard/data/model/d_stats_model.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
@@ -27,25 +26,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      ref.read(dStatsProvider.notifier).getDashboardStats();
-      ref
-          .read(myStockNotifierProvider.notifier)
-          .getMyStock(offset: 0, limit: 20);
-    });
+    Future.microtask(_fetchDashboardData);
   }
 
-  int calculateWantedVehicleCount(VehicleResponse response) {
-    final Map<String, int> wantedCounts = {};
-
-    for (final vehicle in response.data) {
-      final key = '${vehicle.make}_${vehicle.model}_${vehicle.variant}';
-      if (!wantedCounts.containsKey(key)) {
-        wantedCounts[key] = vehicle.wantedMatchCount ?? 0;
-      }
-    }
-
-    return wantedCounts.values.fold(0, (sum, count) => sum + count);
+  void _fetchDashboardData() {
+    ref.read(dStatsProvider.notifier).getDashboardStats();
+    ref.read(myStockNotifierProvider.notifier).getMyStock(offset: 0, limit: 20);
+    ref.read(wantedListProvider.notifier).getWantedList();
+    ref.read(locationProvider.notifier).fetchLocation();
   }
 
   int calculatePreApprovedLoanCount(VehicleResponse response) {
@@ -55,12 +43,28 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     }).length;
   }
 
-  @override
+  /// Vehicles that haven't had a loan approved yet — the inverse of
+  /// calculatePreApprovedLoanCount, using the same field.
+  int calculatePendingApprovalCount(VehicleResponse response) {
+    return response.data.where((vehicle) {
+      return vehicle.approvedLoanDetails == null ||
+          vehicle.approvedLoanDetails!.trim().isEmpty;
+    }).length;
+  }
+
   @override
   Widget build(BuildContext context) {
     final statsAsync = ref.watch(dStatsProvider);
     final myStockAsync = ref.watch(myStockNotifierProvider);
+    final wantedListAsync = ref.watch(wantedListProvider);
     final logic = ref.watch(dLogic);
+
+    // ── Auto-refetch when switching back to Dashboard tab (Index 0) ──────────
+    ref.listen(bottomNavIndexProvider, (previous, next) {
+      if (next == 0 && previous != 0) {
+        _fetchDashboardData();
+      }
+    });
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -85,7 +89,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
                 const SizedBox(height: 24),
 
-                // ── Stat Grid with Shimmer Skeleton ──────────────────────
+                // ── Stat Grid with Skeleton Loader ───────────────────────
                 statsAsync.when(
                   initial: () => const _StatGridSkeleton(),
                   loading: () => const _StatGridSkeleton(),
@@ -94,12 +98,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   ),
                   data: (statscount) => _StatGrid(
                     stats: statscount,
-                    wantedVehicleCount: myStockAsync.maybeWhen(
-                      data: (stock) => calculateWantedVehicleCount(stock),
+                    wantedVehicleCount: wantedListAsync.maybeWhen(
+                      data: (response) =>
+                          response.data?.stats.open ??
+                          (response.data?.wantedList.length ?? 0),
                       orElse: () => 0,
                     ),
                     preApprovedLoanCount: myStockAsync.maybeWhen(
                       data: (stock) => calculatePreApprovedLoanCount(stock),
+                      orElse: () => 0,
+                    ),
+                    pendingApprovalCount: myStockAsync.maybeWhen(
+                      data: (stock) => calculatePendingApprovalCount(stock),
                       orElse: () => 0,
                     ),
                   ),
@@ -121,7 +131,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     ),
                     TextButton(
                       onPressed: () {
-                        ref.read(bottomNavIndexProvider.notifier).state = 2;
+                        ref.read(bottomNavIndexProvider.notifier).state = 3;
                       },
                       style: TextButton.styleFrom(
                         padding: EdgeInsets.zero,
@@ -181,7 +191,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HEADER — greeting, name, notification bell
+// HEADER
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _DashboardHeader extends StatelessWidget {
@@ -261,18 +271,20 @@ class _DashboardHeader extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STAT GRID & SKELETON LOADER
+// STAT GRID & SKELETON
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _StatGrid extends StatelessWidget {
   final DashboardStats stats;
   final int wantedVehicleCount;
   final int preApprovedLoanCount;
+  final int pendingApprovalCount;
 
   const _StatGrid({
     required this.stats,
     required this.wantedVehicleCount,
     required this.preApprovedLoanCount,
+    required this.pendingApprovalCount,
   });
 
   @override
@@ -338,9 +350,9 @@ class _StatGrid extends StatelessWidget {
                 bg: const Color(0xFFFBE3E3),
                 iconBg: const Color(0xFFF3B9B9),
                 iconColor: const Color(0xFFC13F3F),
-                icon: Icons.sell_rounded,
-                value: stats.totalSoldVehicles ?? 0,
-                label: 'TOTAL SOLD VEHICLES',
+                icon: Icons.hourglass_bottom_rounded,
+                value: pendingApprovalCount,
+                label: 'PENDING APPROVAL',
               ),
             ),
             const SizedBox(width: 14),
@@ -349,9 +361,9 @@ class _StatGrid extends StatelessWidget {
                 bg: const Color(0xFFDCF1FB),
                 iconBg: const Color(0xFFAEDFF5),
                 iconColor: const Color(0xFF0E7CA8),
-                icon: Icons.account_balance_wallet_rounded,
-                value: stats.totalEarnings?.toInt() ?? 0,
-                label: 'AVAILABLE FUND',
+                icon: Icons.check_circle_rounded,
+                value: preApprovedLoanCount,
+                label: 'APPROVED',
               ),
             ),
           ],
@@ -453,29 +465,33 @@ class _StatTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Icon(icon, size: 20, color: iconColor),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            '$value',
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: _kDark,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, size: 20, color: iconColor),
+              ),
+              Text(
+                '$value',
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: _kDark,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           Text(
             label,
             style: const TextStyle(
-              fontSize: 11.5,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.6,
               color: Color(0xFF6B7280),
@@ -490,7 +506,7 @@ class _StatTile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STOCK BY AGE ROW & SKELETON
+// STOCK BY AGE & SKELETON
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _StockByAgeRow extends StatelessWidget {
@@ -580,7 +596,7 @@ class _StockByAgeCard extends StatelessWidget {
   void _showDetails(BuildContext context) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.92),
+      barrierColor: Colors.black.withOpacity(0.45),
       builder: (_) => _EnlargedStockView(
         name: name,
         days: days,
@@ -611,7 +627,7 @@ class _StockByAgeCard extends StatelessWidget {
             child: Text(
               '$days d',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: FontWeight.w800,
                 color: badgeText,
               ),
@@ -669,7 +685,7 @@ class _EnlargedStockView extends StatelessWidget {
             child: Container(
               height: 260,
               width: double.infinity,
-              color: const Color(0xFF1D2748),
+              color: Colors.black,
               child: Image.network(
                 getFlutterImageUrl(imgPath),
                 fit: BoxFit.cover,
@@ -699,7 +715,7 @@ class _EnlargedStockView extends StatelessWidget {
                   Text(
                     '$days days',
                     style: const TextStyle(
-                      fontSize: 11,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
                     ),
@@ -730,9 +746,26 @@ class _EnlargedStockView extends StatelessWidget {
           Positioned(
             top: 6,
             right: 6,
-            child: IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.close_rounded, color: Colors.white),
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                iconSize: 18,
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded, color: Colors.black87),
+              ),
             ),
           ),
         ],

@@ -41,6 +41,23 @@ class _ClientDashboardPageState extends ConsumerState<ClientDashboardPage> {
     }).length;
   }
 
+  /// LIVE vehicles that haven't been approved yet.
+  int _calculatePendingApprovalCount(List<ClientVehicleModel> vehicles) {
+    return vehicles.where((v) {
+      final isLive = (v.status ?? '').toUpperCase() == 'LIVE';
+      return isLive && !v.clientApproved;
+    }).length;
+  }
+
+  /// LIVE vehicles with KYC submitted but not yet approved — a lead
+  /// that's ready for review.
+  int _calculateNewLeadKycCount(List<ClientVehicleModel> vehicles) {
+    return vehicles.where((v) {
+      final isLive = (v.status ?? '').toUpperCase() == 'LIVE';
+      return isLive && v.kycExists && !v.clientApproved;
+    }).length;
+  }
+
   @override
   Widget build(BuildContext context) {
     final statsAsync = ref.watch(clientDashboardNotifierProvider);
@@ -56,7 +73,10 @@ class _ClientDashboardPageState extends ConsumerState<ClientDashboardPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Header ───────────────────────────────────────────────
-              _DashboardHeader(name: logic.user?.fullName ?? ''),
+              _DashboardHeader(
+                name: logic.user?.fullName ?? '',
+                lendorName: logic.user?.lenderName ?? '',
+              ),
 
               const SizedBox(height: 24),
 
@@ -73,6 +93,16 @@ class _ClientDashboardPageState extends ConsumerState<ClientDashboardPage> {
                   preApprovedLoanCount: clientStocksAsync.maybeWhen(
                     data: (vehicles, _, __) =>
                         _calculateLivePreApprovedLoanCount(vehicles),
+                    orElse: () => 0,
+                  ),
+                  pendingApprovalCount: clientStocksAsync.maybeWhen(
+                    data: (vehicles, _, __) =>
+                        _calculatePendingApprovalCount(vehicles),
+                    orElse: () => 0,
+                  ),
+                  newLeadKycCount: clientStocksAsync.maybeWhen(
+                    data: (vehicles, _, __) =>
+                        _calculateNewLeadKycCount(vehicles),
                     orElse: () => 0,
                   ),
                 ),
@@ -94,7 +124,7 @@ class _ClientDashboardPageState extends ConsumerState<ClientDashboardPage> {
                   ),
                   TextButton(
                     onPressed: () {
-                      ref.read(bottomNavIndexProvider.notifier).state = 1;
+                      ref.read(bottomNavIndexProvider.notifier).state = 3;
                     },
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
@@ -163,7 +193,8 @@ class _ClientDashboardPageState extends ConsumerState<ClientDashboardPage> {
 
 class _DashboardHeader extends StatelessWidget {
   final String name;
-  const _DashboardHeader({required this.name});
+  final String lendorName;
+  const _DashboardHeader({required this.name, required this.lendorName});
 
   String _greeting() {
     final hour = DateTime.now().hour;
@@ -195,6 +226,14 @@ class _DashboardHeader extends StatelessWidget {
                 name.isEmpty ? 'Client' : name,
                 style: const TextStyle(
                   fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: _kDark,
+                ),
+              ),
+              Text(
+                lendorName.isEmpty ? 'Client' : lendorName,
+                style: const TextStyle(
+                  fontSize: 18,
                   fontWeight: FontWeight.w800,
                   color: _kDark,
                 ),
@@ -244,10 +283,14 @@ class _DashboardHeader extends StatelessWidget {
 class _StatGrid extends StatelessWidget {
   final ClientDashboardResponseModel stats;
   final int preApprovedLoanCount;
+  final int pendingApprovalCount;
+  final int newLeadKycCount;
 
   const _StatGrid({
     required this.stats,
     required this.preApprovedLoanCount,
+    required this.pendingApprovalCount,
+    required this.newLeadKycCount,
   });
 
   @override
@@ -263,7 +306,7 @@ class _StatGrid extends StatelessWidget {
                 iconColor: const Color(0xFF2F3AA3),
                 icon: Icons.directions_car_filled_rounded,
                 value: stats.totalAvailableStocks,
-                label: 'LIVE DEALER STOCKS',
+                label: 'MARKET STOCKS',
               ),
             ),
             const SizedBox(width: 14),
@@ -273,8 +316,8 @@ class _StatGrid extends StatelessWidget {
                 iconBg: const Color(0xFFB8E7DC),
                 iconColor: const Color(0xFF1E8C74),
                 icon: Icons.layers_rounded,
-                value: preApprovedLoanCount,
-                label: 'LOAN APPROVED',
+                value: stats.stats.approvedCount,
+                label: 'APPROVED VEHICLES',
               ),
             ),
           ],
@@ -288,8 +331,8 @@ class _StatGrid extends StatelessWidget {
                 iconBg: const Color(0xFFF6D89A),
                 iconColor: const Color(0xFFB5750E),
                 icon: Icons.verified_user_rounded,
-                value: '₹${stats.stats.totalDisbursed.toInt()}',
-                label: 'APPROVED LOAN VALUE',
+                value: newLeadKycCount,
+                label: 'NEW LEAD KYC',
               ),
             ),
             const SizedBox(width: 14),
@@ -299,8 +342,8 @@ class _StatGrid extends StatelessWidget {
                 iconBg: const Color(0xFFD3CAF5),
                 iconColor: const Color(0xFF6237C4),
                 icon: Icons.search_rounded,
-                value: stats.stats.todaysStocks,
-                label: "TODAY'S LIVE STOCK",
+                value: pendingApprovalCount,
+                label: "PENDING APPROVAL ",
               ),
             ),
           ],
@@ -431,7 +474,7 @@ class _StockByAgeCard extends StatelessWidget {
   void _showDetails(BuildContext context) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.92),
+      barrierColor: Colors.black.withOpacity(0.45),
       builder: (_) => _EnlargedStockView(
         name: name,
         days: days,
@@ -530,7 +573,7 @@ class _EnlargedStockView extends StatelessWidget {
             child: Container(
               height: 260,
               width: double.infinity,
-              color: const Color(0xFF1D2748),
+              color: Colors.black,
               child: imgPath.isNotEmpty
                   ? Image.network(
                       getFlutterImageUrl(imgPath),
@@ -572,7 +615,7 @@ class _EnlargedStockView extends StatelessWidget {
                   Text(
                     '$days days',
                     style: const TextStyle(
-                      fontSize: 11,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
                     ),
@@ -603,9 +646,26 @@ class _EnlargedStockView extends StatelessWidget {
           Positioned(
             top: 6,
             right: 6,
-            child: IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.close_rounded, color: Colors.white),
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                iconSize: 18,
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded, color: Colors.black87),
+              ),
             ),
           ),
         ],

@@ -15,7 +15,6 @@ import 'package:dealer/features/upload/presentation/logic/vehicle_edit_logic.dar
 import 'package:dealer/features/upload/presentation/pages/vehicle_details_page.dart';
 import 'package:dealer/features/upload/presentation/widgets/section_card.dart';
 import 'package:dealer/features/upload/presentation/widgets/step_scaffold.dart';
-import 'package:dealer/features/upload/presentation/widgets/upload_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -260,6 +259,7 @@ class _IdentificationSpecsStepState
             _yearAndMake(logic, notifier),
             _model(logic),
             _variant(logic),
+            _bodyStyle(logic, notifier),
             CommonTextField(
               label: 'Mileage (KM)',
               hint: '0',
@@ -420,6 +420,24 @@ class _IdentificationSpecsStepState
     );
   }
 
+  Widget _bodyStyle(UploadLogic logic, ListingNotifier notifier) {
+    final listing = ref.watch(listingProvider);
+
+    return CommonDropdown<String>(
+      label: 'Body Style',
+      hint: 'Select Body Style',
+      searchable: false,
+      value: listing.bodyStyle,
+      options: logic.bodyStyleOptions
+          .map((b) => DropdownOption(value: b, label: b))
+          .toList(),
+      onChanged: (v) {
+        _unfocusAll();
+        notifier.update((s) => s.copyWith(bodyStyle: v));
+      },
+    );
+  }
+
   Widget _fuelAndTransmission(UploadLogic logic, ListingNotifier notifier) {
     final listing = ref.watch(listingProvider);
     return Column(
@@ -505,11 +523,6 @@ class _IdentificationSpecsStepState
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POLISHED INLINE SEGMENT SELECTOR
-// Handles 2/3 items (full segmented rail) and 5 items (3 + 2 balanced grid)
-// ─────────────────────────────────────────────────────────────────────────────
-
 class InlineSegmentSelector extends StatelessWidget {
   final String label;
   final String? value;
@@ -573,7 +586,7 @@ class InlineSegmentSelector extends StatelessWidget {
         ),
         const SizedBox(height: 8),
 
-        // ── 2 or 3 Items (e.g., Manual / Automatic) ──
+        // ── 2 or 3 Items (e.g. Manual / Automatic)
         if (options.length <= 3)
           Container(
             height: 44,
@@ -629,7 +642,7 @@ class InlineSegmentSelector extends StatelessWidget {
             ),
           )
 
-        // ── 5 Items (Petrol, Diesel, CNG / Electric, Hybrid) ──
+        // ── 5 Items (Petrol, Diesel, CNG / Electric, Hybrid)
         else if (options.length == 5)
           Column(
             children: [
@@ -653,7 +666,7 @@ class InlineSegmentSelector extends StatelessWidget {
             ],
           )
 
-        // ── Generic Fallback Grid ──
+        // ── Generic Fallback Grid
         else
           Wrap(
             spacing: 8,

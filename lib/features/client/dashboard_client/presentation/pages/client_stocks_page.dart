@@ -1,6 +1,9 @@
 // lib/features/client/presentation/pages/client_stocks_page.dart
 
+import 'dart:developer';
+
 import 'package:dealer/core/theme/colors.dart';
+import 'package:dealer/core/utils/url.dart';
 import 'package:dealer/features/client/dashboard_client/presentation/logic/provider.dart';
 import 'package:dealer/features/client/dashboard_client/presentation/widgets/client_stock_card.dart';
 import 'package:dealer/features/client/dashboard_client/presentation/widgets/loan_approval_sheet.dart';
@@ -8,6 +11,20 @@ import 'package:dealer/features/client/dealer_stocks/data/model/c_stocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+// ── Top-Level Report Opener Helper ───────────────────────────────────────────
+Future<void> _openVehicleReport(BuildContext context, String vehicleId) async {
+  if (vehicleId.isEmpty) return;
+  final uri = Uri.parse('${Url.vehicleReportUrl}$vehicleId');
+  log('$uri');
+  final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  if (!opened && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Couldn't open the report")),
+    );
+  }
+}
 
 class ClientStocksPage extends ConsumerStatefulWidget {
   const ClientStocksPage({super.key});
@@ -297,8 +314,13 @@ class _StockStatusList extends ConsumerWidget {
     this.endDate,
   });
 
+  // ── Uniquely groups by: Year + Make + Model + Variant ─────────────────────
   String _getKey(ClientVehicleModel v) {
-    return '${v.makeName}_${v.modelName}_${v.variantName}'.toLowerCase().trim();
+    final year = v.mfgYear != null ? '${v.mfgYear}' : '';
+    final make = (v.makeName ?? '').trim();
+    final model = (v.modelName ?? '').trim();
+    final variant = (v.variantName ?? '').trim();
+    return '${year}_${make}_${model}_$variant'.toLowerCase().trim();
   }
 
   Map<String, List<ClientVehicleModel>> _groupAllVehicles(
@@ -318,7 +340,8 @@ class _StockStatusList extends ConsumerWidget {
       final q = searchQuery.toLowerCase().trim();
       if (q.isNotEmpty) {
         final title =
-            '${v.makeName} ${v.modelName} ${v.variantName}'.toLowerCase();
+            '${v.mfgYear ?? ''} ${v.makeName ?? ''} ${v.modelName ?? ''} ${v.variantName ?? ''}'
+                .toLowerCase();
         final reg = (v.regNo ?? '').toLowerCase();
         final id = v.id.toLowerCase();
         if (!title.contains(q) && !reg.contains(q) && !id.contains(q)) {
@@ -404,8 +427,14 @@ class _StockStatusList extends ConsumerWidget {
         ),
       ),
       data: (allVehicles, hasMore, isLoadingMore) {
-        final allGroupedMap = _groupAllVehicles(allVehicles);
-        final filteredVehicles = _applyFilters(allVehicles);
+        // ── 1. Strictly filter only LIVE vehicles for client view ───────────
+        final liveOnlyVehicles = allVehicles
+            .where((v) => (v.status ?? '').trim().toUpperCase() == 'LIVE')
+            .toList();
+
+        // ── 2. Group & filter ONLY Live vehicles with exact (Year+Make+Model+Variant)
+        final allGroupedMap = _groupAllVehicles(liveOnlyVehicles);
+        final filteredVehicles = _applyFilters(liveOnlyVehicles);
         final distinctList = _getDistinctPrimaryVehicles(filteredVehicles);
 
         if (distinctList.isEmpty) {
@@ -464,7 +493,7 @@ class _StockStatusList extends ConsumerWidget {
                           .fetchFirstPage();
                     }
                   },
-                  onViewReport: () {},
+                  onViewReport: () => _openVehicleReport(context, vehicle.id),
                   onDigitalInspection: () {},
                 );
               },
@@ -502,6 +531,9 @@ class _MatchingStocksModalSheetState extends State<_MatchingStocksModalSheet> {
   List<ClientVehicleModel> get _filteredList {
     final query = _searchCtrl.text.trim().toLowerCase();
     return widget.matchingVehicles.where((item) {
+      final isLive = (item.status ?? '').trim().toUpperCase() == 'LIVE';
+      if (!isLive) return false;
+
       final reg = (item.regNo ?? '').toLowerCase();
       final id = item.id.toLowerCase();
       final dealer = (item.dealerFirstName ?? '').toLowerCase();
@@ -520,7 +552,9 @@ class _MatchingStocksModalSheetState extends State<_MatchingStocksModalSheet> {
   @override
   Widget build(BuildContext context) {
     final first = widget.matchingVehicles.first;
-    final title = '${first.makeName ?? ''} ${first.modelName ?? ''}'.trim();
+    final year = first.mfgYear != null ? '${first.mfgYear} ' : '';
+    final title =
+        '$year${first.makeName ?? ''} ${first.modelName ?? ''}'.trim();
     final filtered = _filteredList;
 
     return DraggableScrollableSheet(
@@ -606,7 +640,7 @@ class _MatchingStocksModalSheetState extends State<_MatchingStocksModalSheet> {
               child: filtered.isEmpty
                   ? const Center(
                       child: Text(
-                        'No matching vehicles found',
+                        'No matching live vehicles found',
                         style:
                             TextStyle(color: Color(0xFF9AA0A6), fontSize: 13),
                       ),
@@ -631,7 +665,8 @@ class _MatchingStocksModalSheetState extends State<_MatchingStocksModalSheet> {
                               widget.onRefresh();
                             }
                           },
-                          onViewReport: () {},
+                          onViewReport: () =>
+                              _openVehicleReport(context, item.id),
                           onDigitalInspection: () {},
                         );
                       },

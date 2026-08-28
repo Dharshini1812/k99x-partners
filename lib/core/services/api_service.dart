@@ -175,13 +175,15 @@ class ApiServiceImpl extends ApiService {
     required String filePath,
   }) async {
     try {
-      log('UPLOAD => $url');
+      log('UPLOAD => $url ($imageType)');
+
+      final fileName = filePath.split(RegExp(r'[/\\]')).last;
 
       final formData = FormData.fromMap({
         "vehicleId": vehicleId,
         imageType: await MultipartFile.fromFile(
           filePath,
-          filename: filePath.split('/').last,
+          filename: fileName,
         ),
       });
 
@@ -193,11 +195,10 @@ class ApiServiceImpl extends ApiService {
         ),
       );
 
-      log(response.data.toString());
-
+      log('Upload Response: ${response.data}');
       return response;
     } on DioException catch (e) {
-      log(e.response?.data.toString() ?? '');
+      log('Upload Error: ${e.response?.data}');
       rethrow;
     }
   }

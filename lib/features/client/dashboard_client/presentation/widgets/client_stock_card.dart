@@ -1,8 +1,8 @@
-// lib/features/client/presentation/widgets/client_stock_card.dart
+// lib/features/client/dashboard_client/presentation/widgets/client_stock_card.dart
 
 import 'package:dealer/core/theme/colors.dart';
-import 'package:dealer/features/client/dashboard_client/presentation/widgets/client_view_kyc.dart';
 import 'package:dealer/features/client/dealer_stocks/data/model/c_stocks.dart';
+import 'package:dealer/features/client/dashboard_client/presentation/widgets/client_view_kyc.dart';
 import 'package:dealer/features/my_listings/presentation/pages/vehicle_card.dart';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
@@ -25,23 +25,29 @@ class ClientStockCard extends StatelessWidget {
     this.onBadgeTap,
   });
 
-  static const _draftBg = Color(0xFF37414F);
-
-  bool get _isDraft => (vehicle.status ?? '').toUpperCase() == 'DRAFT';
   bool get _isApproved => vehicle.clientApproved;
+
+  String _toTitleCase(String text) {
+    if (text.isEmpty) return '';
+    return text.split(' ').map((word) {
+      if (word.isEmpty) return '';
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
+  }
 
   String get _title {
     final year = vehicle.mfgYear?.toString() ?? '';
-    final make = vehicle.makeName ?? '';
-    final model = vehicle.modelName ?? '';
-    return [year, make, model].where((s) => s.isNotEmpty).join(' ');
+    final make = _toTitleCase(vehicle.makeName ?? '');
+    final model = (vehicle.modelName ?? '').toUpperCase();
+    final variant = (vehicle.variantName ?? '').toUpperCase();
+
+    return [year, make, model, variant].where((s) => s.isNotEmpty).join(' ');
   }
 
   String get _ageLabel {
     if (vehicle.createdAt == null) return '0';
     final created = DateTime.fromMillisecondsSinceEpoch(vehicle.createdAt!);
-    final days = DateTime.now().difference(created).inDays;
-    return '$days';
+    return '${DateTime.now().difference(created).inDays}';
   }
 
   String _formatKm(int? km) {
@@ -73,326 +79,444 @@ class ClientStockCard extends StatelessWidget {
     return '₹$buf';
   }
 
+  void _handleMediaTap(
+      BuildContext context, String? imageUrl, String? videoUrl) {
+    final hasImage = imageUrl != null && imageUrl.trim().isNotEmpty;
+    final hasVideo = videoUrl != null && videoUrl.trim().isNotEmpty;
+
+    if (!hasImage && !hasVideo) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No media preview available for this vehicle'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.85),
+      builder: (_) => VehicleMediaPreviewDialog(
+        title: _title,
+        imageUrl: hasImage ? imageUrl : null,
+        videoUrl: hasVideo ? videoUrl : null,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final inspection = vehicle.dealerVehicleInspection;
+    final imageUrl = inspection?.frontVehicleImageUrl?.url;
     final videoUrl = inspection?.youtubeVideoUrl?.youtubeUrl ??
         inspection?.exteriorVideoUrl?.url;
 
     return Container(
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE9ECEF), width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: const Color(0xFF1E293B).withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Top row: thumbnail + title/reg/badge + age ────────────
+          // ── Top Image Banner with Overlaid Badges & Age Calendar ──────────
+          Stack(
+            children: [
+              AspectRatio(
+                aspectRatio: 2.2,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF0F172A),
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(16)),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => _handleMediaTap(context, imageUrl, videoUrl),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      alignment: Alignment.center,
+                      children: [
+                        if (imageUrl != null && imageUrl.isNotEmpty)
+                          Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.directions_car_filled_rounded,
+                              color: Colors.white38,
+                              size: 48,
+                            ),
+                          )
+                        else
+                          const Icon(
+                            Icons.directions_car_filled_rounded,
+                            color: Colors.white38,
+                            size: 48,
+                          ),
+                        if (videoUrl != null && videoUrl.isNotEmpty)
+                          Center(
+                            child: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.55),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: Colors.white30, width: 1.5),
+                              ),
+                              child: const Icon(
+                                Icons.play_arrow_rounded,
+                                size: 24,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── Floating Left: Similar Stocks Badge ──
+              if (badgeCount > 0)
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: InkWell(
+                    onTap: onBadgeTap,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.65),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: const Color(0xFF00C48C), width: 1),
+                      ),
+                      child: Text(
+                        '+$badgeCount',
+                        style: const TextStyle(
+                          color: Color(0xFF00E699),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Floating Right: Calendar Badge ──
+              Positioned(
+                top: 8,
+                right: 10,
+                child: AgeCalendarBadge(
+                  ageInDays: int.tryParse(_ageLabel) ?? 0,
+                ),
+              ),
+            ],
+          ),
+
+          // ── Main Card Content ─────────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-            child: Row(
+            padding: const EdgeInsets.all(14),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Thumbnail(
-                  imageUrl: inspection?.frontVehicleImageUrl?.url,
-                  isVideo: videoUrl != null && videoUrl.isNotEmpty,
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      barrierColor: Colors.black.withOpacity(0.85),
-                      builder: (_) => VehicleMediaPreviewDialog(
-                        title: _title,
-                        imageUrl: inspection?.frontVehicleImageUrl?.url,
-                        videoUrl: videoUrl,
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 6,
-                        runSpacing: 4,
+                // Title & KYC Verified Row
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             _title,
                             style: const TextStyle(
-                              fontSize: 14,
+                              fontSize: 15,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF111111),
+                              color: Color(0xFF0F172A),
                               height: 1.25,
                             ),
                           ),
-                          if (_isDraft)
-                            const _StatusPill(text: 'DRAFT', bg: _draftBg)
-                          else
-                            const _StatusPill(
-                                text: 'LIVE', bg: Color(0xFF27AE60)),
-                          if (badgeCount > 0)
-                            StockCountBadge(
-                              count: badgeCount,
-                              onTap: onBadgeTap,
+                          const SizedBox(height: 3),
+                          Text(
+                            vehicle.id,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF94A3B8),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        vehicle.id,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF9AA0A6),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: [
-                          if ((vehicle.fuelType ?? '').isNotEmpty ||
-                              (vehicle.transmission ?? '').isNotEmpty)
-                            _MiniChip(
-                              text: [
-                                vehicle.fuelType,
-                                vehicle.transmission,
-                              ].where((e) => (e ?? '').isNotEmpty).join(' · '),
-                              bg: const Color(0xFFF3F4F6),
-                              textColor: const Color(0xFF4B5563),
-                            ),
-                          _MiniChip(
-                            text: _formatKm(vehicle.kmDriven),
-                            bg: const Color(0xFFEFF6FF),
-                            textColor: const Color(0xFF2563EB),
                           ),
-                          if ((vehicle.regNo ?? '').isNotEmpty)
-                            _MiniChip(
-                              text: vehicle.regNo!,
-                              bg: const Color(0xFFF3EEFC),
-                              textColor: const Color(0xFF7C3AED),
-                            ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    AgeCalendarBadge(
-                      ageInDays: int.tryParse(_ageLabel) ?? 0,
                     ),
-                    if (vehicle.kycExists == true) ...[
-                      const SizedBox(height: 6),
+                    if (vehicle.kycExists == true)
                       InkWell(
                         onTap: () => showClientKycBottomSheet(
                           context,
                           vehicleId: vehicle.id,
                         ),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(8),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 3.5),
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEAFBF2),
-                            borderRadius: BorderRadius.circular(6),
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                                color: const Color(0xFF1E8C56), width: 1),
+                                color: const Color(0xFF16A34A), width: 1),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.description_outlined,
-                                  size: 11.5, color: Color(0xFF1E8C56)),
-                              SizedBox(width: 3.5),
+                                  size: 12, color: Color(0xFF16A34A)),
+                              SizedBox(width: 4),
                               Text(
                                 'View KYC',
                                 style: TextStyle(
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w700,
-                                  color: Color(0xFF1E8C56),
+                                  color: Color(0xFF16A34A),
                                 ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                    ],
                   ],
                 ),
-              ],
-            ),
-          ),
 
-          if ((vehicle.dealerFirstName ?? '').isNotEmpty ||
-              (vehicle.cityName ?? '').isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-              child: Row(
-                children: [
-                  if ((vehicle.dealerFirstName ?? '').isNotEmpty) ...[
-                    const Icon(Icons.storefront_rounded,
-                        size: 13, color: Color(0xFF9AA0A6)),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Seller: ${vehicle.dealerFirstName}',
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: Color(0xFF6B7280),
-                        fontWeight: FontWeight.w600,
+                const SizedBox(height: 10),
+
+                // ── Spec Badges Bar ──
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    if ((vehicle.fuelType ?? '').isNotEmpty ||
+                        (vehicle.transmission ?? '').isNotEmpty)
+                      _InfoChip(
+                        icon: Icons.local_gas_station_rounded,
+                        text: [
+                          vehicle.fuelType,
+                          vehicle.transmission,
+                        ].where((e) => (e ?? '').isNotEmpty).join(' · '),
                       ),
+                    _InfoChip(
+                      icon: Icons.speed_rounded,
+                      text: _formatKm(vehicle.kmDriven),
                     ),
+                    if ((vehicle.regNo ?? '').isNotEmpty)
+                      _InfoChip(
+                        icon: Icons.pin_outlined,
+                        text: vehicle.regNo!,
+                        highlight: true,
+                      ),
                   ],
-                  if ((vehicle.dealerFirstName ?? '').isNotEmpty &&
-                      (vehicle.cityName ?? '').isNotEmpty)
-                    const Text(
-                      '  ·  ',
-                      style: TextStyle(color: Color(0xFF9AA0A6)),
-                    ),
-                  if ((vehicle.cityName ?? '').isNotEmpty) ...[
-                    const Icon(Icons.location_on_rounded,
-                        size: 13, color: Color(0xFF9AA0A6)),
-                    const SizedBox(width: 2),
-                    Expanded(
-                      child: Text(
-                        [vehicle.cityName, vehicle.stateName]
-                            .where((e) => (e ?? '').isNotEmpty)
-                            .join(' · '),
+                ),
+
+                const SizedBox(height: 10),
+
+                // ── Dealer & Location ──
+                Row(
+                  children: [
+                    if ((vehicle.dealerFirstName ?? '').isNotEmpty) ...[
+                      const Icon(Icons.storefront_rounded,
+                          size: 13, color: Color(0xFF64748B)),
+                      const SizedBox(width: 4),
+                      Text(
+                        vehicle.dealerFirstName!,
                         style: const TextStyle(
                           fontSize: 11.5,
-                          color: Color(0xFF6B7280),
+                          color: Color(0xFF475569),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                      const Text(' · ',
+                          style: TextStyle(color: Color(0xFFCBD5E1))),
+                    ],
+                    if ((vehicle.cityName ?? '').isNotEmpty) ...[
+                      const Icon(Icons.location_on_rounded,
+                          size: 13, color: Color(0xFF64748B)),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: Text(
+                          [vehicle.cityName, vehicle.stateName]
+                              .where((e) => (e ?? '').isNotEmpty)
+                              .join(', '),
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
+                // ── Actions: View Report Button & Digital Inspection Badge ──
+                Row(
+                  children: [
+                    if (onViewReport != null)
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: onViewReport,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            elevation: 0,
+                          ),
+                          icon:
+                              const Icon(Icons.description_outlined, size: 14),
+                          label: const Text(
+                            'View Report',
+                            style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    if (onViewReport != null) const SizedBox(width: 8),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.laptop_mac_rounded,
+                                size: 13, color: Color(0xFF64748B)),
+                            SizedBox(width: 5),
+                            Text(
+                              'Digital Inspection',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF475569),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
-                ],
-              ),
-            ),
+                ),
 
-          // ── Report / Inspection buttons ───────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-            child: Row(
-              children: [
-                if (onViewReport != null)
-                  Expanded(
-                    child: _SmallActionButton(
-                      icon: Icons.description_outlined,
-                      label: 'View Report',
-                      filled: true,
-                      onTap: onViewReport!,
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 8),
+
+                // ── Inspection Ratings ──
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ConditionChip(
+                        label: 'Exterior',
+                        value: inspection?.exteriorCondition,
+                      ),
                     ),
-                  ),
-                if (onViewReport != null && onDigitalInspection != null)
-                  const SizedBox(width: 8),
-                if (onDigitalInspection != null)
-                  Expanded(
-                    child: _SmallActionButton(
-                      icon: Icons.laptop_mac_rounded,
-                      label: 'Digital Inspection',
-                      filled: false,
-                      onTap: onDigitalInspection!,
+                    Expanded(
+                      child: _ConditionChip(
+                        label: 'Engine',
+                        value: inspection?.engineCondition,
+                      ),
                     ),
-                  ),
-              ],
-            ),
-          ),
-
-          const Divider(height: 1, color: Color(0xFFF0F1F4)),
-
-          // ── Condition ratings ─────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _ConditionChip(
-                    label: 'Exterior',
-                    value: inspection?.exteriorCondition,
-                  ),
-                ),
-                Expanded(
-                  child: _ConditionChip(
-                    label: 'Engine',
-                    value: inspection?.engineCondition,
-                  ),
-                ),
-                Expanded(
-                  child: _ConditionChip(
-                    label: 'Interior',
-                    value: inspection?.interiorCondition,
-                  ),
-                ),
-                if (inspection?.ownerCount != null)
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Owners',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF9AA0A6),
-                          ),
+                    Expanded(
+                      child: _ConditionChip(
+                        label: 'Interior',
+                        value: inspection?.interiorCondition,
+                      ),
+                    ),
+                    if (inspection?.ownerCount != null)
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Owners',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${inspection!.ownerCount}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${inspection!.ownerCount}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1A1A1A),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 8),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 10),
+
+                // ── Price Intelligence & Pre-Approval Action ──
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _PriceRow(
+                              label: 'Seller Exp.',
+                              value: _money(vehicle.dealerPrice)),
+                          const SizedBox(height: 3),
+                          _PriceRow(
+                            label: 'Valuation',
+                            value: vehicle.marketPrice != null &&
+                                    vehicle.marketPrice! > 0
+                                ? _money(vehicle.marketPrice)
+                                : null,
+                            valueWidget: vehicle.marketPrice == null ||
+                                    vehicle.marketPrice == 0
+                                ? const _InProgressBadge()
+                                : null,
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          const Divider(height: 1, color: Color(0xFFF0F1F4)),
-
-          // ── Price intelligence + Pre Approval ─────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _PriceRow(
-                          label: 'Seller Exp.',
-                          value: _money(vehicle.dealerPrice)),
-                      const SizedBox(height: 3),
-                      vehicle.marketPrice == null || vehicle.marketPrice == 0
-                          ? const _PriceRow(
-                              label: 'Valuation',
-                              valueWidget: _InProgressBadge())
-                          : _PriceRow(
+                          const SizedBox(height: 3),
+                          _PriceRow(
                               label: 'Avg Market',
                               value: _money(vehicle.marketPrice)),
-                    ],
-                  ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _buildActionButton(context),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                _buildActionButton(context),
               ],
             ),
           ),
@@ -403,28 +527,47 @@ class ClientStockCard extends StatelessWidget {
 
   Widget _buildActionButton(BuildContext context) {
     if (_isApproved) {
+      final loanAmt = vehicle.loanAmount;
+
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF1E8C56), width: 1.2),
+          color: const Color(0xFFF0FDF4),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFF22C55E), width: 1.2),
         ),
-        child: const Row(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(Icons.check_circle_rounded,
-                size: 14, color: Color(0xFF1E8C56)),
-            SizedBox(width: 4),
-            Text(
-              'PRE APPROVED',
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1E8C56),
-                letterSpacing: 0.3,
-              ),
+            const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle_rounded,
+                    size: 13, color: Color(0xFF16A34A)),
+                SizedBox(width: 4),
+                Text(
+                  'PRE APPROVED',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF16A34A),
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
             ),
+            if (loanAmt != null && loanAmt > 0) ...[
+              const SizedBox(height: 3),
+              Text(
+                _money(loanAmt),
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF15803D),
+                ),
+              ),
+            ],
           ],
         ),
       );
@@ -433,229 +576,70 @@ class ClientStockCard extends StatelessWidget {
     return ElevatedButton.icon(
       onPressed: onPreApproval,
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF1E8C56),
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        backgroundColor: const Color(0xFFFFF7ED),
+        foregroundColor: const Color(0xFFC2410C),
+        side: const BorderSide(color: Color(0xFFFDBA74), width: 1.2),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
         elevation: 0,
       ),
-      icon: const Icon(Icons.verified_rounded, size: 15),
+      icon: const Icon(Icons.hourglass_top_rounded,
+          size: 13, color: Color(0xFFC2410C)),
       label: const Text(
-        'Pre Approval',
+        'Pre Approval Pending',
         style: TextStyle(
-          fontSize: 12.5,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class StockCountBadge extends StatelessWidget {
-  final int count;
-  final VoidCallback? onTap;
-
-  const StockCountBadge({
-    super.key,
-    required this.count,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (count <= 0) return const SizedBox.shrink();
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE8F8F0),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: const Color(0xFF00C48C),
-            width: 1.2,
-          ),
-        ),
-        child: Text(
-          '+$count',
-          style: const TextStyle(
-            color: Color(0xFF00A86B),
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Thumbnail extends StatelessWidget {
-  final String? imageUrl;
-  final bool isVideo;
-  final VoidCallback? onTap;
-
-  const _Thumbnail({
-    this.imageUrl,
-    required this.isVideo,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 68,
-            height: 68,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1D2748),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: imageUrl != null && imageUrl!.isNotEmpty
-                ? Image.network(
-                    imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.directions_car_rounded,
-                      color: Colors.white54,
-                    ),
-                  )
-                : const Icon(Icons.directions_car_rounded,
-                    color: Colors.white54),
-          ),
-          if (isVideo)
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.65),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.play_arrow_rounded,
-                size: 16,
-                color: Colors.white,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  final String text;
-  final Color bg;
-
-  const _StatusPill({required this.text, required this.bg});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 9.5,
+          fontSize: 11.5,
           fontWeight: FontWeight.w800,
-          color: Colors.white,
-          letterSpacing: 0.3,
+          color: Color(0xFFC2410C),
         ),
       ),
     );
   }
 }
 
-class _MiniChip extends StatelessWidget {
-  final String text;
-  final Color bg;
-  final Color textColor;
-
-  const _MiniChip(
-      {required this.text, required this.bg, required this.textColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w700,
-          color: textColor,
-        ),
-      ),
-    );
-  }
-}
-
-class _SmallActionButton extends StatelessWidget {
+class _InfoChip extends StatelessWidget {
   final IconData icon;
-  final String label;
-  final bool filled;
-  final VoidCallback onTap;
+  final String text;
+  final bool highlight;
 
-  const _SmallActionButton({
+  const _InfoChip({
     required this.icon,
-    required this.label,
-    required this.filled,
-    required this.onTap,
+    required this.text,
+    this.highlight = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: filled ? AppColors.primary : Colors.white,
-      borderRadius: BorderRadius.circular(9),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(9),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(9),
-            border: filled ? null : Border.all(color: const Color(0xFFD7E3FF)),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: highlight ? const Color(0xFFF5F3FF) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+            color:
+                highlight ? const Color(0xFFDDD6FE) : const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon,
+              size: 12,
+              color: highlight
+                  ? const Color(0xFF7C3AED)
+                  : const Color(0xFF64748B)),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color:
+                  highlight ? const Color(0xFF7C3AED) : const Color(0xFF334155),
+            ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon,
-                  size: 13, color: filled ? Colors.white : AppColors.primary),
-              const SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: filled ? Colors.white : AppColors.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
@@ -677,20 +661,20 @@ class _ConditionChip extends StatelessWidget {
           style: const TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF9AA0A6),
+            color: Color(0xFF94A3B8),
           ),
         ),
         const SizedBox(height: 2),
         Row(
           children: [
-            const Icon(Icons.star_rounded, size: 13, color: Color(0xFFF39C12)),
+            const Icon(Icons.star_rounded, size: 13, color: Color(0xFFF59E0B)),
             const SizedBox(width: 2),
             Text(
               value ?? '-',
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF1A1A1A),
+                color: Color(0xFF0F172A),
               ),
             ),
           ],
@@ -711,12 +695,15 @@ class _PriceRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(
-          '$label: ',
-          style: const TextStyle(
-            fontSize: 11.5,
-            color: Color(0xFF6B7280),
-            fontWeight: FontWeight.w600,
+        SizedBox(
+          width: 72,
+          child: Text(
+            '$label:',
+            style: const TextStyle(
+              fontSize: 11,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         valueWidget ??
@@ -725,7 +712,7 @@ class _PriceRow extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFFC17A15),
+                color: Color(0xFFD97706),
               ),
             ),
       ],
@@ -742,12 +729,12 @@ class _InProgressBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(4),
       ),
       child: const Text(
         'In Progress',
         style: TextStyle(
-          fontSize: 10.5,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
           color: Color(0xFF2563EB),
         ),
@@ -757,7 +744,7 @@ class _InProgressBadge extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DIALOG WITH ACTIVE INLINE YOUTUBE VIDEO PLAYER
+// DIALOG WITH INLINE YOUTUBE VIDEO PLAYER
 // ─────────────────────────────────────────────────────────────────────────────
 
 class VehicleMediaPreviewDialog extends StatefulWidget {
@@ -861,7 +848,7 @@ class _VehicleMediaPreviewDialogState extends State<VehicleMediaPreviewDialog> {
     final isVideo = currentItem['type'] == 'video';
 
     return Dialog(
-      backgroundColor: const Color(0xFF131826),
+      backgroundColor: const Color(0xFF0F172A),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Container(
@@ -879,7 +866,7 @@ class _VehicleMediaPreviewDialogState extends State<VehicleMediaPreviewDialog> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Color(0xFF3B82F6),
+                      color: Color(0xFF38BDF8),
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
                     ),
@@ -901,7 +888,7 @@ class _VehicleMediaPreviewDialogState extends State<VehicleMediaPreviewDialog> {
               ],
             ),
             const SizedBox(height: 10),
-            const Divider(height: 1, color: Color(0xFF232B40)),
+            const Divider(height: 1, color: Color(0xFF1E293B)),
             const SizedBox(height: 12),
             Expanded(
               child: Stack(

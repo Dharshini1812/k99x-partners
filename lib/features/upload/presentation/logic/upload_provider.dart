@@ -93,11 +93,10 @@ final editVehicleFetchNotifier =
 );
 
 class MediaSlot {
-  MediaSlot._();
-  static const front = 'front';
-  static const odometer = 'odometer';
+  static const front = 'frontImage';
+  static const odometer = 'odometerImage';
   static const exteriorVideo = 'exteriorVideo';
   static const interiorVideo = 'interiorVideo';
   static const engineBayVideo = 'engineBayVideo';
-  static const tyresVideo = 'tyresVideo';
+  static const tyresVideo = 'tyreVideo';
 }

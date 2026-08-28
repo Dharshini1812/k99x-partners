@@ -1,10 +1,6 @@
 // lib/features/upload/presentation/widgets/media_card.dart
-//
-// Single photo/video capture tile used on the media step. Behavior is
-// unchanged (capture / upload / retake / remove) — only the styling was
-// simplified to reuse UploadColors instead of one-off literals.
-import 'dart:io';
 
+import 'dart:io';
 import 'package:dealer/features/upload/presentation/widgets/upload_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -18,9 +14,6 @@ class MediaCard extends StatelessWidget {
   final VoidCallback onUpload;
   final VoidCallback? onRemove;
 
-  /// Server-upload status, independent from whether a local [path] is
-  /// picked. Leave these at their defaults if you're not wiring a
-  /// network upload for this card.
   final bool isUploading;
   final bool isUploadError;
   final String? uploadErrorMessage;
@@ -40,6 +33,69 @@ class MediaCard extends StatelessWidget {
     this.uploadErrorMessage,
     this.onRetryUpload,
   });
+
+  void _showRetakeOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 38,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE4E7EC),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                ListTile(
+                  leading: Icon(
+                    isVideo ? Icons.videocam_rounded : Icons.camera_alt_rounded,
+                    color: UploadColors.primary,
+                  ),
+                  title: Text(
+                    isVideo ? 'Record Video (Camera)' : 'Take Photo (Camera)',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onCapture();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.photo_library_rounded,
+                    color: Color(0xFF6B7280),
+                  ),
+                  title: Text(
+                    isVideo
+                        ? 'Choose Video from Gallery'
+                        : 'Choose Photo from Gallery',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onUpload();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,10 +124,13 @@ class MediaCard extends StatelessWidget {
           const SizedBox(height: 10),
           if (!hasMedia)
             _CaptureActions(
-                isVideo: isVideo, onCapture: onCapture, onUpload: onUpload)
+              isVideo: isVideo,
+              onCapture: onCapture,
+              onUpload: onUpload,
+            )
           else
             _EditActions(
-              onCapture: onCapture,
+              onRetake: () => _showRetakeOptions(context),
               onRemove: onRemove,
               isUploading: isUploading,
             ),
@@ -195,11 +254,6 @@ class _MediaThumbnail extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MEDIA PREVIEW DIALOG — fullscreen-ish popup for viewing the captured
-// image (zoomable) or video (with playback controls).
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _MediaPreviewDialog extends StatefulWidget {
   final String path;
@@ -346,7 +400,8 @@ class _CaptureActions extends StatelessWidget {
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 10),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             child: Text(isVideo ? 'Capture Video' : 'Capture Photo'),
           ),
@@ -373,12 +428,12 @@ class _CaptureActions extends StatelessWidget {
 }
 
 class _EditActions extends StatelessWidget {
-  final VoidCallback onCapture;
+  final VoidCallback onRetake;
   final VoidCallback? onRemove;
   final bool isUploading;
 
   const _EditActions({
-    required this.onCapture,
+    required this.onRetake,
     required this.onRemove,
     this.isUploading = false,
   });
@@ -389,13 +444,14 @@ class _EditActions extends StatelessWidget {
       children: [
         Expanded(
           child: OutlinedButton(
-            onPressed: isUploading ? null : onCapture,
+            onPressed: isUploading ? null : onRetake,
             style: OutlinedButton.styleFrom(
               foregroundColor: UploadColors.primary,
               side: const BorderSide(color: UploadColors.primary),
               padding: const EdgeInsets.symmetric(vertical: 10),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             child: const Text('Retake'),
           ),
@@ -409,7 +465,8 @@ class _EditActions extends StatelessWidget {
               side: const BorderSide(color: UploadColors.danger),
               padding: const EdgeInsets.symmetric(vertical: 10),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             child: const Text('Remove'),
           ),
@@ -450,9 +507,10 @@ class _UploadErrorBanner extends StatelessWidget {
             child: const Text(
               'Retry',
               style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: UploadColors.danger),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: UploadColors.danger,
+              ),
             ),
           ),
       ],

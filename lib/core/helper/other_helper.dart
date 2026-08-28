@@ -1,4 +1,9 @@
+import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
+import 'package:dealer/features/upload/data/model/vehicle_model.dart';
+import 'package:dealer/features/upload/presentation/pages/vehicle_details_page.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 String formatDate(dynamic timestamp) {
@@ -98,4 +103,19 @@ List<GroupedVehicleStock> groupVehicles(List<dynamic> vehicles) {
       matchingVehicles: group,
     );
   }).toList();
+}
+
+// Helper method to navigate directly back to the Dashboard tab
+void navigateToDashboard(WidgetRef ref, BuildContext context) {
+  // 1. Reset upload form steps back to step 0
+  ref.read(listingStepProvider.notifier).state = 0;
+
+  // 2. Clear current listing data state
+  ref.read(listingProvider.notifier).state = const VehicleListingModel();
+
+  // 3. Switch bottom navigation index back to Dashboard (Index 0)
+  ref.read(bottomNavIndexProvider.notifier).state = 0;
+
+  // 4. Pop any active modal sheets, review sub-pages, or dialogs if open
+  Navigator.of(context).popUntil((route) => route.isFirst);
 }
