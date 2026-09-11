@@ -520,7 +520,7 @@ class _PreApprovedOfferPopup extends StatelessWidget {
                         _OfferStat(
                           label: null,
                           value: interestRate != null
-                              ? '${interestRate}% p.a.'
+                              ? '$interestRate% p.a.'
                               : '—',
                         ),
                         const SizedBox(width: 24),

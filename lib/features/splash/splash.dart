@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:dealer/core/helper/storage_helper.dart';
 import 'package:dealer/core/route/router.gr.dart';
@@ -10,83 +13,278 @@ class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});
 
   @override
-  ConsumerState<ConsumerStatefulWidget> createState() => _SplashPageState();
+  ConsumerState<SplashPage> createState() => _SplashPageState();
 }
 
 class _SplashPageState extends ConsumerState<SplashPage>
     with TickerProviderStateMixin {
+  // ─────────────────────────────────────────────
+  // Animation
+  // ─────────────────────────────────────────────
   late final AnimationController _ctrl;
   late final Animation<double> _fadeAnim;
   late final Animation<double> _scaleAnim;
 
-  // Continuous rotation controller for the orange arc around the logo
+  // Continuous rotation controller for orange arc
   late final AnimationController _rotationCtrl;
+
+  // ─────────────────────────────────────────────
+  // Internet checking
+  // ─────────────────────────────────────────────
+  Timer? _internetCheckTimer;
+
+  bool isOffline = false;
+  bool _navigationStarted = false;
 
   @override
   void initState() {
     super.initState();
 
+    // ───────────────────────────────────────────
+    // Main splash animation
+    // ───────────────────────────────────────────
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
 
-    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
+    _fadeAnim = CurvedAnimation(
+      parent: _ctrl,
+      curve: Curves.easeIn,
+    );
 
-    _scaleAnim = Tween<double>(begin: 0.75, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut),
+    _scaleAnim = Tween<double>(
+      begin: 0.75,
+      end: 1.0,
+    ).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: Curves.elasticOut,
+      ),
     );
 
     _ctrl.forward();
 
-    // Spins clockwise ("travels right") continuously while the splash shows
+    // ───────────────────────────────────────────
+    // Rotating orange arc
+    // ───────────────────────────────────────────
     _rotationCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat();
 
-    Future.delayed(const Duration(milliseconds: 2600), () async {
-      final storage = SecureStorageService();
-      final user = await storage.getUser();
-
-      if (!mounted) return;
-
-      if (user == null) {
-        ref.read(routeService).pushAndRemoveUntil(
-              const DealerOnboardingRoute(),
-              context,
-            );
-        return;
-      }
-
-      if (user.userType == 'CLIENT') {
-        ref.read(routeService).pushAndRemoveUntil(
-              const ClientBottomNavRoute(),
-              context,
-            );
-      } else if (user.userType == 'DEALER') {
-        ref.read(routeService).pushAndRemoveUntil(
-              const BottomNavRoute(),
-              context,
-            );
-      }
-    });
+    // ───────────────────────────────────────────
+    // Check internet
+    // ───────────────────────────────────────────
+    _checkInternet();
   }
+
+  // ═════════════════════════════════════════════
+  // INTERNET CHECK
+  // ═════════════════════════════════════════════
+
+  Future<bool> _hasInternet() async {
+    try {
+      final result = await InternetAddress.lookup('google.com');
+
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } on SocketException {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _checkInternet() async {
+    final connected = await _hasInternet();
+
+    if (!mounted) return;
+
+    if (connected) {
+      setState(() {
+        isOffline = false;
+      });
+
+      _startNavigation();
+    } else {
+      setState(() {
+        isOffline = true;
+      });
+
+      _startInternetRetry();
+    }
+  }
+
+  // Check every 2 seconds while offline
+  void _startInternetRetry() {
+    _internetCheckTimer?.cancel();
+
+    _internetCheckTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) async {
+        final connected = await _hasInternet();
+
+        if (!mounted) return;
+
+        if (connected) {
+          _internetCheckTimer?.cancel();
+
+          setState(() {
+            isOffline = false;
+          });
+
+          _startNavigation();
+        }
+      },
+    );
+  }
+
+  // ═════════════════════════════════════════════
+  // NAVIGATION
+  // ═════════════════════════════════════════════
+
+  Future<void> _startNavigation() async {
+    if (_navigationStarted) return;
+
+    _navigationStarted = true;
+
+    // Keep splash visible for 2.6 seconds
+    await Future.delayed(
+      const Duration(milliseconds: 2600),
+    );
+
+    if (!mounted) return;
+
+    // Check again before navigation
+    final connected = await _hasInternet();
+
+    if (!connected) {
+      _navigationStarted = false;
+
+      setState(() {
+        isOffline = true;
+      });
+
+      _startInternetRetry();
+
+      return;
+    }
+
+    // ───────────────────────────────────────────
+    // Get stored user
+    // ───────────────────────────────────────────
+    final storage = SecureStorageService();
+    final user = await storage.getUser();
+
+    if (!mounted) return;
+
+    // No user
+    if (user == null) {
+      ref.read(routeService).pushAndRemoveUntil(
+            const DealerOnboardingRoute(),
+            context,
+          );
+
+      return;
+    }
+
+    // CLIENT
+    if (user.userType == 'CLIENT') {
+      ref.read(routeService).pushAndRemoveUntil(
+            const ClientBottomNavRoute(),
+            context,
+          );
+
+      return;
+    }
+
+    // DEALER
+    if (user.userType == 'DEALER') {
+      ref.read(routeService).pushAndRemoveUntil(
+            const BottomNavRoute(),
+            context,
+          );
+
+      return;
+    }
+  }
+
+  // ═════════════════════════════════════════════
+  // DISPOSE
+  // ═════════════════════════════════════════════
 
   @override
   void dispose() {
+    _internetCheckTimer?.cancel();
     _ctrl.dispose();
     _rotationCtrl.dispose();
+
     super.dispose();
   }
 
+  // ═════════════════════════════════════════════
+  // UI
+  // ═════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
+    // ───────────────────────────────────────────
+    // NO INTERNET SCREEN
+    // ───────────────────────────────────────────
+    if (isOffline) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset(
+                  'images/no_internet.jpg',
+                  width: 300,
+                  fit: BoxFit.contain,
+                ),
+
+                // Optional manual retry button
+                ElevatedButton(
+                  onPressed: () {
+                    _checkInternet();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E2FE0),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'Retry',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ───────────────────────────────────────────
+    // NORMAL SPLASH SCREEN
+    // ───────────────────────────────────────────
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // ── Decorative top-right shape ──────────────────────────────
+          // ─────────────────────────────────────
+          // Decorative top-right shape
+          // ─────────────────────────────────────
           Positioned(
             top: -40,
             right: -60,
@@ -110,7 +308,9 @@ class _SplashPageState extends ConsumerState<SplashPage>
             ),
           ),
 
-          // ── Center content ───────────────────────────────────────────
+          // ─────────────────────────────────────
+          // Center content
+          // ─────────────────────────────────────
           Center(
             child: FadeTransition(
               opacity: _fadeAnim,
@@ -119,14 +319,16 @@ class _SplashPageState extends ConsumerState<SplashPage>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // ── Logo with rotating arc ─────────────────────────
+                    // ─────────────────────────
+                    // Logo with rotating arc
+                    // ─────────────────────────
                     SizedBox(
                       width: 140,
                       height: 140,
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Faint full ring backdrop
+                          // Faint full ring
                           Container(
                             width: 140,
                             height: 140,
@@ -138,7 +340,8 @@ class _SplashPageState extends ConsumerState<SplashPage>
                               ),
                             ),
                           ),
-                          // Orange partial arc — rotates clockwise around the ring
+
+                          // Orange rotating arc
                           RotationTransition(
                             turns: _rotationCtrl,
                             child: CustomPaint(
@@ -150,7 +353,8 @@ class _SplashPageState extends ConsumerState<SplashPage>
                               ),
                             ),
                           ),
-                          // Logo circle
+
+                          // Logo
                           Container(
                             width: 108,
                             height: 108,
@@ -174,7 +378,9 @@ class _SplashPageState extends ConsumerState<SplashPage>
 
                     const SizedBox(height: 28),
 
-                    // ── App name ────────────────────────────────────────
+                    // ─────────────────────────
+                    // App name
+                    // ─────────────────────────
                     const Text(
                       'K99X',
                       style: TextStyle(
@@ -184,9 +390,12 @@ class _SplashPageState extends ConsumerState<SplashPage>
                         color: Color(0xFF11142A),
                       ),
                     ),
+
                     const SizedBox(height: 4),
 
-                    // ── Subtitle ────────────────────────────────────────
+                    // ─────────────────────────
+                    // Subtitle
+                    // ─────────────────────────
                     const Text(
                       'Dealer Stocks',
                       style: TextStyle(
@@ -198,7 +407,9 @@ class _SplashPageState extends ConsumerState<SplashPage>
 
                     const SizedBox(height: 18),
 
-                    // ── Tagline ─────────────────────────────────────────
+                    // ─────────────────────────
+                    // Tagline
+                    // ─────────────────────────
                     const Text(
                       'UPLOAD  ·  MANAGE  ·  SELL STOCKS',
                       style: TextStyle(
@@ -219,13 +430,14 @@ class _SplashPageState extends ConsumerState<SplashPage>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// Partial arc painter for the ring around the logo
-// ─────────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════
+// PARTIAL ARC PAINTER
+// ═══════════════════════════════════════════════
+
 class _ArcPainter extends CustomPainter {
   final Color color;
   final double strokeWidth;
-  final double sweepFraction; // 0.0–1.0 of full circle
+  final double sweepFraction;
 
   _ArcPainter({
     required this.color,
@@ -236,13 +448,15 @@ class _ArcPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
+
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
 
-    const startAngle = -3.14 / 2 - 0.6; // start slightly before top
+    const startAngle = -3.14 / 2 - 0.6;
+
     final sweepAngle = 2 * 3.14159 * sweepFraction;
 
     canvas.drawArc(
@@ -257,6 +471,7 @@ class _ArcPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ArcPainter oldDelegate) {
     return oldDelegate.color != color ||
-        oldDelegate.sweepFraction != sweepFraction;
+        oldDelegate.sweepFraction != sweepFraction ||
+        oldDelegate.strokeWidth != strokeWidth;
   }
 }

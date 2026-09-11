@@ -570,9 +570,7 @@ class _AddWantedVehiclePageState extends ConsumerState<AddWantedVehiclePage> {
               Expanded(
                 child: _wantedCardDetail(
                   'Needed By',
-                  (item.neededBy != null && item.neededBy!.isNotEmpty)
-                      ? item.neededBy!
-                      : '-',
+                  (item.neededBy.isNotEmpty) ? item.neededBy : '-',
                 ),
               ),
             ],

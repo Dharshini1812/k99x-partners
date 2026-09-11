@@ -3,7 +3,6 @@
 import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
-import 'package:dealer/features/my_listings/data/model/wanted_list_model.dart';
 import 'package:dealer/features/my_listings/presentation/logic/provider.dart';
 import 'package:dealer/features/my_listings/presentation/widgets/pre-approved_tab.dart';
 import 'package:dealer/features/upload/presentation/logic/vehicle_edit_logic.dart';
@@ -506,7 +505,7 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                           refreshKey: state.refreshKey + 1,
                         ),
                       );
-                  ref.read(listingProvider.notifier).state = logic;
+                  ref.read(listingProvider.notifier).update((_) => logic);
                   ref.read(bottomNavIndexProvider.notifier).state = 2;
                   ref.read(listingStepProvider.notifier).state = 0;
                 },

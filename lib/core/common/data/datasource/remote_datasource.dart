@@ -1,4 +1,5 @@
 import 'package:dealer/core/common/data/model/city_model.dart';
+import 'package:dealer/core/common/data/model/lender_model.dart';
 import 'package:dealer/core/common/data/model/make_model_variant.dart';
 import 'package:dealer/core/common/data/model/rc_details.dart';
 import 'package:dealer/core/common/data/model/state_model.dart';
@@ -14,6 +15,7 @@ abstract class CommonDatasource {
   Future<List<ModelModel>> getModel({required int makeId});
   Future<List<VariantModel>> getVariant({required int modelId});
   Future<RCDetailsModel> getRcDetails(String vehRegId);
+  Future<List<LenderModel>> getLenderList();
 }
 
 class CommonDatasourceimpl implements CommonDatasource {
@@ -101,6 +103,21 @@ class CommonDatasourceimpl implements CommonDatasource {
       final url = '${Url.getRCDetails}$vehRegId';
       final data = await api.get2(url);
       return RCDetailsModel.fromJson(data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<LenderModel>> getLenderList() async {
+    try {
+      final api = ref.read(apiService);
+      const url = Url.lenderListUrl;
+      final data = await api.get2(url);
+      if (data is List) {
+        return data.map((e) => LenderModel.fromJson(e)).toList();
+      }
+      return [];
     } catch (e) {
       rethrow;
     }

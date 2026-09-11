@@ -17,6 +17,7 @@ import 'package:flutter/material.dart' as _i9;
 import '../../features/bottom_nav/bottom_nav.dart' as _i3;
 import '../../features/client/bottom_nav_client/presentation/pages/bottom_nav.dart'
     as _i6;
+import '../../features/live_auction/data/model/live_model.dart' as _i10;
 import '../../features/live_auction/presentation/pages/vehicle_detail_page.dart'
     as _i7;
 import '../../features/login/presentation/pages/login_page.dart' as _i1;
@@ -73,6 +74,7 @@ class AppRouter extends _i8.RootStackRouter {
         child: _i7.VehicleDetailPage(
           key: args.key,
           vehicleId: args.vehicleId,
+          vehicle: args.vehicle,
         ),
       );
     },
@@ -189,12 +191,14 @@ class VehicleDetailRoute extends _i8.PageRouteInfo<VehicleDetailRouteArgs> {
   VehicleDetailRoute({
     _i9.Key? key,
     required String vehicleId,
+    required _i10.LiveAuctionModel vehicle,
   }) : super(
           VehicleDetailRoute.name,
           path: '/vehicle-detail-page',
           args: VehicleDetailRouteArgs(
             key: key,
             vehicleId: vehicleId,
+            vehicle: vehicle,
           ),
         );
 
@@ -205,14 +209,17 @@ class VehicleDetailRouteArgs {
   const VehicleDetailRouteArgs({
     this.key,
     required this.vehicleId,
+    required this.vehicle,
   });
 
   final _i9.Key? key;
 
   final String vehicleId;
 
+  final _i10.LiveAuctionModel vehicle;
+
   @override
   String toString() {
-    return 'VehicleDetailRouteArgs{key: $key, vehicleId: $vehicleId}';
+    return 'VehicleDetailRouteArgs{key: $key, vehicleId: $vehicleId, vehicle: $vehicle}';
   }
 }

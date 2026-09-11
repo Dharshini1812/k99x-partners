@@ -99,9 +99,6 @@ class _KycViewSheetLoaderState extends ConsumerState<_KycViewSheetLoader> {
                     ),
                   ),
                   data: (kyc) {
-                    if (kyc == null) {
-                      return const Center(child: Text('No KYC record found'));
-                    }
                     return _KycContentList(
                       kyc: kyc.data,
                       controller: scrollController,

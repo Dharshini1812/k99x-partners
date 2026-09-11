@@ -35,6 +35,8 @@ class UserData {
   final String? username;
   final String? lenderName;
   final int? lenderId;
+  final String? cityName;
+  final String? stateName;
 
   UserData({
     this.phoneNumber,
@@ -45,6 +47,8 @@ class UserData {
     this.username,
     this.lenderName,
     this.lenderId,
+    this.cityName,
+    this.stateName,
   });
 
   factory UserData.fromJson(Map<String, dynamic> json) {
@@ -57,6 +61,8 @@ class UserData {
       username: json['username'] as String?,
       lenderName: json['lenderName'] as String?,
       lenderId: json['lenderId'] as int?,
+      cityName: json['cityName'] as String?,
+      stateName: json['stateName'] as String?,
     );
   }
 

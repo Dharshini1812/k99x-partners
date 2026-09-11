@@ -2,6 +2,7 @@ import 'package:dealer/core/common/data/datasource/remote_datasource.dart';
 import 'package:dealer/core/common/data/repository/repositoryimpl.dart';
 import 'package:dealer/core/common/domain/repository/repository.dart';
 import 'package:dealer/core/common/domain/usecase/get_city.dart';
+import 'package:dealer/core/common/domain/usecase/get_lender.dart';
 import 'package:dealer/core/common/domain/usecase/get_make.dart';
 import 'package:dealer/core/common/domain/usecase/get_model.dart';
 import 'package:dealer/core/common/domain/usecase/get_rc_details.dart';
@@ -9,6 +10,8 @@ import 'package:dealer/core/common/domain/usecase/get_state.dart';
 import 'package:dealer/core/common/domain/usecase/get_variant.dart';
 import 'package:dealer/core/common/presentation/logic/get_city/get_city_notifier.dart';
 import 'package:dealer/core/common/presentation/logic/get_city/get_city_state.dart';
+import 'package:dealer/core/common/presentation/logic/get_lender/get_lender_notifier.dart';
+import 'package:dealer/core/common/presentation/logic/get_lender/get_lender_state.dart';
 import 'package:dealer/core/common/presentation/logic/get_make/getmake_notifier.dart';
 import 'package:dealer/core/common/presentation/logic/get_make/getmake_state.dart';
 import 'package:dealer/core/common/presentation/logic/get_model/getmodel_notifier.dart';
@@ -62,3 +65,9 @@ final _rcUsecase =
     Provider<GetRcUsecase>((ref) => GetRcUsecase(ref.read(_commonRepository)));
 final getRcProvider = StateNotifierProvider<GetRcDetailsNotifier, GetRcState>(
     (ref) => GetRcDetailsNotifier(usecase: ref.read(_rcUsecase)));
+
+final _getLenderUsecase = Provider<GetLenderUsecase>(
+    (ref) => GetLenderUsecase(leadRepository: ref.read(_commonRepository)));
+final getLenderProvider =
+    StateNotifierProvider<GetLenderNotifier, GetLenderState>(
+        (ref) => GetLenderNotifier(getStateState: ref.read(_getLenderUsecase)));

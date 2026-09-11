@@ -14,7 +14,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class VehicleListingPage extends ConsumerStatefulWidget {
-  const VehicleListingPage({super.key});
+  final String? editVehicleId;
+  const VehicleListingPage({
+    super.key,
+    this.editVehicleId,
+  });
 
   @override
   ConsumerState<VehicleListingPage> createState() => _VehicleListingPageState();
@@ -32,6 +36,13 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
   void initState() {
     super.initState();
     Future.microtask(() => ref.read(getStateProvider.notifier).getState());
+    if (widget.editVehicleId != null) {
+      Future.microtask(() => ref
+          .read(editVehicleFetchNotifier.notifier)
+          .fetchForEdit(widget.editVehicleId!));
+    } else {
+      Future.microtask(() => ref.read(getStateProvider.notifier).getState());
+    }
   }
 
   @override

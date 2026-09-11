@@ -1,138 +1,249 @@
-class InspectionItem {
-  final String title;
-  final String? issue;
-  final String? image;
-  final bool passed;
+class VehicleDetailResponse {
+  final bool success;
+  final String message;
+  final VehicleDetailData? data;
 
-  const InspectionItem({
-    required this.title,
-    this.issue,
-    this.image,
-    this.passed = false,
+  VehicleDetailResponse({
+    required this.success,
+    required this.message,
+    this.data,
   });
+
+  factory VehicleDetailResponse.fromJson(Map<String, dynamic> json) {
+    return VehicleDetailResponse(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      data: json['data'] != null
+          ? VehicleDetailData.fromJson(json['data'])
+          : null,
+    );
+  }
 }
 
-class VehicleInspectionDetail {
-  final String id;
-  final String name;
-  final String specsSubtitle;
-  final String mainImage;
-  final List<String> thumbnails;
-  final Map<String, double> ratings;
-  final Map<String, String> documents;
-  final Map<String, String> otherInfo;
-  final Map<String, String> registrationInfo;
-  final List<InspectionItem> structureDefects;
-  final List<InspectionItem> otherComponents;
-  final List<InspectionItem> windshieldLights;
-  final List<InspectionItem> tyres;
+/// One entry from the `images` array — e.g.
+/// {"type": "front_view", "label": "Front", "url": "...",
+///  "fileName": "front_view", "fileType": "jpeg"}
+class VehicleImage {
+  final String? type;
+  final String? label;
+  final String? url;
+  final String? fileName;
+  final String? fileType;
 
-  const VehicleInspectionDetail({
-    required this.id,
-    required this.name,
-    required this.specsSubtitle,
-    required this.mainImage,
-    required this.thumbnails,
-    required this.ratings,
-    required this.documents,
-    required this.otherInfo,
-    required this.registrationInfo,
-    required this.structureDefects,
-    required this.otherComponents,
-    required this.windshieldLights,
-    required this.tyres,
+  VehicleImage({
+    this.type,
+    this.label,
+    this.url,
+    this.fileName,
+    this.fileType,
   });
+
+  factory VehicleImage.fromJson(Map<String, dynamic> json) {
+    return VehicleImage(
+      type: json['type'],
+      label: json['label'],
+      url: json['url'],
+      fileName: json['fileName'],
+      fileType: json['fileType'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type,
+      'label': label,
+      'url': url,
+      'fileName': fileName,
+      'fileType': fileType,
+    };
+  }
 }
 
-VehicleInspectionDetail getMockInspectionDetail(String id) {
-  return const VehicleInspectionDetail(
-    id: "6050027",
-    name: "2021 Maruti Suzuki Swift VXi AMT",
-    specsSubtitle: "Petrol • Automatic • 89.7k km • 2nd Owner",
-    mainImage:
-        "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=800",
-    thumbnails: [
-      "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=200",
-      "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=200",
-      "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=200",
-    ],
-    ratings: {
-      "Exterior": 4.0,
-      "Engine": 5.0,
-      "AC": 5.0,
-      "Electricals": 5.0,
-      "Steering": 4.5,
-    },
-    documents: {
-      "RC availability": "Yes",
-      "Insurance": "Expired",
-      "Road tax paid": "Valid till 2036",
-    },
-    otherInfo: {
-      "Duplicate key": "Yes",
-      "Chassis number": "Yes",
-      "Engine number": "Yes",
-      "Party-peshi": "No",
-      "Pollution Norm": "Euro 6 (Bharat Stage VI)",
-    },
-    registrationInfo: {
-      "Manufacturing date": "2021",
-      "Registration date": "2021",
-      "RTO code": "TN09",
-      "RTO name": "Chennai (west) Rto",
-      "Fitness report": "Valid till 2036",
-    },
-    structureDefects: [
-      InspectionItem(
-          title: "Apron, Dickey, Pillar, Cowl top, Right quarter panel",
-          passed: true),
-      InspectionItem(
-          title: "Left quarter panel",
-          issue: "Scratch, Repainted",
-          image:
-              "https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=200"),
-      InspectionItem(
-          title: "Front left leg",
-          issue: "Surface level rust",
-          image:
-              "https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=200"),
-    ],
-    otherComponents: [
-      InspectionItem(
-          title:
-              "Fire wall, Lower member, Right running board, Headlight supports, Upper member",
-          passed: true),
-      InspectionItem(
-          title: "Dickey",
-          issue: "Toolkit not available",
-          image:
-              "https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=200"),
-      InspectionItem(
-          title: "Left running board",
-          issue: "Dent",
-          image:
-              "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=200"),
-    ],
-    windshieldLights: [
-      InspectionItem(
-          title: "Svms, Headlights, Tail lights, Windshield", passed: true),
-      InspectionItem(
-          title: "Left tail light",
-          issue: "Crack",
-          image:
-              "https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=200"),
-    ],
-    tyres: [
-      InspectionItem(
-          title: "Front left tyre",
-          issue: "35% integrity",
-          image:
-              "https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=200"),
-      InspectionItem(
-          title: "Front right tyre",
-          issue: "40% integrity",
-          image:
-              "https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=200"),
-    ],
-  );
+class VehicleDetailData {
+  final Lender? lender;
+  final List<VehicleImage> images;
+  final dynamic autobid;
+  final int activeBiddersCount;
+  final int auctionStateId;
+  final bool biddingAllowed;
+  final bool isWatchlisted;
+  final num highestBidAmount;
+  final VehicleInfo? vehicle;
+  final AuctionInfo? auction;
+
+  VehicleDetailData({
+    this.lender,
+    required this.images,
+    this.autobid,
+    required this.activeBiddersCount,
+    required this.auctionStateId,
+    required this.biddingAllowed,
+    required this.isWatchlisted,
+    required this.highestBidAmount,
+    this.vehicle,
+    this.auction,
+  });
+
+  factory VehicleDetailData.fromJson(Map<String, dynamic> json) {
+    return VehicleDetailData(
+      lender: json['lender'] != null ? Lender.fromJson(json['lender']) : null,
+      images: json['images'] != null
+          ? (json['images'] as List)
+              .map((e) => VehicleImage.fromJson(e as Map<String, dynamic>))
+              .toList()
+          : [],
+      autobid: json['autobid'],
+      activeBiddersCount: json['activeBiddersCount'] ?? 0,
+      auctionStateId: json['auctionStateId'] ?? 0,
+      biddingAllowed: json['biddingAllowed'] ?? false,
+      isWatchlisted: json['isWatchlisted'] ?? false,
+      highestBidAmount: json['highestBidAmount'] ?? 0,
+      vehicle: json['vehicle'] != null
+          ? VehicleInfo.fromJson(json['vehicle'])
+          : null,
+      auction: json['auction'] != null
+          ? AuctionInfo.fromJson(json['auction'])
+          : null,
+    );
+  }
+}
+
+class Lender {
+  final int? sno;
+  final String? lenderName;
+  final String? lenderLogoUrl;
+
+  Lender({this.sno, this.lenderName, this.lenderLogoUrl});
+
+  factory Lender.fromJson(Map<String, dynamic> json) {
+    return Lender(
+      sno: json['sno'],
+      lenderName: json['lenderName'],
+      lenderLogoUrl: json['lenderLogoUrl'],
+    );
+  }
+}
+
+class VehicleInfo {
+  final String? vehicleId;
+  final String? loanNo;
+  final String? mfgYear;
+  final String? make;
+  final String? model;
+  final String? variant;
+  final String? regno;
+  final String? color;
+  final String? rcStatus;
+  final String? fuel;
+  final int? kmsDriven;
+  final int? ownerCount;
+  final String? transmissionType;
+  final String? roadtax;
+  final String? hypothecation;
+  final String? hypothecationBank;
+  final String? duplicateKey;
+  final String? chassisNo;
+  final String? engineNo;
+  final String? pollutionForm;
+  final String? rtoCode;
+  final String? rtoName;
+  final String? fitnesReport;
+  final String? insuranceStatus;
+  final num? basePrice;
+  final String? status;
+
+  VehicleInfo({
+    this.vehicleId,
+    this.loanNo,
+    this.mfgYear,
+    this.make,
+    this.model,
+    this.variant,
+    this.regno,
+    this.color,
+    this.rcStatus,
+    this.fuel,
+    this.kmsDriven,
+    this.ownerCount,
+    this.transmissionType,
+    this.roadtax,
+    this.hypothecation,
+    this.hypothecationBank,
+    this.duplicateKey,
+    this.chassisNo,
+    this.engineNo,
+    this.pollutionForm,
+    this.rtoCode,
+    this.rtoName,
+    this.fitnesReport,
+    this.insuranceStatus,
+    this.basePrice,
+    this.status,
+  });
+
+  factory VehicleInfo.fromJson(Map<String, dynamic> json) {
+    return VehicleInfo(
+      vehicleId: json['vehicleId'],
+      loanNo: json['loanNo'],
+      mfgYear: json['mfgYear'],
+      make: json['make'],
+      model: json['model'],
+      variant: json['variant'],
+      regno: json['regno'],
+      color: json['color'],
+      rcStatus: json['rcStatus'],
+      fuel: json['fuel'],
+      kmsDriven: json['kmsDriven'],
+      ownerCount: json['ownerCount'],
+      transmissionType: json['transmissionType'],
+      roadtax: json['roadtax'],
+      hypothecation: json['hypothecation'],
+      hypothecationBank: json['hypothecationBank'],
+      duplicateKey: json['duplicateKey'],
+      chassisNo: json['chassisNo'],
+      engineNo: json['engineNo'],
+      pollutionForm: json['pollutionForm'],
+      rtoCode: json['rtoCode'],
+      rtoName: json['rtoName'],
+      fitnesReport: json['fitnesReport'],
+      insuranceStatus: json['insuranceStatus'],
+      basePrice: json['basePrice'],
+      status: json['status'],
+    );
+  }
+}
+
+class AuctionInfo {
+  final int? id;
+  final String? auctionCalendarId;
+  final num? startingPrice;
+  final num? currentPrice;
+  final int? startTime;
+  final int? endTime;
+  final String? status;
+  final int? totalBids;
+
+  AuctionInfo({
+    this.id,
+    this.auctionCalendarId,
+    this.startingPrice,
+    this.currentPrice,
+    this.startTime,
+    this.endTime,
+    this.status,
+    this.totalBids,
+  });
+
+  factory AuctionInfo.fromJson(Map<String, dynamic> json) {
+    return AuctionInfo(
+      id: json['id'],
+      auctionCalendarId: json['auctionCalendarId'],
+      startingPrice: json['startingPrice'],
+      currentPrice: json['currentPrice'],
+      startTime: json['startTime'],
+      endTime: json['endTime'],
+      status: json['status'],
+      totalBids: json['totalBids'],
+    );
+  }
 }

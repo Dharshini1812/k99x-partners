@@ -1,11 +1,10 @@
-// lib/features/client/dashboard_client/presentation/widgets/client_stock_card.dart
-
+import 'package:chewie/chewie.dart';
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/client/dealer_stocks/data/model/c_stocks.dart';
 import 'package:dealer/features/client/dashboard_client/presentation/widgets/client_view_kyc.dart';
 import 'package:dealer/features/my_listings/presentation/pages/vehicle_card.dart';
 import 'package:flutter/material.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:video_player/video_player.dart';
 
 class ClientStockCard extends StatelessWidget {
   final ClientVehicleModel vehicle;
@@ -744,7 +743,9 @@ class _InProgressBadge extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DIALOG WITH INLINE YOUTUBE VIDEO PLAYER
+// DIALOG WITH INLINE VIDEO PLAYER (video_player + chewie — plays any
+// direct-hosted video URL, not just YouTube; use this if
+// exteriorVideoUrl is a direct file link rather than a YouTube link)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class VehicleMediaPreviewDialog extends StatefulWidget {
@@ -767,17 +768,10 @@ class VehicleMediaPreviewDialog extends StatefulWidget {
 class _VehicleMediaPreviewDialogState extends State<VehicleMediaPreviewDialog> {
   int _currentIndex = 0;
   late final List<Map<String, dynamic>> _mediaItems;
-  YoutubePlayerController? _controller;
-  bool _isPlayerReady = false;
 
-  String? _parseVideoId(String? input) {
-    if (input == null || input.trim().isEmpty) return null;
-    final trimmed = input.trim();
-    if (RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(trimmed)) {
-      return trimmed;
-    }
-    return YoutubePlayer.convertUrlToId(trimmed);
-  }
+  VideoPlayerController? _videoController;
+  ChewieController? _chewieController;
+  bool _videoInitFailed = false;
 
   @override
   void initState() {
@@ -793,49 +787,69 @@ class _VehicleMediaPreviewDialogState extends State<VehicleMediaPreviewDialog> {
     }
 
     if (widget.videoUrl != null && widget.videoUrl!.isNotEmpty) {
-      final videoId = _parseVideoId(widget.videoUrl);
+      _mediaItems.add({
+        'type': 'video',
+        'url': widget.videoUrl!,
+        'label': 'Exterior Video',
+      });
+      _initVideo(widget.videoUrl!);
+    }
+  }
 
-      if (videoId != null && videoId.isNotEmpty) {
-        _mediaItems.add({
-          'type': 'video',
-          'url': widget.videoUrl!,
-          'label': 'Exterior Video',
-        });
-
-        _controller = YoutubePlayerController(
-          initialVideoId: videoId,
-          flags: const YoutubePlayerFlags(
-            autoPlay: true,
-            mute: false,
-            useHybridComposition: true,
-            enableCaption: false,
-            isLive: false,
-          ),
-        )..addListener(() {
-            if (mounted) setState(() {});
-          });
+  Future<void> _initVideo(String url) async {
+    try {
+      final controller = VideoPlayerController.networkUrl(Uri.parse(url));
+      await controller.initialize();
+      if (!mounted) {
+        controller.dispose();
+        return;
       }
+      final chewie = ChewieController(
+        videoPlayerController: controller,
+        autoPlay: _currentIndex ==
+            _mediaItems.indexWhere((m) => m['type'] == 'video'),
+        looping: false,
+        allowFullScreen: true,
+        materialProgressColors: ChewieProgressColors(
+          playedColor: const Color(0xFF38BDF8),
+          handleColor: const Color(0xFF38BDF8),
+          backgroundColor: Colors.white24,
+          bufferedColor: Colors.white38,
+        ),
+        placeholder: Container(color: Colors.black),
+        errorBuilder: (context, errorMessage) => const Center(
+          child: Text(
+            'Unable to play video',
+            style: TextStyle(color: Colors.white60),
+          ),
+        ),
+      );
+      setState(() {
+        _videoController = controller;
+        _chewieController = chewie;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _videoInitFailed = true);
     }
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _chewieController?.dispose();
+    _videoController?.dispose();
     super.dispose();
   }
 
   void _next() {
     if (_currentIndex < _mediaItems.length - 1) {
+      _videoController?.pause();
       setState(() => _currentIndex++);
-      if (_controller != null && _isPlayerReady) {
-        _controller!.play();
-      }
     }
   }
 
   void _prev() {
     if (_currentIndex > 0) {
-      _controller?.pause();
+      _videoController?.pause();
       setState(() => _currentIndex--);
     }
   }
@@ -901,23 +915,20 @@ class _VehicleMediaPreviewDialogState extends State<VehicleMediaPreviewDialog> {
                       height: double.infinity,
                       color: Colors.black,
                       child: isVideo
-                          ? (_controller != null
-                              ? YoutubePlayer(
-                                  controller: _controller!,
-                                  showVideoProgressIndicator: true,
-                                  progressIndicatorColor: Colors.blueAccent,
-                                  onReady: () {
-                                    setState(() {
-                                      _isPlayerReady = true;
-                                    });
-                                  },
-                                )
-                              : const Center(
+                          ? (_videoInitFailed
+                              ? const Center(
                                   child: Text(
-                                    'Invalid Video URL',
+                                    'Unable to play video',
                                     style: TextStyle(color: Colors.white60),
                                   ),
-                                ))
+                                )
+                              : (_chewieController != null
+                                  ? Chewie(controller: _chewieController!)
+                                  : const Center(
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white54,
+                                      ),
+                                    )))
                           : Image.network(
                               currentItem['url'],
                               fit: BoxFit.contain,

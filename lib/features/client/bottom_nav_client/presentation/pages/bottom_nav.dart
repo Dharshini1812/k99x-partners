@@ -1,5 +1,4 @@
 import 'package:auto_route/auto_route.dart';
-import 'package:dealer/features/bottom_nav/custom_bottom_nav.dart';
 import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/client/bottom_nav_client/presentation/pages/custom_bottom.dart';
 import 'package:dealer/features/client/dashboard_client/presentation/pages/client_dash_page.dart';

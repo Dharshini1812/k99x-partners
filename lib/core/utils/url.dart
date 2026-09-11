@@ -6,14 +6,12 @@ class Url {
   static const String stateUrl = "$base2url/vehicle/getStateList";
 
   static const String cityUrl = "$base2url/vehicle/getCityList?stateId=";
-  static const variantsUrl =
-      'https://devvehcheck.k99x.com//servlet/vehicle/getVariants/';
+
   static const myStockUrl = '$baseUrl/dealer/mylisting';
   static const liveStockUrl = '$baseUrl/dealer/marketing/live-listing';
-  static const makeUrl =
-      'https://devvehcheck.k99x.com/servlet/vehicle/getMakes';
-  static const modelUrl =
-      'https://devvehcheck.k99x.com/servlet/vehicle/getModels/';
+  static const makeUrl = '$base2url/vehicle/getMakes';
+  static const modelUrl = '$base2url/vehicle/getModels/';
+  static const variantsUrl = '${base2url}vehicle/getVariants/';
 
   static const uploadUrl = '$baseUrl/dealer/vehicle/sell/add/media';
   static const getRCDetails = 'https://k99x.com/servlet/vehicle/rc/';
@@ -25,7 +23,14 @@ class Url {
   static const editVehicleurl = '$baseUrl/dealer/vehicle/sell/edit';
   static const wantedListUrl = '$baseUrl/dealer/wanted-listing';
   static const addWantedVehicle = '$baseUrl/dealer/wanted-listing/save';
+  static const lenderListUrl = '$base2url//vehicle/getLenderList';
   static const logoutUrl = '$baseUrl/auth/logout';
+  static const auctionUrl = '$base2url/admin/live-auction/';
+  static const liveAuctionUrl = '${auctionUrl}auction-live/json';
+  static const placeBidUrl = '${base2url}api/dealer/bid/placeBid/';
+  static const autoBidUrl = '${base2url}api/dealer/bid/autobid/';
+  static const activityUrl = '${base2url}api/dealer/bid/activity/';
+  static const vehicleDetailView = '${baseUrl}dealer/bid/view/';
 
   //clent
 

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:dealer/core/common/data/model/city_model.dart';
 import 'package:dealer/core/common/data/model/state_model.dart';
 import 'package:dealer/features/my_listings/data/model/kyc_submit_model.dart'; // adjust to wherever KycSubmitRequest/Response live
@@ -140,15 +138,17 @@ class KycFormLogic extends ChangeNotifier {
   String? submitError;
 
   String? validateForm() {
-    if (firstNameController.text.trim().isEmpty)
+    if (firstNameController.text.trim().isEmpty) {
       return 'First name is required';
+    }
     if (lastNameController.text.trim().isEmpty) return 'Last name is required';
     if (addressController.text.trim().isEmpty) return 'Address is required';
     if (selectedState == null) return 'Please select a state';
     if (selectedCity == null) return 'Please select a city';
     if (pinCodeController.text.trim().isEmpty) return 'Pin code is required';
-    if (mobileController.text.trim().isEmpty)
+    if (mobileController.text.trim().isEmpty) {
       return 'Mobile number is required';
+    }
     if (emailController.text.trim().isEmpty) return 'Email is required';
     if (aadhaarFile == null) return 'Please upload your Aadhaar card';
     if (panFile == null) return 'Please upload your PAN card';

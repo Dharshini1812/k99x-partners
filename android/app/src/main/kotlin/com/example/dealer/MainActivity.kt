@@ -1,4 +1,4 @@
-package com.example.dealer
+package com.k99x.dealer
 
 import android.os.Bundle
 import android.view.WindowManager
