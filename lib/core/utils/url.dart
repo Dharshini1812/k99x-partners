@@ -31,6 +31,9 @@ class Url {
   static const autoBidUrl = '${base2url}api/dealer/bid/autobid/';
   static const activityUrl = '${base2url}api/dealer/bid/activity/';
   static const vehicleDetailView = '${baseUrl}dealer/bid/view/';
+  static const String liveAuctionVehiclesUrl =
+      '${baseUrl}api/admin/live-auction/vehicles';
+  static const String registerUrl = '${base2url}auth/register';
 
   //clent
 

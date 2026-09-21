@@ -1,3 +1,71 @@
+/// The current dealer's own autobid record for a vehicle — returned as
+/// the `"autobid"` field on the bid/view, bid/activity, and
+/// live-vehicles-list endpoints. `null` when this dealer has never set
+/// an autobid on that vehicle.
+///
+/// Sample payload (from `dealer/bid/autobid/{vehicleId}` context, as
+/// echoed back by bid/view and events/live/.../vehicles):
+/// {
+///   "id": 12,
+///   "maxBidAmount": 500000.0,
+///   "userId": 126,
+///   "vehicleId": "KL78155113251185322",
+///   "active": true,
+///   "updateAt": 1788506487871,
+///   "createdAt": 1788506487871
+/// }
+///
+/// `active == false` is how the backend tells us this dealer's autobid
+/// can no longer raise the bid on their behalf — either because it was
+/// pushed past [maxBidAmount] and the backend deactivated it, or it was
+/// never turned on. Combined with the auction's current highest bid,
+/// this is what drives disabling the "Autobid" button in PlaceBidSheet.
+class AutobidInfo {
+  final int? id;
+  final double? maxBidAmount;
+  final int? userId;
+  final String? vehicleId;
+  final bool? active;
+  final int? updateAt;
+  final int? createdAt;
+
+  AutobidInfo({
+    this.id,
+    this.maxBidAmount,
+    this.userId,
+    this.vehicleId,
+    this.active,
+    this.updateAt,
+    this.createdAt,
+  });
+
+  factory AutobidInfo.fromJson(Map<String, dynamic> json) {
+    return AutobidInfo(
+      id: json['id'],
+      maxBidAmount: (json['maxBidAmount'] as num?)?.toDouble(),
+      userId: json['userId'],
+      vehicleId: json['vehicleId'],
+      active: json['active'],
+      updateAt: json['updateAt'],
+      createdAt: json['createdAt'],
+    );
+  }
+
+  /// True once this autobid has been consumed — i.e. it was set up
+  /// (has a [maxBidAmount]) but the backend no longer treats it as
+  /// [active], typically because the running auction price reached or
+  /// passed the ceiling the dealer approved. Also treats a still-active
+  /// autobid whose ceiling the current bid has already met/exceeded as
+  /// exhausted, in case an "active" flag update lags one poll behind.
+  bool isExhausted(num? currentHighestBid) {
+    if (maxBidAmount == null) return false;
+    final reachedCeiling =
+        currentHighestBid != null && currentHighestBid >= maxBidAmount!;
+    if (active == false) return true;
+    return reachedCeiling;
+  }
+}
+
 class LiveAuctionModel {
   String? vehicleId;
   String? loanNo;

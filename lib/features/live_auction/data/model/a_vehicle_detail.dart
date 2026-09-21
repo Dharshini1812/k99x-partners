@@ -1,3 +1,6 @@
+import 'package:dealer/features/live_auction/data/model/live_model.dart'
+    show AutobidInfo;
+
 class VehicleDetailResponse {
   final bool success;
   final String message;
@@ -62,7 +65,7 @@ class VehicleImage {
 class VehicleDetailData {
   final Lender? lender;
   final List<VehicleImage> images;
-  final dynamic autobid;
+  final AutobidInfo? autobid;
   final int activeBiddersCount;
   final int auctionStateId;
   final bool biddingAllowed;
@@ -92,7 +95,8 @@ class VehicleDetailData {
               .map((e) => VehicleImage.fromJson(e as Map<String, dynamic>))
               .toList()
           : [],
-      autobid: json['autobid'],
+      autobid:
+          json['autobid'] != null ? AutobidInfo.fromJson(json['autobid']) : null,
       activeBiddersCount: json['activeBiddersCount'] ?? 0,
       auctionStateId: json['auctionStateId'] ?? 0,
       biddingAllowed: json['biddingAllowed'] ?? false,

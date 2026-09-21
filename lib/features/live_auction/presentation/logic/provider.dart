@@ -7,6 +7,7 @@ import 'package:dealer/features/live_auction/domain/usecase/auction_usecase.dart
 import 'package:dealer/features/live_auction/domain/usecase/auto_bid_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/bid_activity_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/get_detail_vehcile_usecase.dart';
+import 'package:dealer/features/live_auction/domain/usecase/get_live_uzecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/place_bid_usecase.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auction/live_auction_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auction/live_auction_state.dart';
@@ -14,6 +15,8 @@ import 'package:dealer/features/live_auction/presentation/logic/auto_bid/auto_bi
 import 'package:dealer/features/live_auction/presentation/logic/auto_bid/auto_bid_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/bid_activity/bid_activity_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/bid_activity/bid_activity_state.dart';
+import 'package:dealer/features/live_auction/presentation/logic/get_live/get_live_notifier.dart';
+import 'package:dealer/features/live_auction/presentation/logic/get_live/get_live_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/live_service_socket/live_bid_socket.notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/place_bid/place_bid_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/place_bid/place_bid_state.dart';
@@ -87,3 +90,14 @@ final vehicleDetailProvider = StateNotifierProvider.autoDispose<
   final useCase = ref.watch(getVehicleDetailUseCaseProvider);
   return VehicleDetailNotifier(useCase);
 });
+final _getLiveAuctionVehiclesUsecase = Provider<GetLiveAuctionVehiclesUsecase>(
+  (ref) => GetLiveAuctionVehiclesUsecase(
+      auctionRepository: ref.read(_auctionRepository)),
+);
+
+final liveAuctionVehiclesNotifier = StateNotifierProvider.family<
+    LiveAuctionVehiclesNotifier, LiveAuctionVehiclesState, String>(
+  (ref, status) => LiveAuctionVehiclesNotifier(
+    getLiveAuctionVehiclesUsecase: ref.read(_getLiveAuctionVehiclesUsecase),
+  )..getLiveAuctionVehicles(status),
+);

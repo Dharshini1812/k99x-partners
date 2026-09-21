@@ -11,65 +11,66 @@
 // ignore_for_file: type=lint
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'package:auto_route/auto_route.dart' as _i8;
-import 'package:flutter/material.dart' as _i9;
+import 'package:auto_route/auto_route.dart' as _i9;
+import 'package:flutter/material.dart' as _i10;
 
 import '../../features/bottom_nav/bottom_nav.dart' as _i3;
 import '../../features/client/bottom_nav_client/presentation/pages/bottom_nav.dart'
     as _i6;
-import '../../features/live_auction/data/model/live_model.dart' as _i10;
+import '../../features/live_auction/data/model/live_model.dart' as _i11;
 import '../../features/live_auction/presentation/pages/vehicle_detail_page.dart'
     as _i7;
 import '../../features/login/presentation/pages/login_page.dart' as _i1;
 import '../../features/login/presentation/pages/otp_page.dart' as _i2;
 import '../../features/onboarding/presentation/pages/onb_page.dart' as _i4;
+import '../../features/signup/presentation/pages/signup_page.dart' as _i8;
 import '../../features/splash/splash.dart' as _i5;
 
-class AppRouter extends _i8.RootStackRouter {
-  AppRouter([_i9.GlobalKey<_i9.NavigatorState>? navigatorKey])
+class AppRouter extends _i9.RootStackRouter {
+  AppRouter([_i10.GlobalKey<_i10.NavigatorState>? navigatorKey])
       : super(navigatorKey);
 
   @override
-  final Map<String, _i8.PageFactory> pagesMap = {
+  final Map<String, _i9.PageFactory> pagesMap = {
     LoginRoute.name: (routeData) {
-      return _i8.MaterialPageX<dynamic>(
+      return _i9.MaterialPageX<dynamic>(
         routeData: routeData,
         child: const _i1.LoginPage(),
       );
     },
     OtpRoute.name: (routeData) {
-      return _i8.MaterialPageX<dynamic>(
+      return _i9.MaterialPageX<dynamic>(
         routeData: routeData,
         child: const _i2.OtpPage(),
       );
     },
     BottomNavRoute.name: (routeData) {
-      return _i8.MaterialPageX<dynamic>(
+      return _i9.MaterialPageX<dynamic>(
         routeData: routeData,
         child: const _i3.BottomNavPage(),
       );
     },
     DealerOnboardingRoute.name: (routeData) {
-      return _i8.MaterialPageX<dynamic>(
+      return _i9.MaterialPageX<dynamic>(
         routeData: routeData,
         child: const _i4.DealerOnboardingPage(),
       );
     },
     SplashRoute.name: (routeData) {
-      return _i8.MaterialPageX<dynamic>(
+      return _i9.MaterialPageX<dynamic>(
         routeData: routeData,
         child: const _i5.SplashPage(),
       );
     },
     ClientBottomNavRoute.name: (routeData) {
-      return _i8.MaterialPageX<dynamic>(
+      return _i9.MaterialPageX<dynamic>(
         routeData: routeData,
         child: const _i6.ClientBottomNavPage(),
       );
     },
     VehicleDetailRoute.name: (routeData) {
       final args = routeData.argsAs<VehicleDetailRouteArgs>();
-      return _i8.MaterialPageX<dynamic>(
+      return _i9.MaterialPageX<dynamic>(
         routeData: routeData,
         child: _i7.VehicleDetailPage(
           key: args.key,
@@ -78,44 +79,54 @@ class AppRouter extends _i8.RootStackRouter {
         ),
       );
     },
+    SignUpRoute.name: (routeData) {
+      return _i9.MaterialPageX<dynamic>(
+        routeData: routeData,
+        child: const _i8.SignUpPage(),
+      );
+    },
   };
 
   @override
-  List<_i8.RouteConfig> get routes => [
-        _i8.RouteConfig(
+  List<_i9.RouteConfig> get routes => [
+        _i9.RouteConfig(
           LoginRoute.name,
           path: '/login-page',
         ),
-        _i8.RouteConfig(
+        _i9.RouteConfig(
           OtpRoute.name,
           path: '/otp-page',
         ),
-        _i8.RouteConfig(
+        _i9.RouteConfig(
           BottomNavRoute.name,
           path: '/bottom-nav-page',
         ),
-        _i8.RouteConfig(
+        _i9.RouteConfig(
           DealerOnboardingRoute.name,
           path: '/dealer-onboarding-page',
         ),
-        _i8.RouteConfig(
+        _i9.RouteConfig(
           SplashRoute.name,
           path: '/',
         ),
-        _i8.RouteConfig(
+        _i9.RouteConfig(
           ClientBottomNavRoute.name,
           path: '/client-bottom-nav-page',
         ),
-        _i8.RouteConfig(
+        _i9.RouteConfig(
           VehicleDetailRoute.name,
           path: '/vehicle-detail-page',
+        ),
+        _i9.RouteConfig(
+          SignUpRoute.name,
+          path: '/sign-up-page',
         ),
       ];
 }
 
 /// generated route for
 /// [_i1.LoginPage]
-class LoginRoute extends _i8.PageRouteInfo<void> {
+class LoginRoute extends _i9.PageRouteInfo<void> {
   const LoginRoute()
       : super(
           LoginRoute.name,
@@ -127,7 +138,7 @@ class LoginRoute extends _i8.PageRouteInfo<void> {
 
 /// generated route for
 /// [_i2.OtpPage]
-class OtpRoute extends _i8.PageRouteInfo<void> {
+class OtpRoute extends _i9.PageRouteInfo<void> {
   const OtpRoute()
       : super(
           OtpRoute.name,
@@ -139,7 +150,7 @@ class OtpRoute extends _i8.PageRouteInfo<void> {
 
 /// generated route for
 /// [_i3.BottomNavPage]
-class BottomNavRoute extends _i8.PageRouteInfo<void> {
+class BottomNavRoute extends _i9.PageRouteInfo<void> {
   const BottomNavRoute()
       : super(
           BottomNavRoute.name,
@@ -151,7 +162,7 @@ class BottomNavRoute extends _i8.PageRouteInfo<void> {
 
 /// generated route for
 /// [_i4.DealerOnboardingPage]
-class DealerOnboardingRoute extends _i8.PageRouteInfo<void> {
+class DealerOnboardingRoute extends _i9.PageRouteInfo<void> {
   const DealerOnboardingRoute()
       : super(
           DealerOnboardingRoute.name,
@@ -163,7 +174,7 @@ class DealerOnboardingRoute extends _i8.PageRouteInfo<void> {
 
 /// generated route for
 /// [_i5.SplashPage]
-class SplashRoute extends _i8.PageRouteInfo<void> {
+class SplashRoute extends _i9.PageRouteInfo<void> {
   const SplashRoute()
       : super(
           SplashRoute.name,
@@ -175,7 +186,7 @@ class SplashRoute extends _i8.PageRouteInfo<void> {
 
 /// generated route for
 /// [_i6.ClientBottomNavPage]
-class ClientBottomNavRoute extends _i8.PageRouteInfo<void> {
+class ClientBottomNavRoute extends _i9.PageRouteInfo<void> {
   const ClientBottomNavRoute()
       : super(
           ClientBottomNavRoute.name,
@@ -187,11 +198,11 @@ class ClientBottomNavRoute extends _i8.PageRouteInfo<void> {
 
 /// generated route for
 /// [_i7.VehicleDetailPage]
-class VehicleDetailRoute extends _i8.PageRouteInfo<VehicleDetailRouteArgs> {
+class VehicleDetailRoute extends _i9.PageRouteInfo<VehicleDetailRouteArgs> {
   VehicleDetailRoute({
-    _i9.Key? key,
+    _i10.Key? key,
     required String vehicleId,
-    required _i10.LiveAuctionModel vehicle,
+    required _i11.LiveAuctionModel vehicle,
   }) : super(
           VehicleDetailRoute.name,
           path: '/vehicle-detail-page',
@@ -212,14 +223,26 @@ class VehicleDetailRouteArgs {
     required this.vehicle,
   });
 
-  final _i9.Key? key;
+  final _i10.Key? key;
 
   final String vehicleId;
 
-  final _i10.LiveAuctionModel vehicle;
+  final _i11.LiveAuctionModel vehicle;
 
   @override
   String toString() {
     return 'VehicleDetailRouteArgs{key: $key, vehicleId: $vehicleId, vehicle: $vehicle}';
   }
+}
+
+/// generated route for
+/// [_i8.SignUpPage]
+class SignUpRoute extends _i9.PageRouteInfo<void> {
+  const SignUpRoute()
+      : super(
+          SignUpRoute.name,
+          path: '/sign-up-page',
+        );
+
+  static const String name = 'SignUpRoute';
 }

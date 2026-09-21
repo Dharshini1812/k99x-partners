@@ -1,18 +1,20 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
+import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
 import 'package:dealer/features/live_auction/presentation/pages/vehicle_detail_page.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/place_bid_sheet.dart';
 
-class LiveAuctionCard extends StatefulWidget {
+class LiveAuctionCard extends ConsumerStatefulWidget {
   final LiveAuctionModel vehicle;
   const LiveAuctionCard({super.key, required this.vehicle});
 
   @override
-  State<LiveAuctionCard> createState() => _LiveAuctionCardState();
+  ConsumerState<LiveAuctionCard> createState() => _LiveAuctionCardState();
 }
 
-class _LiveAuctionCardState extends State<LiveAuctionCard> {
+class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
   Timer? _timer;
   Duration _remaining = Duration.zero;
   bool _ended = false;
@@ -92,13 +94,31 @@ class _LiveAuctionCardState extends State<LiveAuctionCard> {
     super.dispose();
   }
 
-  void _openBidSheet() {
-    showModalBottomSheet<int>(
+  /// Opens the bid/autobid sheet and — this is the fix — actually
+  /// waits for its result instead of firing-and-forgetting it. The
+  /// sheet returns the placed amount (via Navigator.pop(_amount)) only
+  /// when a bid or autobid genuinely succeeded; on cancel/dismiss it
+  /// returns null. Without awaiting this, the card had no way to know
+  /// a bid had just been placed, so `widget.vehicle` — the static
+  /// snapshot this card was built with — kept showing the stale
+  /// "Current Bid" until the whole list was refetched some other way
+  /// (e.g. a manual pull-to-refresh or navigating away and back).
+  ///
+  /// On success, re-running the same search() the list is already
+  /// built from refreshes liveAuctionNotifier, which rebuilds every
+  /// card (this one included) with the live current-bid amount — no
+  /// manual reload needed.
+  Future<void> _openBidSheet() async {
+    final result = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => PlaceBidSheet(vehicle: widget.vehicle),
     );
+
+    if (result != null && mounted) {
+      ref.read(auctionLogic).search();
+    }
   }
 
   @override

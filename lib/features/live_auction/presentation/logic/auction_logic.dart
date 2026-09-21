@@ -341,10 +341,20 @@ class AuctionLogic extends ChangeNotifier {
       status: explicitStatus ?? activeTabStatus,
       fromDate: fromDate,
       toDate: toDate,
-      // NOTE: extend LiveAuctionParams + toQueryParams() with make, regNo,
-      // model, yearFrom, yearTo, fuelTypes, transmissions, maxMileage,
-      // condition, seller, ownership once the backend confirms the actual
-      // query-param names for each of these new fields.
+      // ── Previously dropped — now passed through to the API. See the
+      // NOTE in LiveAuctionParams.toQueryParams() re: confirming the
+      // actual backend query-param names for each of these.
+      make: make,
+      registrationNumber: registrationNumber,
+      model: model,
+      yearFrom: yearFrom,
+      yearTo: yearTo,
+      fuelTypes: fuelTypes,
+      transmissions: transmissions,
+      maxMileage: maxMileage < maxMileageCap ? maxMileage : null,
+      condition: condition,
+      seller: seller,
+      ownership: ownership,
     );
     ref.read(liveAuctionNotifier.notifier).getLiveAuctions(params);
   }

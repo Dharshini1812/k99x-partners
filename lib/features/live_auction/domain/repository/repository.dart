@@ -2,6 +2,7 @@
 
 import 'package:dartz/dartz.dart';
 import 'package:dealer/core/error/failure.dart';
+import 'package:dealer/features/live_auction/data/datasource/datasource.dart';
 import 'package:dealer/features/live_auction/data/model/a_vehicle_detail.dart';
 import 'package:dealer/features/live_auction/data/model/auto_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
@@ -22,4 +23,6 @@ abstract class AuctionRepository {
   });
   Future<Either<Failure, BidActivityData>> getBidActivity(String vehicleId);
   Future<VehicleDetailResponse> getVehicleDetail(String vehicleId);
+  Future<List<LiveAuctionModel>> getLiveAuctionVehicles(
+      LiveAuctionVehiclesParams params);
 }

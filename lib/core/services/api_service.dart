@@ -17,7 +17,10 @@ abstract class ApiService {
     required String imageType,
     required String filePath,
   });
-  Future postMultipart(String url, FormData formData);
+
+  Future postMultipart(String url, FormData formData,
+      {bool requiresAuth = true});
+  void cancelAllRequests([String reason]);
 }
 
 class ApiServiceImpl extends ApiService {
@@ -35,6 +38,23 @@ class ApiServiceImpl extends ApiService {
       sendTimeout: const Duration(seconds: 30),
     ),
   );
+  CancelToken _token = CancelToken();
+
+  CancelToken get _activeToken {
+    if (_token.isCancelled) {
+      _token = CancelToken();
+    }
+    return _token;
+  }
+
+  @override
+  void cancelAllRequests([String reason = 'Logged out']) {
+    _token.cancel(reason);
+  }
+
+  bool _isCancellation(Object e) =>
+      e is DioException && e.type == DioExceptionType.cancel;
+
   Future<Map<String, String>> getAuthHeaders() async {
     // CURRENT BASIC AUTH
 
@@ -43,6 +63,16 @@ class ApiServiceImpl extends ApiService {
     final username = await storage.getUsername();
     final password = await storage.getPassword();
     final userId = await storage.getUserId();
+    if (username == null ||
+        username.trim().isEmpty ||
+        password == null ||
+        password.trim().isEmpty) {
+      throw DioException(
+        requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.cancel,
+        error: 'Not authenticated — no active session',
+      );
+    }
 
     final basicAuth =
         'Basic ${base64Encode(utf8.encode('$username:$password'))}';
@@ -51,23 +81,21 @@ class ApiServiceImpl extends ApiService {
       'Authorization': basicAuth,
       'X-USER-ID': userId.toString(),
     };
-
-    // FUTURE JWT TOKEN
-    // final token = savedTokenFromCache;
-    // return {
-    //   'Authorization': 'Bearer $token',
-    // };
   }
 
   @override
   Future get(String url) async {
     try {
       log("GET Request to: $url");
-      final response = await dio.get(url);
+      final response = await dio.get(url, cancelToken: _activeToken);
       log("Response from $url: ${response.statusCode} - ${response.data}");
       return response;
     } catch (e) {
-      log("Error during GET request to $url: $e");
+      if (_isCancellation(e)) {
+        log("Request cancelled: $url");
+      } else {
+        log("Error during GET request to $url: $e");
+      }
       rethrow;
     }
   }
@@ -77,11 +105,16 @@ class ApiServiceImpl extends ApiService {
     try {
       log('POST => $url');
       log('DATA => $map');
-      final response = await dio.post(url, data: map);
+      final response =
+          await dio.post(url, data: map, cancelToken: _activeToken);
       log('Response from $url: ${response.statusCode} - ${response.data}');
       return response;
     } catch (e) {
-      log("Error during POST request to $url: $e");
+      if (_isCancellation(e)) {
+        log("Request cancelled: $url");
+      } else {
+        log("Error during POST request to $url: $e");
+      }
       rethrow;
     }
   }
@@ -96,12 +129,17 @@ class ApiServiceImpl extends ApiService {
         options: Options(
           headers: await getAuthHeaders(),
         ),
+        cancelToken: _activeToken,
       );
 
       log("Response from $url: ${response.statusCode} - ${response.data}");
       return response;
     } catch (e) {
-      log("Error during GET request to $url: $e");
+      if (_isCancellation(e)) {
+        log("Request cancelled: $url");
+      } else {
+        log("Error during GET request to $url: $e");
+      }
       rethrow;
     }
   }
@@ -114,12 +152,17 @@ class ApiServiceImpl extends ApiService {
       final response = await dio.get(
         url,
         options: Options(headers: await getAuthHeaders()),
+        cancelToken: _activeToken,
       );
 
       log("Response from $url: ${response.statusCode} - ${response.data}");
       return response.data; // <-- return the body, not the Response wrapper
     } catch (e) {
-      log("Error during GET request to $url: $e");
+      if (_isCancellation(e)) {
+        log("Request cancelled: $url");
+      } else {
+        log("Error during GET request to $url: $e");
+      }
       rethrow;
     }
   }
@@ -136,12 +179,17 @@ class ApiServiceImpl extends ApiService {
         options: Options(
           headers: await getAuthHeaders(),
         ),
+        cancelToken: _activeToken,
       );
 
       log('Response from $url: ${response.statusCode} - ${response.data}');
       return response;
     } catch (e) {
-      log("Error during POST request to $url: $e");
+      if (_isCancellation(e)) {
+        log("Request cancelled: $url");
+      } else {
+        log("Error during POST request to $url: $e");
+      }
       rethrow;
     }
   }
@@ -157,12 +205,17 @@ class ApiServiceImpl extends ApiService {
         data: map,
         options: Options(
             headers: await getAuthHeaders(), responseType: ResponseType.plain),
+        cancelToken: _activeToken,
       );
 
       log('Response from $url: ${response.statusCode} - ${response.data}');
       return response;
     } catch (e) {
-      log("Error during POST request to $url: $e");
+      if (_isCancellation(e)) {
+        log("Request cancelled: $url");
+      } else {
+        log("Error during POST request to $url: $e");
+      }
       rethrow;
     }
   }
@@ -193,18 +246,27 @@ class ApiServiceImpl extends ApiService {
         options: Options(
           headers: await getAuthHeaders(),
         ),
+        cancelToken: _activeToken,
       );
 
       log('Upload Response: ${response.data}');
       return response;
     } on DioException catch (e) {
-      log('Upload Error: ${e.response?.data}');
+      if (_isCancellation(e)) {
+        log('Upload cancelled: $url');
+      } else {
+        log('Upload Error: ${e.response?.data}');
+      }
       rethrow;
     }
   }
 
   @override
-  Future postMultipart(String url, FormData formData) async {
+  Future postMultipart(
+    String url,
+    FormData formData, {
+    bool requiresAuth = true,
+  }) async {
     try {
       log('POST(multipart) => $url');
       log('FIELDS => ${formData.fields}');
@@ -213,16 +275,21 @@ class ApiServiceImpl extends ApiService {
       final response = await dio.post(
         url,
         data: formData,
-        options: Options(
-          headers: await getAuthHeaders(),
-        ),
+        options: requiresAuth ? Options(headers: await getAuthHeaders()) : null,
+        cancelToken: _activeToken,
       );
 
       log('Response from $url: ${response.statusCode} - ${response.data}');
       return response;
     } catch (e) {
-      log("Error during POST(multipart) request to $url: $e");
+      if (_isCancellation(e)) {
+        log("Request cancelled: $url");
+      } else {
+        log("Error during POST(multipart) request to $url: $e");
+      }
       rethrow;
     }
   }
 }
+
+final apiServiceProvider = Provider<ApiService>((ref) => ApiServiceImpl(ref));

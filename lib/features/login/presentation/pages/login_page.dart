@@ -6,6 +6,7 @@ import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/login/data/model/send_otp.dart';
 import 'package:dealer/features/login/presentation/logic/login_logic.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
+import 'package:dealer/features/signup/presentation/pages/signup_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,6 +45,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         data: (data) {
           ref.read(loginPhoneProvider.notifier).state =
               logic.phoneCtrl.text.trim();
+          if (data.message == 'User Not Found') {
+            ref.read(routeService).push(const SignUpRoute(), context);
+          }
           ref.read(routeService).push(const OtpRoute(), context);
         },
         error: (msg) {
@@ -60,8 +64,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final data = SendOtpModel(
         phone: logic.phoneCtrl.text,
         isRegistered: true,
-        role: 'DEALER',
-        source: 2,
       );
       await ref.read(sendOtpProvider.notifier).sendOtp(data);
     }
@@ -148,6 +150,37 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       letterSpacing: 1.2,
                     ),
                   ),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    const Text(
+                      "New User?",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _kGrey,
+                        height: 1.5,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => ref
+                          .read(routeService)
+                          .push(const SignUpRoute(), context),
+                      child: const Text(
+                        "Register",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _kAccentBlue,
+                          height: 1.5,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    )
+                  ],
                 ),
                 const SizedBox(height: 24),
               ],

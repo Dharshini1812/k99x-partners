@@ -61,6 +61,9 @@ dependencies:
   stomp_dart_client: ^3.0.1
   shared_preferences: ^2.3.0
   chewie: 1.8.5
+  google_mlkit_text_recognition: ^0.13.1
+  camera: 0.10.6
+  camera_android: 0.10.9+11
 
 dev_dependencies:
   flutter_test:

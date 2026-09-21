@@ -64,4 +64,10 @@ class AuctionRepositoryImpl implements AuctionRepository {
       rethrow;
     }
   }
+
+  @override
+  Future<List<LiveAuctionModel>> getLiveAuctionVehicles(
+      LiveAuctionVehiclesParams params) {
+    return datasource.getLiveAuctionVehicles(params);
+  }
 }

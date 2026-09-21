@@ -106,10 +106,11 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     }
 
     if (!mounted) return;
+    // Count only genuinely live (not-yet-ended) auctions — same
+    // definition _isEnded() uses below, so the popup's count always
+    // agrees with what the Auctions tab actually displays.
     final liveCount = ref.read(liveAuctionNotifier).whenOrNull(
-          data: (auctions) => auctions
-              .where((a) => (a.status ?? '').toUpperCase() == 'LIVE')
-              .length,
+          data: (auctions) => auctions.where((a) => !_isEnded(a)).length,
         );
     if (liveCount == null || liveCount <= 0) return;
 
@@ -289,6 +290,27 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     );
   }
 
+  /// True if [vehicle] has already ended — either the backend marked it
+  /// SOLD/UNSOLD, or its auction_close_dt is in the past. Used to keep
+  /// closed auctions off the Auctions/Upcoming tabs regardless of
+  /// whether activeTabStatus-based matching has kicked in yet (on the
+  /// very first load, before any tab tap, activeTabStatus is still
+  /// null — see initState — so without this check every closed auction
+  /// in the date-scoped fetch would show up on the Auctions tab too).
+  /// Mirrors the same close-date logic LiveAuctionCard itself uses for
+  /// its "Ended" label/countdown, so the two never disagree.
+  static bool _isEnded(LiveAuctionModel vehicle) {
+    final statusUpper = (vehicle.status ?? '').trim().toUpperCase();
+    if (statusUpper == 'SOLD' || statusUpper == 'UNSOLD') return true;
+
+    final closeDt = vehicle.auctionCloseDt;
+    if (closeDt != null && closeDt.isNotEmpty) {
+      final parsed = DateTime.tryParse(closeDt.replaceFirst(' ', 'T'));
+      if (parsed != null && parsed.isBefore(DateTime.now())) return true;
+    }
+    return false;
+  }
+
   /// True if [vehicle] matches the free-text search query on
   /// AuctionLogic. Matches make, model, variant, registration number,
   /// vehicle id, and category/lender name — case-insensitive.
@@ -347,18 +369,23 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
         }());
 
         final filtered = auctions
+            // Never show already-ended auctions on the Auctions/Upcoming
+            // tabs — applied unconditionally (not gated on
+            // activeTabStatus being set) so the very first load, before
+            // any tab tap, doesn't show SOLD/UNSOLD cards either.
+            .where((a) => !_isEnded(a))
             .where((a) {
               // On the very first load, activeTabStatus is still null —
               // search() was only ever scoped by the default date range
               // (see initState: it intentionally does NOT call
               // setActiveTabStatus). At that point nothing should be
-              // filtered out by status locally either; just show
-              // whatever the date-only fetch returned. Only once the
-              // user actually taps a tab (activeTabStatus becomes
-              // non-null, and a new status-scoped fetch has already
-              // happened server-side) does this tab's local status
-              // match kick in, to correctly split shared results
-              // between tabs on screen.
+              // filtered out by status locally either beyond the
+              // ended-auction guard above; just show whatever the
+              // date-only fetch returned. Only once the user actually
+              // taps a tab (activeTabStatus becomes non-null, and a new
+              // status-scoped fetch has already happened server-side)
+              // does this tab's local status match kick in, to
+              // correctly split shared results between tabs on screen.
               if (logic.activeTabStatus == null) return true;
               return (a.status ?? '').trim().toUpperCase() ==
                   status.toUpperCase();

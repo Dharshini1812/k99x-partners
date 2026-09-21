@@ -1,6 +1,7 @@
 import 'package:dealer/core/route/router.gr.dart';
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
+import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -444,6 +445,21 @@ class _LogoutButton extends ConsumerWidget {
     final confirmed = await _confirmLogout(context);
     if (!confirmed) return;
     if (!context.mounted) return;
+
+    // Cancel every in-flight request FIRST — this is what actually
+    // fixes the 500s you were seeing right after logout: requests
+    // like the dashboard's stats/mylisting/wanted-listing calls,
+    // fired in initState() and still in flight when Logout is tapped,
+    // get aborted immediately instead of finishing after the session
+    // is already invalidated server-side. The API service hands out a
+    // fresh CancelToken automatically for the very next request (the
+    // logout call itself, right below), so this doesn't block it.
+    ref.read(apiService).cancelAllRequests();
+
+    // Stop any live bid-activity polling too, for the same reason —
+    // a poll cycle firing mid-logout shouldn't hit the API with a
+    // stale/expired session either.
+    ref.read(bidActivityNotifierProvider.notifier).stopPolling();
 
     await ref.read(logoutNotifierProvider.notifier).logout();
     if (!context.mounted) return;

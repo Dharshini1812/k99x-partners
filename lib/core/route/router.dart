@@ -5,6 +5,7 @@ import 'package:dealer/features/live_auction/presentation/pages/vehicle_detail_p
 import 'package:dealer/features/login/presentation/pages/login_page.dart';
 import 'package:dealer/features/login/presentation/pages/otp_page.dart';
 import 'package:dealer/features/onboarding/presentation/pages/onb_page.dart';
+import 'package:dealer/features/signup/presentation/pages/signup_page.dart';
 import 'package:dealer/features/splash/splash.dart';
 
 @MaterialAutoRouter(
@@ -16,7 +17,8 @@ import 'package:dealer/features/splash/splash.dart';
     AutoRoute(page: DealerOnboardingPage),
     AutoRoute(page: SplashPage, initial: true),
     AutoRoute(page: ClientBottomNavPage),
-    AutoRoute(page: VehicleDetailPage)
+    AutoRoute(page: VehicleDetailPage),
+    AutoRoute(page: SignUpPage),
   ],
 )
 class $AppRouter {}

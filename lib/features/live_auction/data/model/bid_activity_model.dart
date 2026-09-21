@@ -20,7 +20,7 @@ class BidActivityResponse {
 class BidActivityData {
   final int? winningBidderId;
   final bool? isWinning;
-  final dynamic autobid;
+  final AutobidInfo? autobid;
   final double? highestBid;
   final int? bidsCount;
   final int? rank;
@@ -42,7 +42,8 @@ class BidActivityData {
     return BidActivityData(
       winningBidderId: json['winningBidderId'],
       isWinning: json['isWinning'],
-      autobid: json['autobid'],
+      autobid:
+          json['autobid'] != null ? AutobidInfo.fromJson(json['autobid']) : null,
       highestBid: (json['highestBid'] as num?)?.toDouble(),
       bidsCount: json['bidsCount'],
       rank: json['rank'],
