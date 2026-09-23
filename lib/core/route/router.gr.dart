@@ -79,10 +79,10 @@ class AppRouter extends _i9.RootStackRouter {
         ),
       );
     },
-    SignUpRoute.name: (routeData) {
+    SignupRoute.name: (routeData) {
       return _i9.MaterialPageX<dynamic>(
         routeData: routeData,
-        child: const _i8.SignUpPage(),
+        child: const _i8.SignupPage(),
       );
     },
   };
@@ -118,8 +118,8 @@ class AppRouter extends _i9.RootStackRouter {
           path: '/vehicle-detail-page',
         ),
         _i9.RouteConfig(
-          SignUpRoute.name,
-          path: '/sign-up-page',
+          SignupRoute.name,
+          path: '/signup-page',
         ),
       ];
 }
@@ -236,13 +236,13 @@ class VehicleDetailRouteArgs {
 }
 
 /// generated route for
-/// [_i8.SignUpPage]
-class SignUpRoute extends _i9.PageRouteInfo<void> {
-  const SignUpRoute()
+/// [_i8.SignupPage]
+class SignupRoute extends _i9.PageRouteInfo<void> {
+  const SignupRoute()
       : super(
-          SignUpRoute.name,
-          path: '/sign-up-page',
+          SignupRoute.name,
+          path: '/signup-page',
         );
 
-  static const String name = 'SignUpRoute';
+  static const String name = 'SignupRoute';
 }

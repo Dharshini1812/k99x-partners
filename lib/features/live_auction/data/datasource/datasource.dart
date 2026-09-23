@@ -9,8 +9,16 @@ import 'package:dealer/features/live_auction/data/model/place_bid_model.dart';
 import 'package:dealer/features/live_auction/domain/usecase/live_auction_params.dart';
 
 import 'package:dealer/features/login/presentation/logic/provider.dart';
+import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// Static placeholder user ID sent on trial/guest requests, since the
+/// backend expects X-USER-ID on these endpoints even without Basic-Auth.
+/// This is a fixed ID standing in for "no real dealer account yet" —
+/// confirm with the backend that 193 is the intended guest/trial
+/// account id and not just a value that happened not to error.
+const String kTrialUserId = '193';
 
 abstract class AuctionDatasource {
   Future<List<LiveAuctionModel>> getLiveAuctions(LiveAuctionParams params);
@@ -49,7 +57,20 @@ class AuctionDatasourceImpl implements AuctionDatasource {
       final uri = Uri.parse(Url.liveAuctionUrl)
           .replace(queryParameters: params.toQueryParams());
 
-      final response = await api.get1(uri.toString());
+      // Only a trial/guest session (no stored credentials to send)
+      // skips Basic-Auth here. A real logged-in dealer keeps hitting
+      // get1() exactly as before — unchanged for the normal
+      // login/signup flow, since that's what returns this dealer's own
+      // bid/status fields personalized to their account. get1() would
+      // throw "not authenticated" before the request even goes out for
+      // a guest with no stored session, which is the case this branch
+      // exists for — confirmed via a direct API-tool call (X-API-KEY
+      // only, no Basic-Auth) that the backend still returns real
+      // listings without one.
+      final isTrial = ref.read(trialLogic).isTrialSession;
+      final response = isTrial
+          ? await api.get(uri.toString(), headers: {'X-USER-ID': kTrialUserId})
+          : await api.get1(uri.toString());
 
       final data = response.data as Map<String, dynamic>;
       final List<dynamic> list = (data['vehicles'] as List<dynamic>?) ?? [];
@@ -73,11 +94,15 @@ class AuctionDatasourceImpl implements AuctionDatasource {
       final uri = Uri.parse(Url.liveAuctionVehiclesUrl)
           .replace(queryParameters: params.toQueryParams());
 
+      // NOT verified the same way as getLiveAuctions above — only
+      // Url.liveAuctionUrl (auction-live/json) was confirmed to work
+      // with X-API-KEY alone. If this /vehicles endpoint also needs no
+      // Basic-Auth, switch this to api.get(...) too; until then it
+      // stays authenticated, meaning a trial guest hitting whichever
+      // screen calls getLiveAuctionVehicles will still fail here even
+      // though getLiveAuctions above now succeeds for them.
       final response = await api.get1(uri.toString());
-
       final data = response.data as Map<String, dynamic>;
-      // Same top-level shape as auction-live/json — {success, count,
-      // vehicles: [...]} — so this reuses LiveAuctionModel as-is.
       final List<dynamic> list = (data['vehicles'] as List<dynamic>?) ?? [];
 
       return list
@@ -136,7 +161,20 @@ class AuctionDatasourceImpl implements AuctionDatasource {
   Future<VehicleDetailResponse> getVehicleDetail(String vehicleId) async {
     final api = ref.read(apiService);
     const url = Url.vehicleDetailView;
-    final response = await api.get1('$url$vehicleId');
+
+    // Same reasoning as getLiveAuctions above: a trial/guest session has
+    // no stored credentials, so get1() throws "not authenticated" before
+    // the request even leaves the device. Unlike getLiveAuctions, this
+    // specific endpoint has NOT been independently confirmed to accept
+    // X-API-KEY alone (no Basic-Auth) — branching it the same way is the
+    // fix for the screenshot error, but confirm against the backend (or
+    // via a direct API-tool call) that vehicleDetailView actually
+    // returns data for a guest before relying on this in production.
+    final isTrial = ref.read(trialLogic).isTrialSession;
+    final response = isTrial
+        ? await api.get('$url$vehicleId', headers: {'X-USER-ID': kTrialUserId})
+        : await api.get1('$url$vehicleId');
+
     return VehicleDetailResponse.fromJson(response.data);
   }
 }

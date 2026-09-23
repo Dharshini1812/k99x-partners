@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
@@ -7,6 +8,9 @@ import 'package:dealer/features/live_auction/presentation/widgets/auction_card.d
 import 'package:dealer/features/live_auction/presentation/widgets/auction_filter_bar.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/auction_skeleton.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/live_auction_voucher_card.dart';
+import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
+import 'package:dealer/core/route/router.gr.dart';
+import 'package:dealer/features/login/presentation/logic/provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -70,30 +74,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     });
   }
 
-  // ── Live-auctions voucher popup ─────────────────────────────────
-  //
-  // Shown at most once per calendar day, persisted via
-  // SharedPreferences so it survives this State being recreated
-  // (navigating away and back) and full app restarts — an in-memory
-  // flag alone resets on both, which was the bug: the popup kept
-  // reappearing on every reload instead of once a day.
-  //
-  // Two moments this needs to fire, and why each needs its own hook:
-  //
-  // 1. Cold start / fresh login — the user's very first arrival on
-  //    this screen this app session. Handled by the ref.listen(
-  //    liveAuctionNotifier, ...) below in build(): it fires once the
-  //    launch fetch actually resolves with data, since we can't show
-  //    a live-auction count before we have one.
-  //
-  // 2. App resumed from background — if the user was ALREADY logged
-  //    in, backgrounded the app (didn't kill it), and reopens it,
-  //    AuctionHomePage's initState does NOT run again (the widget
-  //    never got disposed) — only didChangeAppLifecycleState() below
-  //    catches this moment.
-  //
-  // Both paths funnel into _maybeShowVoucherPopup(), which checks
-  // SharedPreferences for today's date before showing.
   static const _voucherShownKey = 'voucher_shown_this_session';
 
   Future<void> _maybeShowVoucherPopup() async {
@@ -106,9 +86,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     }
 
     if (!mounted) return;
-    // Count only genuinely live (not-yet-ended) auctions — same
-    // definition _isEnded() uses below, so the popup's count always
-    // agrees with what the Auctions tab actually displays.
+
     final liveCount = ref.read(liveAuctionNotifier).whenOrNull(
           data: (auctions) => auctions.where((a) => !_isEnded(a)).length,
         );
@@ -130,8 +108,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Covers "already logged in, user reopens the app" — this page
-      // was never remounted, so initState() won't fire again.
       _maybeShowVoucherPopup();
     }
   }
@@ -140,26 +116,11 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     if (_tabController.indexIsChanging) return;
     final status = _tabs[_tabController.index].status;
     final logic = ref.read(auctionLogic);
-    // AuctionLogic.search() resolves status as `explicitStatus ??
-    // activeTabStatus` — explicitStatus (the Refine Results "Status"
-    // filter) always wins when set. Without resetting it here, picking
-    // e.g. "Live" in Refine Results and then tapping the Upcoming tab
-    // would keep silently sending status=LIVE instead of UPCOMING.
-    // Tapping a tab is a clearer, more recent signal of intent, so it
-    // should take over cleanly.
     logic.updateStatus(AuctionLogic.statusOptions.first);
     logic.setActiveTabStatus(status);
     setState(() {});
   }
 
-  /// Tries to default the auction list to the dealer's own state.
-  /// Safe to call repeatedly — AuctionLogic.applyUserDefaultState()
-  /// only ever actually applies it once (via its own internal flag)
-  /// and no-ops if either the states list or the user's profile
-  /// hasn't loaded yet. Called from both the states listener and the
-  /// dashboard listener below, since either one can finish loading
-  /// after the other — DashBoardLogic.loadUser() reads from secure
-  /// storage asynchronously, so there's no guaranteed order.
   void _tryApplyUserDefaultState() {
     final states = ref.read(getStateProvider).whenOrNull(data: (s) => s);
     if (states == null) return;
@@ -177,18 +138,10 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
 
   @override
   Widget build(BuildContext context) {
-    // Apply the dealer's own state as the default filter, once, as soon
-    // as BOTH the states list and the dealer's profile are available —
-    // whichever finishes loading second triggers the actual apply.
     ref.listen(getStateProvider, (previous, next) {
       next.whenOrNull(data: (_) => _tryApplyUserDefaultState());
     });
     ref.listen(dLogic, (previous, next) => _tryApplyUserDefaultState());
-
-    // Cold-start trigger for the voucher popup: fires once the launch
-    // fetch actually resolves with data (can't show a live-auction
-    // count before we have one). The resume-from-background trigger
-    // lives in didChangeAppLifecycleState() above.
     ref.listen(liveAuctionNotifier, (previous, next) {
       next.whenOrNull(data: (_) => _maybeShowVoucherPopup());
     });
@@ -198,6 +151,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
       body: SafeArea(
         child: Column(
           children: [
+            const _TrialStatusBanner(),
             const Padding(
               padding: EdgeInsets.fromLTRB(12, 12, 12, 0),
               child: AuctionFilterBar(),
@@ -290,15 +244,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     );
   }
 
-  /// True if [vehicle] has already ended — either the backend marked it
-  /// SOLD/UNSOLD, or its auction_close_dt is in the past. Used to keep
-  /// closed auctions off the Auctions/Upcoming tabs regardless of
-  /// whether activeTabStatus-based matching has kicked in yet (on the
-  /// very first load, before any tab tap, activeTabStatus is still
-  /// null — see initState — so without this check every closed auction
-  /// in the date-scoped fetch would show up on the Auctions tab too).
-  /// Mirrors the same close-date logic LiveAuctionCard itself uses for
-  /// its "Ended" label/countdown, so the two never disagree.
   static bool _isEnded(LiveAuctionModel vehicle) {
     final statusUpper = (vehicle.status ?? '').trim().toUpperCase();
     if (statusUpper == 'SOLD' || statusUpper == 'UNSOLD') return true;
@@ -311,9 +256,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     return false;
   }
 
-  /// True if [vehicle] matches the free-text search query on
-  /// AuctionLogic. Matches make, model, variant, registration number,
-  /// vehicle id, and category/lender name — case-insensitive.
   bool _matchesSearch(LiveAuctionModel vehicle, String query) {
     if (query.trim().isEmpty) return true;
     final q = query.trim().toLowerCase();
@@ -333,9 +275,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
 
   Widget _buildAuctionsList({required String status}) {
     final state = ref.watch(liveAuctionNotifier);
-    // Watch auctionLogic too — without this, typing in the search bar
-    // (which only calls notifyListeners() on auctionLogic) never
-    // rebuilds this list.
     final logic = ref.watch(auctionLogic);
 
     return state.when(
@@ -352,14 +291,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
         ),
       ),
       data: (auctions) {
-        // DEBUG DIAGNOSTIC — remove once the status-matching issue is
-        // confirmed fixed. If auctions.isNotEmpty but the list still
-        // shows "No live auctions found", check this log: it prints
-        // every distinct raw `status` value actually coming back from
-        // the API. The local filter below only matches an exact,
-        // case-insensitive 'LIVE' / 'UPCOMING' — if the backend is
-        // sending something else (e.g. 'Active', 'live ', a different
-        // word entirely, or null), that's the mismatch.
         assert(() {
           final rawStatuses = auctions.map((a) => a.status).toSet().toList();
           debugPrint(
@@ -369,23 +300,8 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
         }());
 
         final filtered = auctions
-            // Never show already-ended auctions on the Auctions/Upcoming
-            // tabs — applied unconditionally (not gated on
-            // activeTabStatus being set) so the very first load, before
-            // any tab tap, doesn't show SOLD/UNSOLD cards either.
             .where((a) => !_isEnded(a))
             .where((a) {
-              // On the very first load, activeTabStatus is still null —
-              // search() was only ever scoped by the default date range
-              // (see initState: it intentionally does NOT call
-              // setActiveTabStatus). At that point nothing should be
-              // filtered out by status locally either beyond the
-              // ended-auction guard above; just show whatever the
-              // date-only fetch returned. Only once the user actually
-              // taps a tab (activeTabStatus becomes non-null, and a new
-              // status-scoped fetch has already happened server-side)
-              // does this tab's local status match kick in, to
-              // correctly split shared results between tabs on screen.
               if (logic.activeTabStatus == null) return true;
               return (a.status ?? '').trim().toUpperCase() ==
                   status.toUpperCase();
@@ -447,4 +363,184 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
       ],
     );
   }
+}
+
+// Drop-in replacement for _TrialStatusBanner + _TrialStatusBannerState in
+// your auction_home_page.dart — same public surface (trialLogic,
+// routeService, SignupRoute), no new imports needed since it only uses
+// what that file already imports (dart:async, material.dart, riverpod,
+// router.gr.dart, provider.dart, trial_logic.dart).
+
+class _TrialStatusBanner extends ConsumerStatefulWidget {
+  const _TrialStatusBanner();
+
+  @override
+  ConsumerState<_TrialStatusBanner> createState() => _TrialStatusBannerState();
+}
+
+class _TrialStatusBannerState extends ConsumerState<_TrialStatusBanner> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final trial = ref.watch(trialLogic);
+    if (!trial.isTrialSession) return const SizedBox.shrink();
+
+    final expired = trial.isTrialExpired;
+    final accent = expired ? const Color(0xFFE24C4C) : const Color(0xFF3F51E8);
+    final gradient = expired
+        ? const [Color(0xFFFFECEC), Color(0xFFFFF7F7)]
+        : const [Color(0xFFE9EDFF), Color(0xFFF4F6FF)];
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+            colors: gradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: accent.withOpacity(0.15)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+                color: accent.withOpacity(0.12), shape: BoxShape.circle),
+            child: Icon(
+              expired ? Icons.timer_off_rounded : Icons.bolt_rounded,
+              size: 19,
+              color: accent,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  expired ? 'FREE TRIAL ENDED' : 'FREE TRIAL',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                    color: accent,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                expired
+                    ? Text(
+                        'Sign up to unlock bidding',
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: accent),
+                      )
+                    : _CountdownRow(remaining: trial.remaining, color: accent),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: () =>
+                ref.read(routeService).push(const SignupRoute(), context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: accent,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                      color: accent.withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4)),
+                ],
+              ),
+              child: const Text(
+                'Sign up',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The countdown itself, boxed per unit (HH / MM / SS) so it reads at a
+/// glance instead of getting lost inside a sentence.
+class _CountdownRow extends StatelessWidget {
+  final Duration remaining;
+  final Color color;
+  const _CountdownRow({required this.remaining, required this.color});
+
+  String _two(int n) => n.toString().padLeft(2, '0');
+
+  @override
+  Widget build(BuildContext context) {
+    final h = _two(remaining.inHours);
+    final m = _two(remaining.inMinutes.remainder(60));
+    final s = _two(remaining.inSeconds.remainder(60));
+    return Row(
+      children: [
+        _digitBox(h),
+        _colon(),
+        _digitBox(m),
+        _colon(),
+        _digitBox(s),
+        const SizedBox(width: 8),
+        Text('left',
+            style: TextStyle(
+                fontSize: 12,
+                color: color.withOpacity(0.8),
+                fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
+  Widget _digitBox(String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration:
+          BoxDecoration(color: color, borderRadius: BorderRadius.circular(7)),
+      child: Text(
+        value,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+          fontFeatures: [FontFeature.tabularFigures()],
+          height: 1.1,
+        ),
+      ),
+    );
+  }
+
+  Widget _colon() => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: Text(':',
+            style: TextStyle(
+                color: color, fontWeight: FontWeight.w800, fontSize: 16)),
+      );
 }

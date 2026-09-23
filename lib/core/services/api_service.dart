@@ -1,3 +1,9 @@
+// Adjust this file's actual location to wherever ApiService/ApiServiceImpl
+// already live in your project — only `get()` changed (now takes an
+// optional `headers` param), everything else is identical to what you
+// pasted. Diff is isolated to the abstract method signature and the
+// get() implementation below.
+
 import 'dart:convert';
 import 'dart:developer';
 import 'package:dealer/core/helper/storage_helper.dart';
@@ -5,7 +11,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 abstract class ApiService {
-  Future get(String url);
+  Future get(String url, {Map<String, String>? headers});
   Future post(String url, Map map);
   Future get1(String url);
   Future get2(String url);
@@ -84,10 +90,18 @@ class ApiServiceImpl extends ApiService {
   }
 
   @override
-  Future get(String url) async {
+  Future get(String url, {Map<String, String>? headers}) async {
     try {
       log("GET Request to: $url");
-      final response = await dio.get(url, cancelToken: _activeToken);
+      // Dio merges per-request Options.headers on top of BaseOptions'
+      // headers (Content-Type/Accept/X-API-KEY stay, these just add to
+      // them) — so passing e.g. {'X-USER-ID': '193'} here doesn't drop
+      // anything already set globally.
+      final response = await dio.get(
+        url,
+        options: headers != null ? Options(headers: headers) : null,
+        cancelToken: _activeToken,
+      );
       log("Response from $url: ${response.statusCode} - ${response.data}");
       return response;
     } catch (e) {

@@ -5,6 +5,8 @@ import 'package:dealer/core/route/router.gr.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
 import 'package:dealer/features/signup/data/model/reg_req_model.dart';
 import 'package:dealer/features/signup/presentation/logic/register/register_notifier.dart';
+import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,14 +25,14 @@ const _kFaintBg = Color(0xFFEDEFF7);
 const _kBorder = Color(0xFFE7E8F0);
 
 @AutoRoute()
-class SignUpPage extends ConsumerStatefulWidget {
-  const SignUpPage({super.key});
+class SignupPage extends ConsumerStatefulWidget {
+  const SignupPage({super.key});
 
   @override
-  ConsumerState<SignUpPage> createState() => _SignUpPageState();
+  ConsumerState<SignupPage> createState() => _SignupPageState();
 }
 
-class _SignUpPageState extends ConsumerState<SignUpPage> {
+class _SignupPageState extends ConsumerState<SignupPage> {
   final _picker = ImagePicker();
 
   Future<File?> _pickImage({required bool cameraOnly}) async {
@@ -93,6 +95,24 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       final status = await logic.checkNameMatch();
       ref.read(nameMatchStatusProvider.notifier).state = status;
     }
+  }
+
+  /// "Explore app via free trial" banner tap — one 48-hour trial per
+  /// device (see TrialLogic), after which this device can't start
+  /// another one; only signing up (or logging in) gets bidding back.
+  Future<void> _startFreeTrial() async {
+    final trial = ref.read(trialLogic);
+    if (trial.everUsedTrial) {
+      Fluttertoast.showToast(
+        msg: trial.isTrialActive
+            ? 'Your free trial is already running on this device.'
+            : 'You\'ve already used your free trial on this device — please sign up below to continue.',
+      );
+      return;
+    }
+    final started = await trial.startTrial();
+    if (!started || !mounted) return;
+    ref.read(routeService).pushAndRemoveUntil(const BottomNavRoute(), context);
   }
 
   void _goNext(int currentIndex, bool valid) {
@@ -172,24 +192,27 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       body: SafeArea(
         child: Column(
           children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF6A3DE8), Color(0xFF9B4DE0)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            GestureDetector(
+              onTap: _startFreeTrial,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF6A3DE8), Color(0xFF9B4DE0)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                 ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Text('Explore app via free trial ',
-                      style: TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w600)),
-                  Icon(Icons.arrow_forward, color: Colors.white, size: 16),
-                ],
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Text('Explore app via free trial ',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.w600)),
+                    Icon(Icons.arrow_forward, color: Colors.white, size: 16),
+                  ],
+                ),
               ),
             ),
             Expanded(
@@ -434,6 +457,23 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
   // they clear a field or change state after picking a city).
   bool _pending = true;
 
+  @override
+  void initState() {
+    super.initState();
+    // getStateProvider is a StateNotifier that starts at .initial() and
+    // only fetches once something calls its notifier — unlike a
+    // FutureProvider, watching it alone never triggers the request.
+    // Without this call the State dropdown sits on .initial() (the
+    // CircleAvatar() placeholder) forever.
+    //
+    // getState() confirmed against CommonDatasource's own interface
+    // (getState()/getCity({String? id})) — the notifier wraps that
+    // 1:1, so this is no longer a guess.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(getStateProvider.notifier).getState();
+    });
+  }
+
   void _maybeAutoAdvance() {
     final isValid = widget.logic.isBusinessInfoValid;
     if (isValid && _pending) {
@@ -524,6 +564,15 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
                           logic.selectedCityId =
                               null; // reset city on state change
                         });
+                        // Same gap as the State dropdown had: nothing
+                        // was ever telling getCityProvider to actually
+                        // fetch. Trigger it here, now that we know
+                        // which state's cities we want.
+                        // getCity(id: id) — matches CommonDatasource's
+                        // real signature, getCity({String? id}).
+                        if (id != null) {
+                          ref.read(getCityProvider.notifier).getCity(id: id);
+                        }
                       },
                     ),
                   );

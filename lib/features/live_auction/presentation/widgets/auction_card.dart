@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
+import 'package:dealer/features/trial/presentation/widgets/trial_blocked_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
@@ -109,6 +111,14 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
   /// card (this one included) with the live current-bid amount — no
   /// manual reload needed.
   Future<void> _openBidSheet() async {
+    // Trial/guest sessions can browse auctions but not bid — same rule
+    // enforced again in vehicle_detail_page.dart's own _openBidSheet.
+    final trial = ref.read(trialLogic);
+    if (trial.isTrialSession) {
+      showTrialBlockedDialog(context, ref, expired: trial.isTrialExpired);
+      return;
+    }
+
     final result = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,

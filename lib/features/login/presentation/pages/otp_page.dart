@@ -6,6 +6,7 @@ import 'package:dealer/core/route/router.gr.dart';
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/login/presentation/logic/login_logic.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
+import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -99,6 +100,11 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
     ref.listen(verifyOtpProvider, (previous, next) {
       next.whenOrNull(
         data: (data) {
+          // A genuine login ends guest/trial mode even if trial time is
+          // still left — bidding now goes through the real account.
+          // everUsedTrial deliberately stays true: logging in doesn't
+          // refund the trial.
+          ref.read(trialLogic).endTrialSession();
           if (data.userType == 'CLIENT') {
             ref
                 .read(routeService)

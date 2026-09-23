@@ -4,6 +4,8 @@ import 'package:dealer/features/dashboard/presentation/d.page.dart';
 import 'package:dealer/features/live_auction/presentation/pages/auction_homepage.dart';
 import 'package:dealer/features/my_listings/presentation/pages/my_list_page.dart';
 import 'package:dealer/features/profile/presentation/pages/profile.dart';
+import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
+import 'package:dealer/features/trial/presentation/widgets/trial_blocked_dialog.dart';
 import 'package:dealer/features/upload/presentation/pages/vehicle_details_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,12 +20,15 @@ class BottomNavPage extends ConsumerStatefulWidget {
 }
 
 class _BottomNavPageState extends ConsumerState<BottomNavPage> {
-  int currentIndex = 0;
-
-  @override
   @override
   Widget build(BuildContext context) {
     final currentIndex = ref.watch(bottomNavIndexProvider);
+    final trial = ref.watch(trialLogic);
+
+    // Only Auction (index 0) is meant for guests — Home/Sell/Listings/
+    // Profile all show or act on a real dealer's own data, none of
+    // which exists for a trial session.
+    final lockedIndices = trial.isTrialSession ? {1, 2, 3, 4} : <int>{};
 
     final pages = [
       const AuctionHomePage(),
@@ -42,8 +47,19 @@ class _BottomNavPageState extends ConsumerState<BottomNavPage> {
       bottomNavigationBar: SafeArea(
         child: BottomNavBar(
           currentIndex: currentIndex,
+          lockedIndices: lockedIndices,
           onTap: (index) {
             ref.read(bottomNavIndexProvider.notifier).state = index;
+          },
+          onLockedTap: (index) {
+            showTrialBlockedDialog(
+              context,
+              ref,
+              expired: trial.isTrialExpired,
+              featureTitle: 'This needs a registered account',
+              featureMessage:
+                  'You\'re exploring the app on a free trial. Sign up as a dealer to unlock Home, Sell, Listings and your Profile.',
+            );
           },
         ),
       ),

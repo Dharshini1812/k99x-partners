@@ -18,7 +18,7 @@ import 'package:dealer/features/splash/splash.dart';
     AutoRoute(page: SplashPage, initial: true),
     AutoRoute(page: ClientBottomNavPage),
     AutoRoute(page: VehicleDetailPage),
-    AutoRoute(page: SignUpPage),
+    AutoRoute(page: SignupPage),
   ],
 )
 class $AppRouter {}

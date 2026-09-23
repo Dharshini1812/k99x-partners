@@ -4,6 +4,8 @@ import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/pages/inspection_full_image_viewer_page.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/place_bid_sheet.dart';
+import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
+import 'package:dealer/features/trial/presentation/widgets/trial_blocked_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -53,6 +55,12 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
   static const int _minIncrement = 1000;
 
   void _openBidSheet() {
+    final trial = ref.read(trialLogic);
+    if (trial.isTrialSession) {
+      showTrialBlockedDialog(context, ref, expired: trial.isTrialExpired);
+      return;
+    }
+
     showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
@@ -945,6 +953,15 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
     final isEnablingAutobid =
         autoBidState.maybeWhen(loading: () => true, orElse: () => false);
 
+    // Viewing this page never required a trial/auth check — that's
+    // unchanged. Only the two action buttons below get muted + relabelled
+    // while on a trial session; onPressed stays wired to _openBidSheet()
+    // rather than null, since _openBidSheet() already shows
+    // showTrialBlockedDialog for a trial session — that's the actual
+    // sign-up prompt, so the tap must still reach it.
+    final trial = ref.watch(trialLogic);
+    final isTrialLocked = trial.isTrialSession;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -961,6 +978,32 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (isTrialLocked)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E0),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.lock_outline,
+                        size: 14, color: Color(0xFFB07B00)),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        "You're browsing in free trial — sign up to place bids",
+                        style: TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFFB07B00),
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -1007,8 +1050,13 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
                   child: OutlinedButton(
                     onPressed: _ended ? null : () => _openBidSheet(),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFFE8E5FF)),
-                      backgroundColor: const Color(0xFFF2F0FF),
+                      side: BorderSide(
+                          color: isTrialLocked
+                              ? Colors.grey.shade300
+                              : const Color(0xFFE8E5FF)),
+                      backgroundColor: isTrialLocked
+                          ? Colors.grey.shade100
+                          : const Color(0xFFF2F0FF),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1019,10 +1067,22 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
                             height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Auto bid',
-                            style: TextStyle(
-                                color: Color(0xFF4C3BCF),
-                                fontWeight: FontWeight.bold)),
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (isTrialLocked) ...[
+                                Icon(Icons.lock_outline,
+                                    size: 14, color: Colors.grey.shade500),
+                                const SizedBox(width: 4),
+                              ],
+                              Text('Auto bid',
+                                  style: TextStyle(
+                                      color: isTrialLocked
+                                          ? Colors.grey.shade500
+                                          : const Color(0xFF4C3BCF),
+                                      fontWeight: FontWeight.bold)),
+                            ],
+                          ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1030,9 +1090,12 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
                   child: ElevatedButton(
                     onPressed: _ended ? null : () => _openBidSheet(),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4335DE),
-                      disabledBackgroundColor:
-                          const Color(0xFF4335DE).withOpacity(0.6),
+                      backgroundColor: isTrialLocked
+                          ? Colors.grey.shade400
+                          : const Color(0xFF4335DE),
+                      disabledBackgroundColor: isTrialLocked
+                          ? Colors.grey.shade400.withOpacity(0.6)
+                          : const Color(0xFF4335DE).withOpacity(0.6),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1046,19 +1109,33 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
                                 valueColor:
                                     AlwaysStoppedAnimation(Colors.white)),
                           )
-                        : Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text('Bid',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold)),
-                              Text('at ${_fmtPrice(nextBid)}',
-                                  style: const TextStyle(
-                                      color: Colors.white70, fontSize: 10)),
-                            ],
-                          ),
+                        : isTrialLocked
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Icon(Icons.lock_outline,
+                                      size: 13, color: Colors.white70),
+                                  SizedBox(width: 4),
+                                  Text('Sign up to bid',
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold)),
+                                ],
+                              )
+                            : Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text('Bid',
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold)),
+                                  Text('at ${_fmtPrice(nextBid)}',
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 10)),
+                                ],
+                              ),
                   ),
                 ),
               ],

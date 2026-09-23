@@ -6,7 +6,6 @@ import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/login/data/model/send_otp.dart';
 import 'package:dealer/features/login/presentation/logic/login_logic.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
-import 'package:dealer/features/signup/presentation/pages/signup_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -46,7 +45,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ref.read(loginPhoneProvider.notifier).state =
               logic.phoneCtrl.text.trim();
           if (data.message == 'User Not Found') {
-            ref.read(routeService).push(const SignUpRoute(), context);
+            ref.read(routeService).push(const SignupRoute(), context);
           }
           ref.read(routeService).push(const OtpRoute(), context);
         },
@@ -167,7 +166,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     TextButton(
                       onPressed: () => ref
                           .read(routeService)
-                          .push(const SignUpRoute(), context),
+                          .push(const SignupRoute(), context),
                       child: const Text(
                         "Register",
                         textAlign: TextAlign.center,

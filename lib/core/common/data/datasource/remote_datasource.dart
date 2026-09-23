@@ -21,13 +21,23 @@ abstract class CommonDatasource {
 class CommonDatasourceimpl implements CommonDatasource {
   final Ref ref;
   CommonDatasourceimpl(this.ref);
+
   @override
   Future<List<StateModel>> getState() async {
     try {
       final api = ref.read(apiService);
       const url = Url.stateUrl;
 
-      final data = await api.get2(url);
+      // Was api.get2(url) — get2() calls getAuthHeaders(), which throws
+      // "not authenticated" when there's no stored session. This runs
+      // during signup, before an account exists, so it always failed
+      // silently into GetStateState.error() here. State/city are plain
+      // reference data (not personalized per dealer), so there's no
+      // downside to fetching them without auth for everyone, logged in
+      // or not — same reasoning as the register call and the
+      // auction-listing fix from before.
+      final response = await api.get(url);
+      final data = response.data;
       if (data is List) {
         final result = data.map((e) => StateModel.fromJson(e)).toList();
 
@@ -45,7 +55,9 @@ class CommonDatasourceimpl implements CommonDatasource {
       final api = ref.read(apiService);
       final url = '${Url.cityUrl}$id';
 
-      final data = await api.get2(url);
+      // Same fix as getState() above — was api.get2(url).
+      final response = await api.get(url);
+      final data = response.data;
       if (data is List) {
         final result = data.map((e) => CityModel.fromJson(e)).toList();
 
