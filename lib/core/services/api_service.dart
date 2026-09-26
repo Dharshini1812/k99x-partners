@@ -12,7 +12,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 abstract class ApiService {
   Future get(String url, {Map<String, String>? headers});
-  Future post(String url, Map map);
+  Future post(
+    String url,
+    Map map, {
+    Map<String, String>? headers,
+    ValidateStatus? validateStatus,
+  });
   Future get1(String url);
   Future get2(String url);
   Future post1(String url, Map? map);
@@ -115,13 +120,31 @@ class ApiServiceImpl extends ApiService {
   }
 
   @override
-  Future post(String url, Map map) async {
+  Future post(
+    String url,
+    Map map, {
+    Map<String, String>? headers,
+    ValidateStatus? validateStatus,
+  }) async {
     try {
       log('POST => $url');
       log('DATA => $map');
-      final response =
-          await dio.post(url, data: map, cancelToken: _activeToken);
-      log('Response from $url: ${response.statusCode} - ${response.data}');
+
+      final response = await dio.post(
+        url,
+        data: map,
+        options: Options(
+          headers: headers,
+          validateStatus: validateStatus,
+        ),
+        cancelToken: _activeToken,
+      );
+
+      log(
+        'Response from $url: '
+        '${response.statusCode} - ${response.data}',
+      );
+
       return response;
     } catch (e) {
       if (_isCancellation(e)) {

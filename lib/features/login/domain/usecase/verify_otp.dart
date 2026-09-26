@@ -5,13 +5,13 @@ import 'package:dealer/features/login/data/model/user_model.dart';
 import 'package:dealer/features/login/data/model/verify_model.dart';
 import 'package:dealer/features/login/domain/repository/repository.dart';
 
-class VerifyOtpUsecase implements UseCase<UserData, VerifyOtpModel> {
+class VerifyOtpUsecase implements UseCase<UserModel, VerifyOtpModel> {
   final LoginRepository _repository;
 
   VerifyOtpUsecase(this._repository);
 
   @override
-  Future<Either<Failure, UserData>> call(VerifyOtpModel params) {
+  Future<Either<Failure, UserModel>> call(VerifyOtpModel params) {
     final result = _repository.verifyOtp(params);
     return result;
   }

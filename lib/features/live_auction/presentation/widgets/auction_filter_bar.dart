@@ -34,15 +34,21 @@ class _AuctionFilterBarState extends ConsumerState<AuctionFilterBar> {
     return logic.fromDate != null || logic.toDate != null;
   }
 
+// lib/features/live_auction/presentation/widgets/auction_filter_bar.dart
+
   int _activeFilterCount(AuctionLogic logic) {
     int count = 0;
-    if (logic.selectedState != null) count++;
+    // 1. Only count state as an active filter if user changed it away from their home state:
+    if (logic.selectedState != null && !logic.isUserHomeState) {
+      _chip(
+        logic.selectedState!.stateName ?? '',
+        () => logic.updateState(null),
+      );
+    }
     if (logic.selectedCity != null) count++;
     if (logic.selectedLender != null) count++;
     if (logic.selectedCategory != AuctionLogic.categoryOptions.first) count++;
     if (logic.selectedStatus != AuctionLogic.statusOptions.first) count++;
-    // Counted once for the whole range, not once per from/to — and
-    // excluded entirely while it's still just the launch default.
     if (_dateRangeIsActiveFilter(logic)) count++;
     return count;
   }

@@ -24,7 +24,7 @@ class LoginRepositoryImpl extends LoginRepository {
   }
 
   @override
-  Future<Either<Failure, UserData>> verifyOtp(VerifyOtpModel model) async {
+  Future<Either<Failure, UserModel>> verifyOtp(VerifyOtpModel model) async {
     try {
       final data = await _loginRemoteDataSource.verifyOtp(model);
       return Right(data);

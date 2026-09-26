@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/a_vehicle_detail.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
@@ -45,18 +46,15 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
   Duration _remaining = Duration.zero;
   bool _ended = false;
 
-  /// Hard floor: a bid must clear the base price by at least this much,
-  /// regardless of how low the current-bid increment would allow.
-  /// Same rule as PlaceBidSheet — applies to both "Bid" and "Autobid".
   static const int _minAboveBasePrice = 10000;
-
-  /// Usual increment above the current top bid, once base price is
-  /// already cleared. Same as PlaceBidSheet's _minIncrement.
   static const int _minIncrement = 1000;
 
   void _openBidSheet() {
+    final user = ref.read(dLogic).user;
     final trial = ref.read(trialLogic);
-    if (trial.isTrialSession) {
+
+    // If user is NOT logged in and is in trial mode, show blocked dialog
+    if (user == null && trial.isTrialSession) {
       showTrialBlockedDialog(context, ref, expired: trial.isTrialExpired);
       return;
     }
@@ -80,7 +78,6 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
       }
     });
 
-    // Single API call on mount — same pattern as the homepage.
     Future.microtask(() {
       ref
           .read(vehicleDetailProvider.notifier)
@@ -96,7 +93,7 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
   }
 
   void _startTimer(int? endTimeMs) {
-    if (_timer != null) return; // already running
+    if (_timer != null) return;
     if (endTimeMs == null) {
       setState(() => _ended = true);
       return;
@@ -140,10 +137,6 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
     return '₹$buf';
   }
 
-  /// The minimum a bid (or autobid max) must clear: base price + ₹10,000,
-  /// or the usual increment above the current top bid, whichever is
-  /// higher. Same rule PlaceBidSheet uses — kept here so the bottom bar
-  /// and the bottom sheet never disagree about what a valid bid is.
   num _minimumBid(num currentBid, num basePrice) {
     final baseFloor = basePrice + _minAboveBasePrice;
     if (currentBid <= 0) return baseFloor;
@@ -159,9 +152,6 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
     );
   }
 
-  /// Opens the full-screen photo viewer at [index] — tapping the hero
-  /// image, a thumbnail in the strip, or an inspection-row thumbnail
-  /// all go here.
   void _openVehicleImageViewer(List<VehicleImage> images, int index) {
     if (images.isEmpty) return;
     Navigator.push(
@@ -244,8 +234,6 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
 
         final currentBid = detail.highestBidAmount;
         final basePrice = v?.basePrice ?? 0;
-        // Same floor as PlaceBidSheet: base price + ₹10,000, or the
-        // usual increment above the current bid — whichever is higher.
         final nextBid = _minimumBid(currentBid, basePrice);
 
         return Scaffold(
@@ -404,10 +392,6 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
     );
   }
 
-  /// Finds the "front view" image to use as the fixed hero shot.
-  /// Falls back to the first image in the list if no explicit
-  /// front_view entry is tagged, so the hero never ends up blank just
-  /// because of a missing `type` value.
   VehicleImage? _frontImage(List<VehicleImage> images) {
     if (images.isEmpty) return null;
     for (final img in images) {
@@ -416,10 +400,6 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
     return images.first;
   }
 
-  /// Hero image is FIXED to the front view (not swipeable through
-  /// every photo) — the full set is browsable via the horizontal
-  /// thumbnail strip underneath, each thumbnail opening the
-  /// full-screen viewer at that index.
   Widget _buildImageHeader(String vehicleId, String? rtoCode, String? rtoName,
       List<VehicleImage> images) {
     final hero = _frontImage(images);
@@ -522,8 +502,6 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
                 ),
             ],
           ),
-          // ── Horizontal thumbnail strip — tap any thumbnail to open
-          // the full-screen photo viewer starting at that image.
           if (images.isNotEmpty) ...[
             const SizedBox(height: 10),
             SizedBox(
@@ -758,13 +736,6 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
     );
   }
 
-  /// TODO: no per-panel inspection breakdown (structure/panels/tyres/
-  /// lights issues) in the API response — issue titles/subtitles below
-  /// stay mock, but each row's thumbnail + tap now bind to real vehicle
-  /// photos, cycling through `images` since there's no per-issue image
-  /// mapping yet. If backend later tags an image to a specific issue
-  /// (e.g. a `relatedImageType` field), swap `thumbFor`/`tapFor` for a
-  /// lookup by that field instead of cycling by index.
   Widget _buildInspectionDetails(List<VehicleImage> images) {
     String? thumbFor(int i) =>
         images.isEmpty ? null : images[i % images.length].url;
@@ -953,14 +924,11 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
     final isEnablingAutobid =
         autoBidState.maybeWhen(loading: () => true, orElse: () => false);
 
-    // Viewing this page never required a trial/auth check — that's
-    // unchanged. Only the two action buttons below get muted + relabelled
-    // while on a trial session; onPressed stays wired to _openBidSheet()
-    // rather than null, since _openBidSheet() already shows
-    // showTrialBlockedDialog for a trial session — that's the actual
-    // sign-up prompt, so the tap must still reach it.
     final trial = ref.watch(trialLogic);
-    final isTrialLocked = trial.isTrialSession;
+    final user = ref.watch(dLogic).user;
+
+    // Locked ONLY if user has no active account/token AND is currently in trial session
+    final isTrialLocked = (user == null) && trial.isTrialSession;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1110,9 +1078,9 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
                                     AlwaysStoppedAnimation(Colors.white)),
                           )
                         : isTrialLocked
-                            ? Row(
+                            ? const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
+                                children: [
                                   Icon(Icons.lock_outline,
                                       size: 13, color: Colors.white70),
                                   SizedBox(width: 4),
@@ -1147,9 +1115,6 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
   }
 }
 
-/// Loading placeholder for VehicleDetailPage, shown for both the
-/// `initial` and `loading` states of vehicleDetailProvider — mirrors
-/// LiveAuctionListSkeleton's role for the auctions list.
 class VehicleDetailSkeleton extends StatelessWidget {
   const VehicleDetailSkeleton({super.key});
 
@@ -1168,14 +1133,12 @@ class VehicleDetailSkeleton extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: [
-          // Hero image placeholder
           Container(
               height: 230,
               width: double.infinity,
               color: Colors.white,
               child: Container(color: Colors.grey.shade200)),
           const SizedBox(height: 10),
-          // Thumbnail strip placeholder
           Container(
             color: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -1190,7 +1153,6 @@ class VehicleDetailSkeleton extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          // Title + specs
           Container(
             color: Colors.white,
             padding: const EdgeInsets.all(16),
@@ -1204,7 +1166,6 @@ class VehicleDetailSkeleton extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 5),
-          // Rating badges row
           Container(
             color: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),

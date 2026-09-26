@@ -12,7 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 abstract class LoginRemoteDataSource {
   Future<SendOtpModel> sendOtp(SendOtpModel model);
-  Future<UserData> verifyOtp(VerifyOtpModel model);
+  Future<UserModel> verifyOtp(VerifyOtpModel model);
   Future<LogoutResponseModel> logout();
 }
 
@@ -22,7 +22,7 @@ class LoginRemoteDataSourceImpl implements LoginRemoteDataSource {
 
   // in-flight guards — defense in depth, on top of the LoginLogic-level guard
   Future<SendOtpModel>? _pendingSendOtp;
-  Future<UserData>? _pendingVerifyOtp;
+  Future<UserModel>? _pendingVerifyOtp;
 
   @override
   Future<SendOtpModel> sendOtp(SendOtpModel params) {
@@ -38,25 +38,28 @@ class LoginRemoteDataSourceImpl implements LoginRemoteDataSource {
 
   Future<SendOtpModel> _sendOtp(SendOtpModel params) async {
     try {
-      const url = Url.sendOtp;
+      final uri = Uri.parse(Url.sendOtp)
+          .replace(queryParameters: params.toQueryParams());
 
-      // use params as-is — don't silently override its fields
-      final map = params.toJson();
+      final response = await ref.read(apiService).post(
+        uri.toString(),
+        {},
+        validateStatus: (status) {
+          // Status 403 will pass through here instead of crashing Dio
+          return status != null && status < 500;
+        },
+      );
 
-      final body = await ref.read(apiService).post(url, map);
-      log('Response from API: $body');
+      log('OTP Response => ${response.statusCode} - ${response.data}');
 
-      if (body == null) {
-        throw 'API request failed';
+      if (response.data == null) {
+        throw Exception('API request failed');
       }
 
-      if (body.data['success'] != true) {
-        throw _extractMessage(body.data, fallback: 'OTP sending failed');
-      }
-
-      // Response body is typically just {success, message} — don't rely on
-      // fields parsed from it beyond success/failure.
-      return params;
+      // DO NOT throw here if success == false. Return the model directly:
+      return SendOtpModel.fromJson(
+        Map<String, dynamic>.from(response.data),
+      );
     } catch (e) {
       log('Error occurred while sending OTP: $e');
       rethrow;
@@ -64,7 +67,7 @@ class LoginRemoteDataSourceImpl implements LoginRemoteDataSource {
   }
 
   @override
-  Future<UserData> verifyOtp(VerifyOtpModel params) {
+  Future<UserModel> verifyOtp(VerifyOtpModel params) {
     if (_pendingVerifyOtp != null) return _pendingVerifyOtp!;
 
     final future = _verifyOtp(params);
@@ -73,7 +76,7 @@ class LoginRemoteDataSourceImpl implements LoginRemoteDataSource {
     return future;
   }
 
-  Future<UserData> _verifyOtp(VerifyOtpModel params) async {
+  Future<UserModel> _verifyOtp(VerifyOtpModel params) async {
     try {
       final logic = ref.read(dLogic);
       const url = Url.verifyOtp;
@@ -92,14 +95,24 @@ class LoginRemoteDataSourceImpl implements LoginRemoteDataSource {
             fallback: 'OTP verification failed');
       }
 
-      final user = UserData.fromJson(response.data['data']);
-      logic.setUser(user);
-      log('User set in DashBoardLogic: ${user.username}, ${user.userId}');
-      await SecureStorageService().saveLogin(
-        user: user,
-        password: params.phone ?? '',
-      );
-      return user;
+      // 1. Pass the entire response.data to UserModel.fromJson
+      final userModel = UserModel.fromJson(response.data);
+
+      // 2. If existing user (data is not null), save session and user info
+      if (userModel.data != null) {
+        final userData = userModel.data!;
+        logic.setUser(userData);
+        log('User set in DashBoardLogic: ${userData.username}, ${userData.userId}');
+
+        await SecureStorageService().saveLogin(
+          user: userData,
+          password: params.phone ?? '',
+        );
+      } else {
+        log('New user verified: ${userModel.message}');
+      }
+
+      return userModel;
     } catch (e) {
       log('Error occurred while verifying OTP: $e');
       rethrow;

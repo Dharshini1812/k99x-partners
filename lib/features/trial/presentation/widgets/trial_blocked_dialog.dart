@@ -48,7 +48,7 @@ Future<void> showTrialBlockedDialog(
         ElevatedButton(
           onPressed: () {
             Navigator.of(dialogContext).pop();
-            ref.read(routeService).push(const SignupRoute(), context);
+            ref.read(routeService).push(SignupRoute(), context);
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF3F51E8),

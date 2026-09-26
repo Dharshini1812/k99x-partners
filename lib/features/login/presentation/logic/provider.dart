@@ -51,3 +51,4 @@ final logoutNotifierProvider =
     StateNotifierProvider<LogoutNotifier, LogoutState>(
   (ref) => LogoutNotifier(usecase: ref.read(logoutUsecase), ref: ref),
 );
+final loginIsRegisteredProvider = StateProvider<bool>((ref) => true);

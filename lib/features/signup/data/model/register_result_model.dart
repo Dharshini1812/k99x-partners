@@ -1,13 +1,3 @@
-// lib/features/signup/data/model/register_response_model.dart
-//
-// Matches:
-// { "data": { "userType": "DEALER", "userId": 201, "username": "XDTN00008" },
-//   "success": true, "message": "Registration successful!" }
-//
-// Plain classes, same style as your RegisterResult — no freezed, no
-// codegen. A response you only ever read (never build/copy/compare)
-// doesn't need what freezed gives you.
-
 class RegisterResponse {
   final bool success;
   final String message;
@@ -28,18 +18,18 @@ class RegisterResponse {
 }
 
 class RegisterResult {
+  final String? subRole;
   final String? userType;
-  final int? userId;
+  final String? userId;
   final String? username;
 
-  RegisterResult({this.userType, this.userId, this.username});
+  RegisterResult({this.subRole, this.userType, this.userId, this.username});
 
   factory RegisterResult.fromJson(Map<String, dynamic> json) {
     return RegisterResult(
+      subRole: json['subRole']?.toString(),
       userType: json['userType']?.toString(),
-      userId: json['userId'] is int
-          ? json['userId'] as int
-          : int.tryParse('${json['userId']}'),
+      userId: json['userId']?.toString(),
       username: json['username']?.toString(),
     );
   }

@@ -1,10 +1,3 @@
-// lib/features/onboarding/presentation/widgets/upload_tile.dart
-//
-// One reusable box for every "Click selfie" / "Upload Aadhaar front" style
-// tile. Empty state: dashed border + a tinted icon badge, so it reads as
-// "tap to add" rather than a plain disabled-looking box. Filled state:
-// the photo with a small retake button bottom-right.
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 
@@ -152,8 +145,6 @@ class _FilledTile extends StatelessWidget {
   }
 }
 
-/// Even, evenly-spaced dashed rounded-rect border — signals "tap to add"
-/// without pulling in an extra package for one visual detail.
 class _DashedBorderPainter extends CustomPainter {
   final Color color;
   final double radius;
@@ -164,9 +155,9 @@ class _DashedBorderPainter extends CustomPainter {
   _DashedBorderPainter({
     required this.color,
     required this.radius,
-    this.dashWidth = 5,
-    this.dashGap = 4,
-    this.strokeWidth = 1.4,
+    this.dashWidth = 5.0,
+    this.dashGap = 3.0,
+    this.strokeWidth = 1.0,
   });
 
   @override
@@ -196,5 +187,9 @@ class _DashedBorderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.radius != radius;
+      oldDelegate.color != color ||
+      oldDelegate.radius != radius ||
+      oldDelegate.dashWidth != dashWidth ||
+      oldDelegate.dashGap != dashGap ||
+      oldDelegate.strokeWidth != strokeWidth;
 }

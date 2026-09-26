@@ -7,6 +7,6 @@ part 'verify_state.freezed.dart';
 class VerifyOtpState with _$VerifyOtpState {
   const factory VerifyOtpState.initial() = _VerifyOtpStateInitial;
   const factory VerifyOtpState.loading() = _VerifyOtpStateLoading;
-  const factory VerifyOtpState.data(UserData data) = _VerifyOtpStateData;
+  const factory VerifyOtpState.data(UserModel data) = _VerifyOtpStateData;
   const factory VerifyOtpState.error(String msg) = _VerifyOtpStateError;
 }

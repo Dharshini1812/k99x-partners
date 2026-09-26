@@ -80,9 +80,14 @@ class AppRouter extends _i9.RootStackRouter {
       );
     },
     SignupRoute.name: (routeData) {
+      final args = routeData.argsAs<SignupRouteArgs>(
+          orElse: () => const SignupRouteArgs());
       return _i9.MaterialPageX<dynamic>(
         routeData: routeData,
-        child: const _i8.SignupPage(),
+        child: _i8.SignupPage(
+          key: args.key,
+          prefilledMobile: args.prefilledMobile,
+        ),
       );
     },
   };
@@ -237,12 +242,34 @@ class VehicleDetailRouteArgs {
 
 /// generated route for
 /// [_i8.SignupPage]
-class SignupRoute extends _i9.PageRouteInfo<void> {
-  const SignupRoute()
-      : super(
+class SignupRoute extends _i9.PageRouteInfo<SignupRouteArgs> {
+  SignupRoute({
+    _i10.Key? key,
+    String? prefilledMobile,
+  }) : super(
           SignupRoute.name,
           path: '/signup-page',
+          args: SignupRouteArgs(
+            key: key,
+            prefilledMobile: prefilledMobile,
+          ),
         );
 
   static const String name = 'SignupRoute';
+}
+
+class SignupRouteArgs {
+  const SignupRouteArgs({
+    this.key,
+    this.prefilledMobile,
+  });
+
+  final _i10.Key? key;
+
+  final String? prefilledMobile;
+
+  @override
+  String toString() {
+    return 'SignupRouteArgs{key: $key, prefilledMobile: $prefilledMobile}';
+  }
 }

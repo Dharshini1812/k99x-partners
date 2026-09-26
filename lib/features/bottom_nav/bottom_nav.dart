@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/dashboard/presentation/d.page.dart';
+import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/presentation/pages/auction_homepage.dart';
 import 'package:dealer/features/my_listings/presentation/pages/my_list_page.dart';
 import 'package:dealer/features/profile/presentation/pages/profile.dart';
@@ -24,11 +25,13 @@ class _BottomNavPageState extends ConsumerState<BottomNavPage> {
   Widget build(BuildContext context) {
     final currentIndex = ref.watch(bottomNavIndexProvider);
     final trial = ref.watch(trialLogic);
+    final user = ref.watch(dLogic).user;
 
-    // Only Auction (index 0) is meant for guests — Home/Sell/Listings/
-    // Profile all show or act on a real dealer's own data, none of
-    // which exists for a trial session.
-    final lockedIndices = trial.isTrialSession ? {1, 2, 3, 4} : <int>{};
+    // Trial mode is active if there is no logged-in user and trial is active
+    final bool isTrialMode = (user == null) && trial.isTrialSession;
+
+    // If in free trial, lock tabs 1, 2, 3, 4. If logged in, unlock everything.
+    final lockedIndices = isTrialMode ? {1, 2, 3, 4} : <int>{};
 
     final pages = [
       const AuctionHomePage(),

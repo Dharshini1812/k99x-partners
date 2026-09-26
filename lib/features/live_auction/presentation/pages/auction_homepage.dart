@@ -26,10 +26,9 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final TabController _tabController;
 
-  // index -> (label, count, status sent to the API for that tab)
   static const _tabs = [
     (label: 'Auctions', count: '51', status: 'LIVE'),
-    (label: 'One click buy', count: '117', status: null), // no endpoint yet
+    (label: 'One click buy', count: '117', status: null),
     (label: 'Upcoming', count: '12', status: 'UPCOMING'),
   ];
 
@@ -43,33 +42,14 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     Future.microtask(() {
       ref.read(getStateProvider.notifier).getState();
 
-      // Default the initial fetch to 2 months before today through
-      // 2 months after today. This is seeded via setDefaultDateRange()
-      // (not updateFromDate/updateToDate directly) so AuctionLogic
-      // still sends fromDate/toDate to the API on launch, but the
-      // filter bar's chip/badge won't treat it as something the user
-      // applied until they actually open the date picker themselves.
       final today = DateTime.now();
       final twoMonthsAgo = DateTime(today.year, today.month - 2, today.day);
       final twoMonthsAhead = DateTime(today.year, today.month + 2, today.day);
 
       final logic = ref.read(auctionLogic);
       logic.setDefaultDateRange(twoMonthsAgo, twoMonthsAhead);
-
-      // Intentionally NOT calling setActiveTabStatus(_tabs[0].status)
-      // here — that would force status=LIVE on the very first request.
-      // The initial fetch should have no status filter at all (i.e.
-      // "All status"), fetching every auction in the default date
-      // range; _buildAuctionsList() already filters the LIVE/UPCOMING
-      // tabs locally from that broader result. activeTabStatus stays
-      // null until the user actually taps a different tab, at which
-      // point _onTabChanged() calls setActiveTabStatus() as before.
       logic.search();
 
-      // In case both the states list and the user's profile are already
-      // loaded (e.g. cached from a previous visit), try applying the
-      // default state right away too — otherwise this happens via the
-      // listeners in build() once whichever one is still loading settles.
       _tryApplyUserDefaultState();
     });
   }
@@ -81,9 +61,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
 
     final prefs = await SharedPreferences.getInstance();
     final alreadyShown = prefs.getBool(_voucherShownKey) ?? false;
-    if (alreadyShown) {
-      return; // already shown since this login
-    }
+    if (alreadyShown) return;
 
     if (!mounted) return;
 
@@ -99,7 +77,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
       context: context,
       liveCount: liveCount,
       onViewAuctions: () {
-        // "Auctions" is tab index 0.
         _tabController.animateTo(0);
       },
     );
@@ -291,14 +268,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
         ),
       ),
       data: (auctions) {
-        assert(() {
-          final rawStatuses = auctions.map((a) => a.status).toSet().toList();
-          debugPrint(
-              '[AuctionHomePage] tab="$status" total fetched=${auctions.length} '
-              'distinct raw status values=$rawStatuses');
-          return true;
-        }());
-
         final filtered = auctions
             .where((a) => !_isEnded(a))
             .where((a) {
@@ -365,12 +334,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
   }
 }
 
-// Drop-in replacement for _TrialStatusBanner + _TrialStatusBannerState in
-// your auction_home_page.dart — same public surface (trialLogic,
-// routeService, SignupRoute), no new imports needed since it only uses
-// what that file already imports (dart:async, material.dart, riverpod,
-// router.gr.dart, provider.dart, trial_logic.dart).
-
 class _TrialStatusBanner extends ConsumerStatefulWidget {
   const _TrialStatusBanner();
 
@@ -398,7 +361,13 @@ class _TrialStatusBannerState extends ConsumerState<_TrialStatusBanner> {
   @override
   Widget build(BuildContext context) {
     final trial = ref.watch(trialLogic);
-    if (!trial.isTrialSession) return const SizedBox.shrink();
+    final user = ref.watch(dLogic).user;
+
+    // If user is already logged in or not in trial session, hide the timer
+    final bool isLoggedIn = user != null;
+    if (isLoggedIn || !trial.isTrialSession) {
+      return const SizedBox.shrink();
+    }
 
     final expired = trial.isTrialExpired;
     final accent = expired ? const Color(0xFFE24C4C) : const Color(0xFF3F51E8);
@@ -459,8 +428,7 @@ class _TrialStatusBannerState extends ConsumerState<_TrialStatusBanner> {
           ),
           const SizedBox(width: 10),
           GestureDetector(
-            onTap: () =>
-                ref.read(routeService).push(const SignupRoute(), context),
+            onTap: () => ref.read(routeService).push(SignupRoute(), context),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
@@ -488,8 +456,6 @@ class _TrialStatusBannerState extends ConsumerState<_TrialStatusBanner> {
   }
 }
 
-/// The countdown itself, boxed per unit (HH / MM / SS) so it reads at a
-/// glance instead of getting lost inside a sentence.
 class _CountdownRow extends StatelessWidget {
   final Duration remaining;
   final Color color;

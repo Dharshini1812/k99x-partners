@@ -20,7 +20,7 @@ mixin _$VerifyOtpState {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(UserData data) data,
+    required TResult Function(UserModel data) data,
     required TResult Function(String msg) error,
   }) =>
       throw _privateConstructorUsedError;
@@ -28,7 +28,7 @@ mixin _$VerifyOtpState {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(UserData data)? data,
+    TResult? Function(UserModel data)? data,
     TResult? Function(String msg)? error,
   }) =>
       throw _privateConstructorUsedError;
@@ -36,7 +36,7 @@ mixin _$VerifyOtpState {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(UserData data)? data,
+    TResult Function(UserModel data)? data,
     TResult Function(String msg)? error,
     required TResult orElse(),
   }) =>
@@ -128,7 +128,7 @@ class _$VerifyOtpStateInitialImpl implements _VerifyOtpStateInitial {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(UserData data) data,
+    required TResult Function(UserModel data) data,
     required TResult Function(String msg) error,
   }) {
     return initial();
@@ -139,7 +139,7 @@ class _$VerifyOtpStateInitialImpl implements _VerifyOtpStateInitial {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(UserData data)? data,
+    TResult? Function(UserModel data)? data,
     TResult? Function(String msg)? error,
   }) {
     return initial?.call();
@@ -150,7 +150,7 @@ class _$VerifyOtpStateInitialImpl implements _VerifyOtpStateInitial {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(UserData data)? data,
+    TResult Function(UserModel data)? data,
     TResult Function(String msg)? error,
     required TResult orElse(),
   }) {
@@ -244,7 +244,7 @@ class _$VerifyOtpStateLoadingImpl implements _VerifyOtpStateLoading {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(UserData data) data,
+    required TResult Function(UserModel data) data,
     required TResult Function(String msg) error,
   }) {
     return loading();
@@ -255,7 +255,7 @@ class _$VerifyOtpStateLoadingImpl implements _VerifyOtpStateLoading {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(UserData data)? data,
+    TResult? Function(UserModel data)? data,
     TResult? Function(String msg)? error,
   }) {
     return loading?.call();
@@ -266,7 +266,7 @@ class _$VerifyOtpStateLoadingImpl implements _VerifyOtpStateLoading {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(UserData data)? data,
+    TResult Function(UserModel data)? data,
     TResult Function(String msg)? error,
     required TResult orElse(),
   }) {
@@ -324,7 +324,7 @@ abstract class _$$VerifyOtpStateDataImplCopyWith<$Res> {
           $Res Function(_$VerifyOtpStateDataImpl) then) =
       __$$VerifyOtpStateDataImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({UserData data});
+  $Res call({UserModel data});
 }
 
 /// @nodoc
@@ -344,7 +344,7 @@ class __$$VerifyOtpStateDataImplCopyWithImpl<$Res>
       null == data
           ? _value.data
           : data // ignore: cast_nullable_to_non_nullable
-              as UserData,
+              as UserModel,
     ));
   }
 }
@@ -355,7 +355,7 @@ class _$VerifyOtpStateDataImpl implements _VerifyOtpStateData {
   const _$VerifyOtpStateDataImpl(this.data);
 
   @override
-  final UserData data;
+  final UserModel data;
 
   @override
   String toString() {
@@ -385,7 +385,7 @@ class _$VerifyOtpStateDataImpl implements _VerifyOtpStateData {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(UserData data) data,
+    required TResult Function(UserModel data) data,
     required TResult Function(String msg) error,
   }) {
     return data(this.data);
@@ -396,7 +396,7 @@ class _$VerifyOtpStateDataImpl implements _VerifyOtpStateData {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(UserData data)? data,
+    TResult? Function(UserModel data)? data,
     TResult? Function(String msg)? error,
   }) {
     return data?.call(this.data);
@@ -407,7 +407,7 @@ class _$VerifyOtpStateDataImpl implements _VerifyOtpStateData {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(UserData data)? data,
+    TResult Function(UserModel data)? data,
     TResult Function(String msg)? error,
     required TResult orElse(),
   }) {
@@ -456,10 +456,10 @@ class _$VerifyOtpStateDataImpl implements _VerifyOtpStateData {
 }
 
 abstract class _VerifyOtpStateData implements VerifyOtpState {
-  const factory _VerifyOtpStateData(final UserData data) =
+  const factory _VerifyOtpStateData(final UserModel data) =
       _$VerifyOtpStateDataImpl;
 
-  UserData get data;
+  UserModel get data;
   @JsonKey(ignore: true)
   _$$VerifyOtpStateDataImplCopyWith<_$VerifyOtpStateDataImpl> get copyWith =>
       throw _privateConstructorUsedError;
@@ -532,7 +532,7 @@ class _$VerifyOtpStateErrorImpl implements _VerifyOtpStateError {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(UserData data) data,
+    required TResult Function(UserModel data) data,
     required TResult Function(String msg) error,
   }) {
     return error(msg);
@@ -543,7 +543,7 @@ class _$VerifyOtpStateErrorImpl implements _VerifyOtpStateError {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(UserData data)? data,
+    TResult? Function(UserModel data)? data,
     TResult? Function(String msg)? error,
   }) {
     return error?.call(msg);
@@ -554,7 +554,7 @@ class _$VerifyOtpStateErrorImpl implements _VerifyOtpStateError {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(UserData data)? data,
+    TResult Function(UserModel data)? data,
     TResult Function(String msg)? error,
     required TResult orElse(),
   }) {

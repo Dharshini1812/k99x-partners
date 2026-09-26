@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
 import 'package:dealer/features/trial/presentation/widgets/trial_blocked_dialog.dart';
 import 'package:flutter/material.dart';
@@ -81,9 +82,6 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     return '₹$buf';
   }
 
-  /// Safely gets the highest / current bid amount, or null if there
-  /// are no bids yet. `bids?.first` throws "Bad state: No element"
-  /// when `bids` is a non-null but *empty* list, so guard on length too.
   double? _currentBidAmount(LiveAuctionModel v) {
     final bids = v.bids;
     if (bids == null || bids.isEmpty) return null;
@@ -96,25 +94,12 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     super.dispose();
   }
 
-  /// Opens the bid/autobid sheet and — this is the fix — actually
-  /// waits for its result instead of firing-and-forgetting it. The
-  /// sheet returns the placed amount (via Navigator.pop(_amount)) only
-  /// when a bid or autobid genuinely succeeded; on cancel/dismiss it
-  /// returns null. Without awaiting this, the card had no way to know
-  /// a bid had just been placed, so `widget.vehicle` — the static
-  /// snapshot this card was built with — kept showing the stale
-  /// "Current Bid" until the whole list was refetched some other way
-  /// (e.g. a manual pull-to-refresh or navigating away and back).
-  ///
-  /// On success, re-running the same search() the list is already
-  /// built from refreshes liveAuctionNotifier, which rebuilds every
-  /// card (this one included) with the live current-bid amount — no
-  /// manual reload needed.
   Future<void> _openBidSheet() async {
-    // Trial/guest sessions can browse auctions but not bid — same rule
-    // enforced again in vehicle_detail_page.dart's own _openBidSheet.
+    final user = ref.read(dLogic).user;
     final trial = ref.read(trialLogic);
-    if (trial.isTrialSession) {
+
+    // Only block bidding if the user is NOT logged in and currently in trial mode
+    if (user == null && trial.isTrialSession) {
       showTrialBlockedDialog(context, ref, expired: trial.isTrialExpired);
       return;
     }

@@ -13,7 +13,7 @@ class UserModel {
     return UserModel(
       data: json['data'] != null ? UserData.fromJson(json['data']) : null,
       success: json['success'] ?? false,
-      message: json['message'],
+      message: json['message'] as String?,
     );
   }
 
@@ -37,6 +37,7 @@ class UserData {
   final int? lenderId;
   final String? cityName;
   final String? stateName;
+  final String? subRole;
 
   UserData({
     this.phoneNumber,
@@ -49,6 +50,7 @@ class UserData {
     this.lenderId,
     this.cityName,
     this.stateName,
+    this.subRole,
   });
 
   factory UserData.fromJson(Map<String, dynamic> json) {
@@ -63,6 +65,7 @@ class UserData {
       lenderId: json['lenderId'] as int?,
       cityName: json['cityName'] as String?,
       stateName: json['stateName'] as String?,
+      subRole: json['subRole'] as String?,
     );
   }
 
@@ -76,6 +79,8 @@ class UserData {
       'username': username,
       'lenderName': lenderName,
       'lenderId': lenderId,
+      'cityName': cityName,
+      'stateName': stateName,
     };
   }
 }

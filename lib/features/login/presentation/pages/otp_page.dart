@@ -10,6 +10,7 @@ import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:sms_autofill/sms_autofill.dart';
 
 const _kLogoBlue = Color(0xFF1E2FE0);
@@ -45,7 +46,9 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
         logic.otpCtrlList[i].text = otp[i];
       }
       logic.setAutoOtp(otp);
-      logic.verifyOtp();
+
+      final isRegistered = ref.read(loginIsRegisteredProvider);
+      logic.verifyOtp(isRegistered: isRegistered);
     }
   }
 
@@ -58,7 +61,6 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
   void _handleOtpInput(int index, String value, LoginLogic logic) {
     final digits = value.replaceAll(RegExp(r'\D'), '');
 
-    // Multi-character input (Clipboard paste or Autofill)
     if (digits.length > 1) {
       for (int i = 0; i < 4; i++) {
         if (i < digits.length) {
@@ -70,14 +72,15 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
       if (digits.length >= 4) {
         logic.otpFocusList[3].unfocus();
         logic.setAutoOtp(digits.substring(0, 4));
-        logic.verifyOtp();
+
+        final isRegistered = ref.read(loginIsRegisteredProvider);
+        logic.verifyOtp(isRegistered: isRegistered);
       } else {
         logic.otpFocusList[digits.length].requestFocus();
       }
       return;
     }
 
-    // Single digit input
     if (digits.isNotEmpty) {
       logic.otpCtrlList[index].text = digits;
       if (index < 3) {
@@ -96,16 +99,27 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
     final state = ref.watch(verifyOtpProvider);
     final logic = ref.watch(loginLogicProvider);
     final phone = ref.watch(loginPhoneProvider);
+    final isRegistered = ref.watch(loginIsRegisteredProvider);
 
     ref.listen(verifyOtpProvider, (previous, next) {
       next.whenOrNull(
         data: (data) {
-          // A genuine login ends guest/trial mode even if trial time is
-          // still left — bidding now goes through the real account.
-          // everUsedTrial deliberately stays true: logging in doesn't
-          // refund the trial.
           ref.read(trialLogic).endTrialSession();
-          if (data.userType == 'CLIENT') {
+
+          // If new user (isRegistered was false or response has no userId), route to Signup
+          if (!isRegistered || data.data == null || data.data?.userId == null) {
+            Fluttertoast.showToast(
+              msg: data.message ?? "OTP Verified successfully",
+            );
+            ref.read(routeService).push(
+                  SignupRoute(prefilledMobile: phone),
+                  context,
+                );
+            return;
+          }
+
+          // Existing registered user flow
+          if (data.data?.userType == 'CLIENT') {
             ref
                 .read(routeService)
                 .pushAndRemoveUntil(const ClientBottomNavRoute(), context);
@@ -114,6 +128,9 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                 .read(routeService)
                 .pushAndRemoveUntil(const BottomNavRoute(), context);
           }
+        },
+        error: (msg) {
+          Fluttertoast.showToast(msg: msg, toastLength: Toast.LENGTH_SHORT);
         },
       );
     });
@@ -204,8 +221,6 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                 ],
               ),
               const SizedBox(height: 36),
-
-              // ── 4 OTP Boxes with Autofill & Paste support ──────────
               Row(
                 children: [
                   for (int i = 0; i < 4; i++) ...[
@@ -221,11 +236,10 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                   ],
                 ],
               ),
-
               const SizedBox(height: 28),
               Center(
                 child: GestureDetector(
-                  onTap: logic.resendOtp,
+                  onTap: () => logic.resendOtp(isRegistered: isRegistered),
                   child: RichText(
                     text: TextSpan(
                       style: const TextStyle(fontSize: 15, color: _kGrey),
@@ -253,7 +267,7 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                   orElse: () => false,
                 ),
                 isEnabled: logic.isOtpValid,
-                onTap: logic.verifyOtp,
+                onTap: () => logic.verifyOtp(isRegistered: isRegistered),
               ),
               const SizedBox(height: 32),
             ],

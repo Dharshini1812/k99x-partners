@@ -1,3 +1,5 @@
+// lib/features/login/presentation/logic/login_logic.dart
+
 import 'dart:async';
 import 'package:dealer/features/login/data/model/send_otp.dart';
 import 'package:dealer/features/login/data/model/verify_model.dart';
@@ -22,8 +24,6 @@ class LoginLogic extends ChangeNotifier {
   Timer? resendTimer;
   bool isOtpValid = false;
   bool isPhoneValid = false;
-
-  // guards against double-fire (double tap, duplicate sms_autofill events, etc.)
   bool _isSendingOtp = false;
   bool _isVerifyingOtp = false;
   String? _lastVerifiedOtp;
@@ -49,7 +49,9 @@ class LoginLogic extends ChangeNotifier {
     startResendTimer();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      otpFocusList[0].requestFocus();
+      if (otpFocusList.isNotEmpty) {
+        otpFocusList[0].requestFocus();
+      }
     });
 
     for (final controller in otpCtrlList) {
@@ -61,7 +63,6 @@ class LoginLogic extends ChangeNotifier {
   void onOtpDigit(int index, String value) {
     final digits = value.replaceAll(RegExp(r'\D'), '');
 
-    // ── Handle multi-digit paste (e.g., pasting "1234") ─────────
     if (digits.length > 1) {
       for (int i = 0; i < 4; i++) {
         if (i < digits.length) {
@@ -71,7 +72,6 @@ class LoginLogic extends ChangeNotifier {
         }
       }
 
-      // Move focus to the last filled box or unfocus if all 4 are filled
       if (digits.length >= 4) {
         otpFocusList[3].unfocus();
       } else {
@@ -82,7 +82,6 @@ class LoginLogic extends ChangeNotifier {
       return;
     }
 
-    // ── Handle single digit input ────────────────────────────────
     if (digits.isNotEmpty) {
       otpCtrlList[index].text = digits;
       if (index < 3) {
@@ -105,23 +104,20 @@ class LoginLogic extends ChangeNotifier {
   }
 
   Future<void> sendOtp(SendOtpModel sendModel) async {
-    if (_isSendingOtp) return; // block double tap / re-entry
-
+    if (_isSendingOtp) return;
     _isSendingOtp = true;
     try {
-      // build model using the trimmed value passed in
       await ref.read(sendOtpProvider.notifier).sendOtp(sendModel);
     } finally {
       _isSendingOtp = false;
     }
   }
 
-  Future<void> verifyOtp() async {
-    if (_isVerifyingOtp) return; // block concurrent/duplicate calls
+  // Accepts dynamic isRegistered parameter rather than hardcoding true
+  Future<void> verifyOtp({required bool isRegistered}) async {
+    if (_isVerifyingOtp) return;
     if (fullOtp.length < 4) return;
-    if (_lastVerifiedOtp == fullOtp) {
-      return; // block duplicate sms_autofill fires
-    }
+    if (_lastVerifiedOtp == fullOtp) return;
 
     _isVerifyingOtp = true;
     _lastVerifiedOtp = fullOtp;
@@ -131,10 +127,14 @@ class LoginLogic extends ChangeNotifier {
     }
 
     try {
+      final phone = ref.read(loginPhoneProvider).isNotEmpty
+          ? ref.read(loginPhoneProvider)
+          : phoneCtrl.text.trim();
+
       final params = VerifyOtpModel(
-        phone: phoneCtrl.text.trim(),
+        phone: phone,
         otp: fullOtp,
-        isRegistered: true,
+        isRegistered: isRegistered,
         role: 'DEALER',
         source: 2,
       );
@@ -144,16 +144,22 @@ class LoginLogic extends ChangeNotifier {
     }
   }
 
-  Future<void> resendOtp() async {
+  Future<void> resendOtp({required bool isRegistered}) async {
     if (resendSeconds > 0) return;
 
     for (final c in otpCtrlList) {
       c.clear();
     }
-    _lastVerifiedOtp = null; // allow a fresh code to be verified
+    _lastVerifiedOtp = null;
 
-    // actually re-request a code — this was missing before
-    await sendOtp(SendOtpModel(phone: phoneCtrl.text.trim()));
+    final phone = ref.read(loginPhoneProvider).isNotEmpty
+        ? ref.read(loginPhoneProvider)
+        : phoneCtrl.text.trim();
+
+    await sendOtp(SendOtpModel(
+      phone: phone,
+      isRegistered: isRegistered,
+    ));
 
     startResendTimer();
   }
@@ -199,5 +205,35 @@ class LoginLogic extends ChangeNotifier {
 
     resendTimer?.cancel();
     super.dispose();
+  }
+  // lib/features/login/presentation/logic/login_logic.dart
+
+  void clearOtpState({bool keepPhone = true}) {
+    // 1. Clear all 4 OTP digit boxes
+    for (final controller in otpCtrlList) {
+      controller.clear();
+    }
+
+    // 2. Unfocus any active focus node
+    for (final node in otpFocusList) {
+      node.unfocus();
+    }
+
+    // 3. Reset OTP validity & verification flags
+    isOtpValid = false;
+    _isVerifyingOtp = false;
+    _lastVerifiedOtp = null;
+
+    // 4. Cancel resend timer
+    resendTimer?.cancel();
+    resendSeconds = 30;
+
+    // 5. Optionally clear phone field
+    if (!keepPhone) {
+      phoneCtrl.clear();
+      isPhoneValid = false;
+    }
+
+    notifyListeners();
   }
 }

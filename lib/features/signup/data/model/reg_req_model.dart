@@ -1,17 +1,3 @@
-// lib/features/signup/data/model/register_request_model.dart
-//
-// Field names here are literal multipart field names (Java/Spring-style
-// dotted names — e.g. "user.firstName" — not real nested JSON), matching
-// the curl exactly:
-//
-//   user.firstName, user.lastName, user.phoneNumber, user.email,
-//   user.state, user.city, user.pincode, user.userType
-//   aadhaarFrontCard, aadhaarBackCard, pancard, paymentReceipt   (files)
-//   payments.paymentMethod, payments.amount, payments.referenceId
-//
-// Plain class — no freezed. This is built once, right before submit, and
-// never mutated or compared, so copyWith/== would be dead weight.
-
 import 'package:dio/dio.dart';
 
 class RegisterRequestModel {
@@ -19,10 +5,12 @@ class RegisterRequestModel {
   final String lastName;
   final String phoneNumber;
   final String email;
+  final String password;
   final String state; // state ID, from Url.stateUrl
   final String city; // city ID, from Url.cityUrl
   final String pincode;
   final String userType;
+  final String subRole;
   final String aadhaarFrontCardPath;
   final String aadhaarBackCardPath;
   final String pancardPath;
@@ -36,10 +24,12 @@ class RegisterRequestModel {
     required this.lastName,
     required this.phoneNumber,
     required this.email,
+    required this.password,
     required this.state,
     required this.city,
     required this.pincode,
     this.userType = 'DEALER',
+    this.subRole = 'BANK_DEALER',
     required this.aadhaarFrontCardPath,
     required this.aadhaarBackCardPath,
     required this.pancardPath,
@@ -55,10 +45,12 @@ class RegisterRequestModel {
       'user.lastName': lastName,
       'user.phoneNumber': phoneNumber,
       'user.email': email,
+      'user.password': password,
       'user.state': state,
       'user.city': city,
       'user.pincode': pincode,
       'user.userType': userType,
+      'subRole': subRole,
       'aadhaarFrontCard': await MultipartFile.fromFile(
         aadhaarFrontCardPath,
         filename: _fileName(aadhaarFrontCardPath),

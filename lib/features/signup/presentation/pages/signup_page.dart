@@ -2,6 +2,9 @@ import 'dart:io';
 import 'package:auto_route/auto_route.dart';
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/core/route/router.gr.dart';
+import 'package:dealer/features/login/data/model/send_otp.dart';
+import 'package:dealer/features/login/data/model/verify_model.dart';
+import 'package:dealer/features/login/presentation/logic/login_logic.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
 import 'package:dealer/features/signup/data/model/reg_req_model.dart';
 import 'package:dealer/features/signup/presentation/logic/register/register_notifier.dart';
@@ -14,7 +17,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../../data/model/onboarding_model.dart';
 import '../logic/signup_logic.dart';
-import '../widgets/oval_selfie_camera.dart';
 import '../widgets/upload_tile.dart';
 import '../widgets/section_wrapper.dart';
 
@@ -23,10 +25,12 @@ const _kDark = Color(0xFF11142A);
 const _kGrey = Color(0xFF8B8FA3);
 const _kFaintBg = Color(0xFFEDEFF7);
 const _kBorder = Color(0xFFE7E8F0);
+const _kGreen = Color(0xFF1CB098);
 
 @AutoRoute()
 class SignupPage extends ConsumerStatefulWidget {
-  const SignupPage({super.key});
+  final String? prefilledMobile;
+  const SignupPage({super.key, this.prefilledMobile});
 
   @override
   ConsumerState<SignupPage> createState() => _SignupPageState();
@@ -34,6 +38,16 @@ class SignupPage extends ConsumerStatefulWidget {
 
 class _SignupPageState extends ConsumerState<SignupPage> {
   final _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.prefilledMobile != null &&
+        widget.prefilledMobile!.trim().isNotEmpty) {
+      ref.read(signUpLogicProvider).phoneCtrl.text =
+          widget.prefilledMobile!.trim();
+    }
+  }
 
   Future<File?> _pickImage({required bool cameraOnly}) async {
     if (cameraOnly) {
@@ -67,18 +81,6 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     return x == null ? null : File(x.path);
   }
 
-  Future<void> _captureSelfie(SignUpLogic logic) async {
-    final file = await Navigator.of(context).push<File>(
-      MaterialPageRoute(builder: (_) => const OvalSelfieCameraPage()),
-    );
-    if (file != null) setState(() => logic.images.ownerSelfie = file);
-  }
-
-  Future<void> _pickPlaceOfBusiness(SignUpLogic logic) async {
-    final file = await _pickImage(cameraOnly: true);
-    if (file != null) setState(() => logic.images.placeOfBusiness = file);
-  }
-
   Future<void> _pickReceipt(SignUpLogic logic) async {
     final file = await _pickImage(cameraOnly: false);
     if (file != null) setState(() => logic.paymentReceipt = file);
@@ -88,7 +90,6 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     final file = await _pickImage(cameraOnly: false);
     if (file == null) return;
     setState(() => assign(file));
-    // Re-run the Aadhaar/PAN name check whenever either doc changes.
     if (logic.images.aadhaarFront != null && logic.images.panCard != null) {
       ref.read(nameMatchStatusProvider.notifier).state =
           NameMatchStatus.checking;
@@ -97,9 +98,6 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     }
   }
 
-  /// "Explore app via free trial" banner tap — one 48-hour trial per
-  /// device (see TrialLogic), after which this device can't start
-  /// another one; only signing up (or logging in) gets bidding back.
   Future<void> _startFreeTrial() async {
     final trial = ref.read(trialLogic);
     if (trial.everUsedTrial) {
@@ -124,18 +122,9 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     completed[currentIndex] = true;
     ref.read(sectionCompleteProvider.notifier).state = completed;
     final next = currentIndex + 1;
-    ref.read(expandedSectionProvider.notifier).state = next < 5 ? next : -1;
+    ref.read(expandedSectionProvider.notifier).state = next < 3 ? next : -1;
   }
 
-  /// Final "Submit for review" action — builds the /auth/register payload
-  /// from everything collected across the 5 steps and fires it.
-  ///
-  /// NOTE: owner selfie, place-of-business photo, and the Business
-  /// Documents uploads (GST/MSME/etc.) are NOT part of the register call
-  /// per the curl you shared — that endpoint only takes Aadhaar, PAN, and
-  /// a payment receipt. Those other files are collected here but not sent
-  /// yet; they likely belong to a follow-up KYC call (Url.uploadKyc) once
-  /// the account exists. Flagging rather than guessing at that contract.
   Future<void> _submitRegistration(SignUpLogic logic) async {
     if (!logic.isBusinessInfoValid ||
         !logic.isPersonalDocsValid ||
@@ -157,9 +146,10 @@ class _SignupPageState extends ConsumerState<SignupPage> {
             aadhaarBackCardPath: logic.images.aadhaarBack!.path,
             pancardPath: logic.images.panCard!.path,
             paymentReceiptPath: logic.paymentReceipt!.path,
-            paymentMethod: logic.selectedUpiApp,
+            paymentMethod: 'UPI',
             amount: SignUpLogic.depositAmount,
             referenceId: logic.referenceIdCtrl.text.trim(),
+            password: logic.passwordCtrl.text,
           ),
         );
   }
@@ -178,6 +168,12 @@ class _SignupPageState extends ConsumerState<SignupPage> {
       next.whenOrNull(
         data: (data) {
           Fluttertoast.showToast(msg: data.message);
+          final registeredPhone = logic.phoneCtrl.text.trim();
+
+          ref.read(loginLogicProvider).clearOtpState(keepPhone: true);
+          ref.read(loginPhoneProvider.notifier).state = registeredPhone;
+          ref.read(loginLogicProvider).phoneCtrl.text = registeredPhone;
+          ref.read(loginIsRegisteredProvider.notifier).state = true;
           ref
               .read(routeService)
               .pushAndRemoveUntil(const LoginRoute(), context);
@@ -204,12 +200,14 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     end: Alignment.bottomRight,
                   ),
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Text('Explore app via free trial ',
-                        style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w600)),
+                  children: [
+                    Text(
+                      'Explore app via free trial ',
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
                     Icon(Icons.arrow_forward, color: Colors.white, size: 16),
                   ],
                 ),
@@ -222,7 +220,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                   children: [
                     OnboardingSection(
                       stepNumber: 1,
-                      totalSteps: 5,
+                      totalSteps: 3,
                       title: 'Business Information',
                       isExpanded: expanded == 0,
                       isCompleted: completed[0],
@@ -231,98 +229,37 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                           .state = expanded == 0 ? -1 : 0,
                       child: _BusinessInfoForm(
                         logic: logic,
+                        initiallyVerified: widget.prefilledMobile != null &&
+                            widget.prefilledMobile!.trim().isNotEmpty,
                         onNext: () => _goNext(0, logic.isBusinessInfoValid),
                       ),
                     ),
                     OnboardingSection(
                       stepNumber: 2,
-                      totalSteps: 5,
-                      title: 'Owner & dealership photo',
+                      totalSteps: 3,
+                      title: 'Personal documents',
                       isExpanded: expanded == 1,
                       isCompleted: completed[1],
                       onHeaderTap: () => ref
                           .read(expandedSectionProvider.notifier)
                           .state = expanded == 1 ? -1 : 1,
                       child: Column(
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: UploadTile(
-                                  label: "Owner's selfie",
-                                  required: true,
-                                  icon: Icons.camera_alt_outlined,
-                                  actionText: 'Click selfie',
-                                  isCircular: true,
-                                  file: logic.images.ownerSelfie,
-                                  onTap: () => _captureSelfie(logic),
-                                  onRetake: () => _captureSelfie(logic),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: UploadTile(
-                                  label: 'Place of business',
-                                  required: true,
-                                  icon: Icons.camera_alt_outlined,
-                                  actionText: 'Click dealership photo',
-                                  file: logic.images.placeOfBusiness,
-                                  onTap: () => _pickPlaceOfBusiness(logic),
-                                  onRetake: () => _pickPlaceOfBusiness(logic),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: const [
-                              Icon(Icons.location_on_outlined,
-                                  size: 14, color: _kGrey),
-                              SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  'LOCATION ACCESS IS MANDATORY TO CLICK PHOTOS',
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      letterSpacing: 0.6,
-                                      color: _kGrey),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          _NextButton(
-                              enabled: logic.isOwnerPhotoValid,
-                              onTap: () => _goNext(1, logic.isOwnerPhotoValid)),
-                        ],
-                      ),
-                    ),
-                    OnboardingSection(
-                      stepNumber: 3,
-                      totalSteps: 5,
-                      title: 'Personal documents',
-                      isExpanded: expanded == 2,
-                      isCompleted: completed[2],
-                      onHeaderTap: () => ref
-                          .read(expandedSectionProvider.notifier)
-                          .state = expanded == 2 ? -1 : 2,
-                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                              'Keep Aadhaar registered mobile number handy for OTP',
-                              style: TextStyle(fontSize: 13, color: _kGrey)),
+                            'Keep registered mobile number handy for OTP verification',
+                            style: TextStyle(fontSize: 13, color: _kGrey),
+                          ),
                           const SizedBox(height: 14),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Expanded(
                                 child: UploadTile(
-                                  label: 'Aadhaar front photo',
+                                  label: 'Identity front photo',
                                   required: true,
                                   icon: Icons.upload_file_outlined,
-                                  actionText: 'Upload Aadhaar front',
+                                  actionText: 'Upload ID front',
                                   file: logic.images.aadhaarFront,
                                   onTap: () => _pickDoc(logic,
                                       (f) => logic.images.aadhaarFront = f),
@@ -333,10 +270,10 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                               const SizedBox(width: 14),
                               Expanded(
                                 child: UploadTile(
-                                  label: 'Aadhaar back photo',
+                                  label: 'Identity back photo',
                                   required: true,
                                   icon: Icons.upload_file_outlined,
-                                  actionText: 'Upload Aadhaar back',
+                                  actionText: 'Upload ID back',
                                   file: logic.images.aadhaarBack,
                                   onTap: () => _pickDoc(logic,
                                       (f) => logic.images.aadhaarBack = f),
@@ -371,49 +308,34 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                               SizedBox(width: 6),
                               Expanded(
                                 child: Text(
-                                    'Name on Aadhaar & PAN card should be same',
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFFE0A000))),
+                                  'Name on ID & PAN card should be identical',
+                                  style: TextStyle(
+                                      fontSize: 12, color: Color(0xFFE0A000)),
+                                ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 16),
                           _NextButton(
-                              enabled: logic.isPersonalDocsValid,
-                              onTap: () =>
-                                  _goNext(2, logic.isPersonalDocsValid)),
+                            enabled: logic.isPersonalDocsValid,
+                            onTap: () => _goNext(1, logic.isPersonalDocsValid),
+                          ),
                         ],
                       ),
                     ),
                     OnboardingSection(
-                      stepNumber: 4,
-                      totalSteps: 5,
+                      stepNumber: 3,
+                      totalSteps: 3,
                       title: 'Security Deposit',
-                      isExpanded: expanded == 3,
-                      isCompleted: completed[3],
+                      isExpanded: expanded == 2,
+                      isCompleted: completed[2],
                       onHeaderTap: () => ref
                           .read(expandedSectionProvider.notifier)
-                          .state = expanded == 3 ? -1 : 3,
+                          .state = expanded == 2 ? -1 : 2,
                       child: _SecurityDepositSection(
                         logic: logic,
-                        onPickReceipt: () => _pickReceipt(logic),
-                        onNext: () => _goNext(3, logic.isSecurityDepositValid),
-                      ),
-                    ),
-                    OnboardingSection(
-                      stepNumber: 5,
-                      totalSteps: 5,
-                      title: 'Business Documents',
-                      isExpanded: expanded == 4,
-                      isCompleted: completed[4],
-                      onHeaderTap: () => ref
-                          .read(expandedSectionProvider.notifier)
-                          .state = expanded == 4 ? -1 : 4,
-                      child: _BusinessDocumentsSection(
-                        logic: logic,
-                        onPick: _pickDoc,
                         isSubmitting: isSubmitting,
+                        onPickReceipt: () => _pickReceipt(logic),
                         onSubmit: () => _submitRegistration(logic),
                       ),
                     ),
@@ -423,10 +345,11 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                         onPressed: () => ref
                             .read(routeService)
                             .push(const LoginRoute(), context),
-                        child: const Text('Already have an account? Login',
-                            style: TextStyle(
-                                color: _kAccentBlue,
-                                fontWeight: FontWeight.w600)),
+                        child: const Text(
+                          'Already have an account? Login',
+                          style: TextStyle(
+                              color: _kAccentBlue, fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ),
                   ],
@@ -443,43 +366,54 @@ class _SignupPageState extends ConsumerState<SignupPage> {
 class _BusinessInfoForm extends ConsumerStatefulWidget {
   final SignUpLogic logic;
   final VoidCallback onNext;
-  const _BusinessInfoForm({required this.logic, required this.onNext});
+  final bool initiallyVerified;
+
+  const _BusinessInfoForm({
+    required this.logic,
+    required this.onNext,
+    this.initiallyVerified = false,
+  });
 
   @override
   ConsumerState<_BusinessInfoForm> createState() => _BusinessInfoFormState();
 }
 
 class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
-  // Fires widget.onNext() automatically the moment every required field
-  // in this section is filled in — no manual "Next" tap needed. _pending
-  // guards against firing again on every keystroke while already valid,
-  // and re-arms itself if an edit makes the section invalid again (e.g.
-  // they clear a field or change state after picking a city).
   bool _pending = true;
+  late bool _isPhoneVerified;
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
 
   @override
   void initState() {
     super.initState();
-    // getStateProvider is a StateNotifier that starts at .initial() and
-    // only fetches once something calls its notifier — unlike a
-    // FutureProvider, watching it alone never triggers the request.
-    // Without this call the State dropdown sits on .initial() (the
-    // CircleAvatar() placeholder) forever.
-    //
-    // getState() confirmed against CommonDatasource's own interface
-    // (getState()/getCity({String? id})) — the notifier wraps that
-    // 1:1, so this is no longer a guess.
+    _isPhoneVerified = widget.initiallyVerified;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ref.read(getStateProvider.notifier).getState();
+      if (mounted) {
+        ref.read(getStateProvider.notifier).getState();
+        if (widget.logic.selectedStateId != null) {
+          _fetchCities(widget.logic.selectedStateId!);
+        }
+      }
     });
   }
 
+  void _fetchCities(String stateId) {
+    try {
+      (ref.read(getCityProvider.notifier) as dynamic).getCity(id: stateId);
+    } catch (_) {
+      try {
+        (ref.read(getCityProvider.notifier) as dynamic).getCity(stateId);
+      } catch (e) {
+        debugPrint('Error fetching cities: $e');
+      }
+    }
+  }
+
   void _maybeAutoAdvance() {
-    final isValid = widget.logic.isBusinessInfoValid;
+    final isValid = widget.logic.isBusinessInfoValid && _isPhoneVerified;
     if (isValid && _pending) {
       _pending = false;
-      // Deferred to after this build finishes — onNext() touches Riverpod
-      // state providers, which build() itself must not do.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) widget.onNext();
       });
@@ -488,28 +422,72 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
     }
   }
 
+  Future<void> _handleSendOtp() async {
+    final phone = widget.logic.phoneCtrl.text.trim();
+    if (phone.length != 10) {
+      Fluttertoast.showToast(
+          msg: 'Please enter a valid 10-digit mobile number');
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+
+    await ref
+        .read(sendOtpProvider.notifier)
+        .sendOtp(SendOtpModel(phone: phone));
+
+    if (!mounted) return;
+
+    final sendOtpState = ref.read(sendOtpProvider);
+    sendOtpState.whenOrNull(
+      data: (res) {
+        Fluttertoast.showToast(msg: 'OTP sent successfully');
+        _openOtpSheet(phone);
+      },
+      error: (msg) => Fluttertoast.showToast(msg: msg),
+    );
+  }
+
+  void _openOtpSheet(String phone) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _OtpVerificationSheet(
+        phone: phone,
+        onVerified: () {
+          setState(() {
+            _isPhoneVerified = true;
+          });
+          Fluttertoast.showToast(msg: 'Mobile number verified successfully!');
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final logic = widget.logic;
     _maybeAutoAdvance();
+
+    final isPhoneComplete = logic.phoneCtrl.text.trim().length == 10;
+    final isSendingOtp = ref.watch(sendOtpProvider).maybeWhen(
+          loading: () => true,
+          orElse: () => false,
+        );
+
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _RoundedField(
-                  controller: logic.firstNameCtrl,
-                  hint: 'First Name',
-                  onChanged: (_) => setState(() {})),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: _RoundedField(
-                  controller: logic.lastNameCtrl,
-                  hint: 'Last Name',
-                  onChanged: (_) => setState(() {})),
-            ),
-          ],
+        _RoundedField(
+          controller: logic.firstNameCtrl,
+          hint: 'First Name',
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 14),
+        _RoundedField(
+          controller: logic.lastNameCtrl,
+          hint: 'Last Name',
+          onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 14),
         _RoundedField(
@@ -519,21 +497,135 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 14),
+        _RoundedField(
+          controller: logic.passwordCtrl,
+          hint: 'Password',
+          obscureText: _obscurePassword,
+          onChanged: (_) => setState(() {}),
+          suffixIcon: IconButton(
+            icon: Icon(
+              _obscurePassword
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              size: 20,
+              color: _kGrey,
+            ),
+            onPressed: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Text(
+            'At least 8 characters, with a letter and a number',
+            style: TextStyle(
+              fontSize: 11.5,
+              color: logic.passwordCtrl.text.isEmpty
+                  ? _kGrey
+                  : (logic.isPasswordValid
+                      ? const Color(0xFF1FAA59)
+                      : const Color(0xFFD64545)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        _RoundedField(
+          controller: logic.confirmPasswordCtrl,
+          hint: 'Confirm password',
+          obscureText: _obscureConfirm,
+          onChanged: (_) => setState(() {}),
+          suffixIcon: IconButton(
+            icon: Icon(
+              _obscureConfirm
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              size: 20,
+              color: _kGrey,
+            ),
+            onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+          ),
+        ),
+        if (logic.confirmPasswordCtrl.text.isNotEmpty &&
+            !logic.passwordsMatch) ...[
+          const SizedBox(height: 6),
+          const Padding(
+            padding: EdgeInsets.only(left: 4),
+            child: Text(
+              "Passwords don't match",
+              style: TextStyle(fontSize: 11.5, color: Color(0xFFD64545)),
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
         _PhoneField(
           controller: logic.phoneCtrl,
           focusNode: logic.phoneFocus,
+          enabled: !_isPhoneVerified,
+          onChanged: (val) {
+            if (_isPhoneVerified) {
+              setState(() => _isPhoneVerified = false);
+            } else {
+              setState(() {});
+            }
+          },
+          trailing: _isPhoneVerified
+              ? const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle_rounded, color: _kGreen, size: 18),
+                    SizedBox(width: 4),
+                    Text(
+                      'Verified',
+                      style: TextStyle(
+                        color: _kGreen,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ],
+                )
+              : (isPhoneComplete
+                  ? GestureDetector(
+                      onTap: isSendingOtp ? null : _handleSendOtp,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _kAccentBlue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: isSendingOtp
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text(
+                                'Verify',
+                                style: TextStyle(
+                                  color: _kAccentBlue,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                      ),
+                    )
+                  : null),
+        ),
+        const SizedBox(height: 14),
+        _RoundedField(
+          controller: logic.businessNameCtrl,
+          hint: 'Business name as per GSTIN/ MSME',
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 14),
         _RoundedField(
-            controller: logic.businessNameCtrl,
-            hint: 'Business name as per GSTIN/ MSME',
-            onChanged: (_) => setState(() {})),
-        const SizedBox(height: 14),
-        _RoundedField(
-            controller: logic.businessAddressCtrl,
-            hint: 'Business address',
-            onChanged: (_) => setState(() {})),
+          controller: logic.businessAddressCtrl,
+          hint: 'Business address',
+          onChanged: (_) => setState(() {}),
+        ),
         const SizedBox(height: 14),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -543,36 +635,31 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
                 builder: (context, ref, _) {
                   final statesAsync = ref.watch(getStateProvider);
                   return statesAsync.when(
-                    initial: () => const CircleAvatar(),
-                    loading: () => const _DropdownSkeleton(hint: 'State'),
+                    initial: () => const _DropdownSkeleton(hint: 'State'),
+                    loading: () =>
+                        const _DropdownSkeleton(hint: 'State', isLoading: true),
                     error: (_) => const _DropdownSkeleton(hint: 'State'),
-                    data: (states) => _RoundedDropdown(
+                    data: (states) => _SearchableDropdown(
                       hint: 'State',
                       value: logic.selectedStateId,
                       items: [
                         for (final s in states)
-                          DropdownMenuItem(
-                              value: s.stateId.toString(),
-                              child: Text(s.stateName ?? ""))
+                          DropdownSearchItem(
+                            id: s.stateId.toString(),
+                            label: s.stateName ?? '',
+                          ),
                       ],
                       onChanged: (id) {
-                        final name =
-                            states.firstWhere((s) => s.stateId == id).stateName;
+                        if (id == null) return;
+                        final matched = states
+                            .where((s) => s.stateId.toString() == id)
+                            .firstOrNull;
                         setState(() {
                           logic.selectedStateId = id;
-                          logic.selectedStateName = name;
-                          logic.selectedCityId =
-                              null; // reset city on state change
+                          logic.selectedStateName = matched?.stateName;
+                          logic.selectedCityId = null;
                         });
-                        // Same gap as the State dropdown had: nothing
-                        // was ever telling getCityProvider to actually
-                        // fetch. Trigger it here, now that we know
-                        // which state's cities we want.
-                        // getCity(id: id) — matches CommonDatasource's
-                        // real signature, getCity({String? id}).
-                        if (id != null) {
-                          ref.read(getCityProvider.notifier).getCity(id: id);
-                        }
+                        _fetchCities(id);
                       },
                     ),
                   );
@@ -586,24 +673,31 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
                   final stateId = logic.selectedStateId;
                   if (stateId == null) {
                     return const _DropdownSkeleton(
-                        hint: 'City', enabled: false);
+                      hint: 'Select State First',
+                      enabled: false,
+                    );
                   }
                   final citiesAsync = ref.watch(getCityProvider);
                   return citiesAsync.when(
-                    initial: () => const CircleAvatar(),
-                    loading: () => const _DropdownSkeleton(hint: 'City'),
+                    initial: () => const _DropdownSkeleton(hint: 'City'),
+                    loading: () =>
+                        const _DropdownSkeleton(hint: 'City', isLoading: true),
                     error: (_) => const _DropdownSkeleton(hint: 'City'),
-                    data: (cities) => _RoundedDropdown(
+                    data: (cities) => _SearchableDropdown(
                       hint: 'City',
                       value: logic.selectedCityId,
                       items: [
                         for (final c in cities)
-                          DropdownMenuItem(
-                              value: c.cityId.toString(),
-                              child: Text(c.cityName ?? ''))
+                          DropdownSearchItem(
+                            id: c.cityId.toString(),
+                            label: c.cityName ?? '',
+                          ),
                       ],
-                      onChanged: (id) =>
-                          setState(() => logic.selectedCityId = id),
+                      onChanged: (id) {
+                        setState(() {
+                          logic.selectedCityId = id;
+                        });
+                      },
                     ),
                   );
                 },
@@ -620,78 +714,535 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 18),
-        _NextButton(enabled: logic.isBusinessInfoValid, onTap: widget.onNext),
+        _NextButton(
+          enabled: logic.isBusinessInfoValid && _isPhoneVerified,
+          onTap: () {
+            if (!_isPhoneVerified) {
+              Fluttertoast.showToast(
+                  msg: 'Please verify your phone number first');
+              return;
+            }
+            widget.onNext();
+          },
+        ),
       ],
     );
   }
 }
 
-class _RoundedDropdown extends StatelessWidget {
+class _OtpVerificationSheet extends ConsumerStatefulWidget {
+  final String phone;
+  final VoidCallback onVerified;
+  const _OtpVerificationSheet({required this.phone, required this.onVerified});
+
+  @override
+  ConsumerState<_OtpVerificationSheet> createState() =>
+      _OtpVerificationSheetState();
+}
+
+class _OtpVerificationSheetState extends ConsumerState<_OtpVerificationSheet> {
+  final _otpCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _otpCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _verifyOtp() async {
+    final otp = _otpCtrl.text.trim();
+    if (otp.length < 4) {
+      Fluttertoast.showToast(msg: 'Please enter a valid OTP');
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+
+    await ref.read(verifyOtpProvider.notifier).verifyOtp(
+          VerifyOtpModel(phone: widget.phone, otp: otp, isRegistered: false),
+        );
+
+    if (!mounted) return;
+
+    final verifyState = ref.read(verifyOtpProvider);
+    verifyState.whenOrNull(
+      data: (userModel) {
+        final message = (userModel.message ?? '').toLowerCase();
+        final isSuccess = userModel.success == true ||
+            message.contains('otp verified successfully') ||
+            userModel.data?.userId != null;
+
+        if (isSuccess) {
+          Navigator.pop(context);
+          widget.onVerified();
+        } else {
+          Fluttertoast.showToast(
+              msg: userModel.message ?? 'Verification failed');
+        }
+      },
+      error: (msg) => Fluttertoast.showToast(msg: msg),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isVerifying = ref.watch(verifyOtpProvider).maybeWhen(
+          loading: () => true,
+          orElse: () => false,
+        );
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+          20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Verify Phone Number',
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w700, color: _kDark),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: _kGrey),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Enter the OTP sent to +91 ${widget.phone}',
+            style: const TextStyle(fontSize: 13, color: _kGrey),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _otpCtrl,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 8),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              counterText: '',
+              hintText: '••••',
+              hintStyle:
+                  const TextStyle(letterSpacing: 8, color: Color(0xFFC3C6D4)),
+              filled: true,
+              fillColor: const Color(0xFFF6F7FB),
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          GestureDetector(
+            onTap: isVerifying ? null : _verifyOtp,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: isVerifying ? Colors.grey.shade300 : _kAccentBlue,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Center(
+                child: isVerifying
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text(
+                        'Verify OTP',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DropdownSearchItem {
+  final String id;
+  final String label;
+
+  const DropdownSearchItem({required this.id, required this.label});
+}
+
+class _SearchableDropdown extends StatelessWidget {
   final String hint;
   final String? value;
-  final List<DropdownMenuItem<String>> items;
+  final List<DropdownSearchItem> items;
   final ValueChanged<String?> onChanged;
+  final bool enabled;
 
-  const _RoundedDropdown({
+  const _SearchableDropdown({
     required this.hint,
     required this.value,
     required this.items,
     required this.onChanged,
+    this.enabled = true,
   });
+
+  void _openSearchSheet(BuildContext context) {
+    if (!enabled) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SearchBottomSheet(
+        title: 'Select $hint',
+        hintText: 'Search $hint...',
+        items: items,
+        selectedId: value,
+        onSelected: (selectedItem) {
+          Navigator.pop(context);
+          onChanged(selectedItem.id);
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-          color: const Color(0xFFF6F7FB),
-          borderRadius: BorderRadius.circular(14)),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          hint: Text(hint, style: const TextStyle(color: Color(0xFF9AA0B4))),
-          isExpanded: true,
-          items: items,
-          onChanged: onChanged,
+    final selectedItem = items.where((e) => e.id == value).firstOrNull;
+    final displayText = selectedItem?.label ?? hint;
+    final hasValue = selectedItem != null;
+
+    return GestureDetector(
+      onTap: () => _openSearchSheet(context),
+      child: Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: enabled ? const Color(0xFFF6F7FB) : const Color(0xFFEEEEEE),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                displayText,
+                style: TextStyle(
+                  color: hasValue
+                      ? _kDark
+                      : (enabled
+                          ? const Color(0xFF9AA0B4)
+                          : Colors.grey.shade400),
+                  fontSize: 13,
+                  fontWeight: hasValue ? FontWeight.w600 : FontWeight.normal,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: enabled ? const Color(0xFF9AA0B4) : Colors.grey.shade400,
+              size: 20,
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Loading/disabled placeholder shown while a dropdown's list is fetching,
-/// or before a state is picked (for the City dropdown).
-class _DropdownSkeleton extends StatelessWidget {
-  final String hint;
-  final bool enabled;
-  const _DropdownSkeleton({required this.hint, this.enabled = true});
+class _SearchBottomSheet extends StatefulWidget {
+  final String title;
+  final String hintText;
+  final List<DropdownSearchItem> items;
+  final String? selectedId;
+  final ValueChanged<DropdownSearchItem> onSelected;
+
+  const _SearchBottomSheet({
+    required this.title,
+    required this.hintText,
+    required this.items,
+    required this.selectedId,
+    required this.onSelected,
+  });
+
+  @override
+  State<_SearchBottomSheet> createState() => _SearchBottomSheetState();
+}
+
+class _SearchBottomSheetState extends State<_SearchBottomSheet> {
+  final _searchCtrl = TextEditingController();
+  late List<DropdownSearchItem> _filteredItems;
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredItems = widget.items;
+  }
+
+  void _onSearch(String query) {
+    final q = query.trim().toLowerCase();
+    setState(() {
+      if (q.isEmpty) {
+        _filteredItems = widget.items;
+      } else {
+        _filteredItems = widget.items
+            .where((item) => item.label.toLowerCase().contains(q))
+            .toList();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      alignment: Alignment.centerLeft,
-      decoration: BoxDecoration(
-          color: const Color(0xFFF6F7FB),
-          borderRadius: BorderRadius.circular(14)),
-      child: Text(hint, style: const TextStyle(color: Color(0xFF9AA0B4))),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
+      padding: EdgeInsets.fromLTRB(
+        18,
+        16,
+        18,
+        MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                widget.title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: _kDark,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.close_rounded, size: 22, color: _kGrey),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF6F7FB),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: _onSearch,
+              autofocus: true,
+              style: const TextStyle(fontSize: 14, color: _kDark),
+              decoration: InputDecoration(
+                hintText: widget.hintText,
+                hintStyle:
+                    const TextStyle(color: Color(0xFF9AA0B4), fontSize: 13),
+                prefixIcon:
+                    const Icon(Icons.search_rounded, size: 20, color: _kGrey),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: _kBorder),
+          const SizedBox(height: 6),
+          Flexible(
+            child: _filteredItems.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: Text(
+                      'No options found',
+                      style: TextStyle(color: _kGrey, fontSize: 13),
+                    ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _filteredItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _filteredItems[index];
+                      final isSelected = item.id == widget.selectedId;
+
+                      return ListTile(
+                        dense: true,
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 8),
+                        title: Text(
+                          item.label,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected ? _kAccentBlue : _kDark,
+                          ),
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_rounded,
+                                color: _kAccentBlue, size: 20)
+                            : null,
+                        onTap: () => widget.onSelected(item),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// Editable mobile number field — same look as login's phone field
-/// (+91 prefix, call icon, digits-only) but just a plain form field here,
-/// since there's no OTP step to gate it.
+class _DropdownSkeleton extends StatefulWidget {
+  final String hint;
+  final bool enabled;
+  final bool isLoading;
+
+  const _DropdownSkeleton({
+    required this.hint,
+    this.enabled = true,
+    this.isLoading = false,
+  });
+
+  @override
+  State<_DropdownSkeleton> createState() => _DropdownSkeletonState();
+}
+
+class _DropdownSkeletonState extends State<_DropdownSkeleton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _animation = Tween<double>(begin: 0.4, end: 0.9).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
+    );
+    if (widget.isLoading) {
+      _animController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _DropdownSkeleton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isLoading && !_animController.isAnimating) {
+      _animController.repeat(reverse: true);
+    } else if (!widget.isLoading && _animController.isAnimating) {
+      _animController.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          alignment: Alignment.centerLeft,
+          decoration: BoxDecoration(
+            color: widget.isLoading
+                ? Colors.grey.shade300.withOpacity(_animation.value)
+                : (widget.enabled
+                    ? const Color(0xFFF6F7FB)
+                    : const Color(0xFFEEEEEE)),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                widget.hint,
+                style: TextStyle(
+                  color: widget.enabled
+                      ? const Color(0xFF9AA0B4)
+                      : Colors.grey.shade400,
+                  fontSize: 13,
+                ),
+              ),
+              if (widget.isLoading)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: widget.enabled
+                      ? const Color(0xFF9AA0B4)
+                      : Colors.grey.shade400,
+                  size: 20,
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _PhoneField extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String>? onChanged;
+  final Widget? trailing;
+  final bool enabled;
 
   const _PhoneField({
     required this.controller,
     required this.focusNode,
     this.onChanged,
+    this.trailing,
+    this.enabled = true,
   });
 
   @override
@@ -699,7 +1250,7 @@ class _PhoneField extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: enabled ? Colors.white : const Color(0xFFF6F7FB),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _kBorder, width: 1.5),
       ),
@@ -724,17 +1275,18 @@ class _PhoneField extends StatelessWidget {
             child: TextField(
               controller: controller,
               focusNode: focusNode,
+              enabled: enabled,
               keyboardType: TextInputType.phone,
               onChanged: onChanged,
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
                 LengthLimitingTextInputFormatter(10),
               ],
-              style: const TextStyle(
+              style: TextStyle(
                   letterSpacing: 1.5,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: _kDark),
+                  color: enabled ? _kDark : Colors.grey.shade600),
               decoration: const InputDecoration(
                 hintText: 'Mobile Number',
                 hintStyle: TextStyle(
@@ -745,6 +1297,11 @@ class _PhoneField extends StatelessWidget {
               ),
             ),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            trailing!,
+            const SizedBox(width: 4),
+          ],
         ],
       ),
     );
@@ -757,6 +1314,8 @@ class _RoundedField extends StatelessWidget {
   final TextInputType? keyboardType;
   final int? maxLength;
   final ValueChanged<String>? onChanged;
+  final bool obscureText;
+  final Widget? suffixIcon;
 
   const _RoundedField({
     required this.controller,
@@ -764,6 +1323,8 @@ class _RoundedField extends StatelessWidget {
     this.keyboardType,
     this.maxLength,
     this.onChanged,
+    this.obscureText = false,
+    this.suffixIcon,
   });
 
   @override
@@ -772,6 +1333,7 @@ class _RoundedField extends StatelessWidget {
       controller: controller,
       keyboardType: keyboardType,
       maxLength: maxLength,
+      obscureText: obscureText,
       onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hint,
@@ -783,6 +1345,7 @@ class _RoundedField extends StatelessWidget {
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none),
+        suffixIcon: suffixIcon,
       ),
     );
   }
@@ -827,14 +1390,14 @@ class _NameMatchBanner extends StatelessWidget {
           color: Color(0xFFEDEFF7),
           textColor: _kGrey,
           icon: Icons.hourglass_top_rounded,
-          text: 'Checking name on Aadhaar & PAN...',
+          text: 'Checking name on documents...',
         );
       case NameMatchStatus.matched:
         return const _Banner(
           color: Color(0xFFE7F7EE),
           textColor: Color(0xFF1FAA59),
           icon: Icons.check_circle_outline,
-          text: 'Names on Aadhaar and PAN match.',
+          text: 'Names on documents match.',
         );
       case NameMatchStatus.mismatched:
         return _Banner(
@@ -842,7 +1405,7 @@ class _NameMatchBanner extends StatelessWidget {
           textColor: const Color(0xFFD64545),
           icon: Icons.error_outline,
           text:
-              'Aadhaar shows "${logic.aadhaarGuessedName ?? '?'}" but PAN shows '
+              'Identity doc shows "${logic.aadhaarGuessedName ?? '?'}" but PAN shows '
               '"${logic.panGuessedName ?? '?'}" — please re-check the photos.',
         );
       case NameMatchStatus.failed:
@@ -891,11 +1454,13 @@ class _Banner extends StatelessWidget {
 class _SecurityDepositSection extends StatefulWidget {
   final SignUpLogic logic;
   final VoidCallback onPickReceipt;
-  final VoidCallback onNext;
+  final bool isSubmitting;
+  final VoidCallback onSubmit;
   const _SecurityDepositSection({
     required this.logic,
     required this.onPickReceipt,
-    required this.onNext,
+    required this.isSubmitting,
+    required this.onSubmit,
   });
 
   @override
@@ -912,16 +1477,16 @@ class _SecurityDepositSectionState extends State<_SecurityDepositSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Center(
+        const Center(
           child: Column(
             children: [
               Text(
                 '₹${SignUpLogic.depositAmount}',
-                style: const TextStyle(
+                style: TextStyle(
                     fontWeight: FontWeight.w800, fontSize: 28, color: _kDark),
               ),
-              const SizedBox(height: 4),
-              const Text('Refundable deposit',
+              SizedBox(height: 4),
+              Text('Refundable deposit',
                   style: TextStyle(color: _kGrey, fontSize: 13)),
             ],
           ),
@@ -994,63 +1559,21 @@ class _SecurityDepositSectionState extends State<_SecurityDepositSection> {
           onRetake: widget.onPickReceipt,
         ),
         const SizedBox(height: 16),
-        _NextButton(
-            enabled: logic.isSecurityDepositValid, onTap: widget.onNext),
-      ],
-    );
-  }
-}
-
-class _BusinessDocumentsSection extends StatelessWidget {
-  final SignUpLogic logic;
-  final Future<void> Function(SignUpLogic, void Function(File)) onPick;
-  final bool isSubmitting;
-  final VoidCallback onSubmit;
-  const _BusinessDocumentsSection({
-    required this.logic,
-    required this.onPick,
-    required this.isSubmitting,
-    required this.onSubmit,
-  });
-
-  static const _docs = [
-    'GST Certificate',
-    'MSME Certificate',
-    'Shop Act License',
-    'Cancelled Cheque'
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ..._docs.map((label) => Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: UploadTile(
-                label: label,
-                required: true,
-                icon: Icons.upload_file_outlined,
-                actionText: 'Upload $label',
-                file: logic.images.businessDocs[label],
-                onTap: () =>
-                    onPick(logic, (f) => logic.images.businessDocs[label] = f),
-                onRetake: () =>
-                    onPick(logic, (f) => logic.images.businessDocs[label] = f),
-              ),
-            )),
-        const SizedBox(height: 8),
         GestureDetector(
-          onTap: isSubmitting ? null : onSubmit,
+          onTap: (logic.isSecurityDepositValid && !widget.isSubmitting)
+              ? widget.onSubmit
+              : null,
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 16),
             decoration: BoxDecoration(
-              color: isSubmitting ? Colors.grey.shade300 : _kAccentBlue,
+              color: (logic.isSecurityDepositValid && !widget.isSubmitting)
+                  ? _kAccentBlue
+                  : Colors.grey.shade300,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
-              child: isSubmitting
+              child: widget.isSubmitting
                   ? const SizedBox(
                       width: 20,
                       height: 20,

@@ -13,18 +13,25 @@ class SendOtpNotifier extends StateNotifier<SendOtpState> {
   })  : _usecase = usecase,
         super(initialState ?? const SendOtpState.initial());
 
-  Future<void> sendOtp(SendOtpModel params) async {
+// Inside send_notifier.dart
+  Future<SendOtpModel?> sendOtp(SendOtpModel params) async {
     state = const SendOtpState.loading();
-    final result = await _usecase(params);
-    result.fold(
-      (l) => state = SendOtpState.error(l.msg ?? 'An error occurred'),
-      (r) => state = SendOtpState.data(r),
-      //   (r) {
-      //   state = SendOtpState.data(r);
-      //   if (r.success == true || r.message == "OTP sent") {
-      //     Fluttertoast.showToast(msg: 'OTP sent successfully');
-      //   }
-      // },
-    );
+    try {
+      final result = await _usecase(params);
+
+      return result.fold(
+        (failure) {
+          state = SendOtpState.error(failure.msg ?? failure.toString());
+          return null;
+        },
+        (data) {
+          state = SendOtpState.data(data);
+          return data; // Return the response data
+        },
+      );
+    } catch (e) {
+      state = SendOtpState.error(e.toString());
+      return null;
+    }
   }
 }

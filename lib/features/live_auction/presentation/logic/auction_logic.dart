@@ -302,9 +302,30 @@ class AuctionLogic extends ChangeNotifier {
   /// are available, to default the auction list to the dealer's own state.
   /// Does nothing if already applied once, or if the dealer has no
   /// stateName on their profile, or if no matching StateModel is found.
-  void applyUserDefaultState(String? userStateName, List<StateModel> states) {
-    if (_userStateApplied) return;
-    _applyMatchingState(userStateName, states);
+// Inside AuctionLogic:
+  String? _userDefaultStateName;
+
+  void applyUserDefaultState(String? stateName, List<StateModel> states) {
+    if (stateName == null || stateName.trim().isEmpty) return;
+    _userDefaultStateName = stateName.trim().toLowerCase();
+
+    final match = states
+        .where((s) =>
+            (s.stateName ?? '').trim().toLowerCase() == _userDefaultStateName)
+        .firstOrNull;
+
+    if (match != null) {
+      selectedState = match;
+      search();
+      notifyListeners();
+    }
+  }
+
+  /// Returns true when the active state filter is just the user's home state
+  bool get isUserHomeState {
+    if (selectedState == null || _userDefaultStateName == null) return false;
+    return (selectedState!.stateName ?? '').trim().toLowerCase() ==
+        _userDefaultStateName;
   }
 
   /// Called by AuctionHomePage on tab switch.

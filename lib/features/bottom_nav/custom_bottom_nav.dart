@@ -8,7 +8,7 @@ class BottomNavBar extends StatelessWidget {
   /// Indices that can't be switched to right now (e.g. every tab but
   /// Auction, during a trial session). A locked item still renders —
   /// it's just dimmed and routes its tap to [onLockedTap] instead of
-  /// [onTap], rather than disappearing outright.
+  /// [onTap].
   final Set<int> lockedIndices;
   final void Function(int index)? onLockedTap;
 
@@ -88,8 +88,6 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A locked tab is never "active" — you can't be sitting on a tab
-    // you're not allowed to switch to.
     final active = isActive && !isLocked;
     final iconColor = isLocked ? Colors.grey.shade400 : activeColor;
 

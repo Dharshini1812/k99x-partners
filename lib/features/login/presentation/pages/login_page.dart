@@ -26,46 +26,61 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
+  bool _isLoading = false;
+
   @override
   void initState() {
     super.initState();
     Future.microtask(() {
-      ref.read(loginLogicProvider).init();
+      final logic = ref.read(loginLogicProvider);
+      logic.init();
+      logic.clearOtpState(keepPhone: true);
     });
+  }
+
+  Future<void> _handleSendOtp() async {
+    final logic = ref.read(loginLogicProvider);
+    final phone = logic.phoneCtrl.text.trim();
+    if (phone.length < 10) return;
+
+    logic.phoneFocus.unfocus();
+    setState(() => _isLoading = true);
+
+    final sendNotifier = ref.read(sendOtpProvider.notifier);
+
+    try {
+      // 1. Send OTP
+      final response = await sendNotifier.sendOtp(SendOtpModel(
+        phone: phone,
+        isRegistered: true,
+      ));
+
+      if (response == null) return;
+
+      // 2. Check the message & success from the response
+      final bool isUserRegistered = response.success == true &&
+          (response.message?.toLowerCase().contains('user not found') != true);
+
+      // 3. Save state
+      ref.read(loginPhoneProvider.notifier).state = phone;
+      ref.read(loginIsRegisteredProvider.notifier).state = isUserRegistered;
+
+      // 4. Navigate to OTP page
+      if (!mounted) return;
+      ref.read(routeService).push(const OtpRoute(), context);
+    } catch (e) {
+      Fluttertoast.showToast(
+          msg: e.toString(), toastLength: Toast.LENGTH_SHORT);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final logic = ref.watch(loginLogicProvider);
-    final state = ref.watch(sendOtpProvider);
-
-    ref.listen(sendOtpProvider, (previous, next) {
-      next.whenOrNull(
-        data: (data) {
-          ref.read(loginPhoneProvider.notifier).state =
-              logic.phoneCtrl.text.trim();
-          if (data.message == 'User Not Found') {
-            ref.read(routeService).push(const SignupRoute(), context);
-          }
-          ref.read(routeService).push(const OtpRoute(), context);
-        },
-        error: (msg) {
-          Fluttertoast.showToast(msg: msg, toastLength: Toast.LENGTH_SHORT);
-        },
-      );
-    });
-
-    Future<void> sendOtp() async {
-      final phone = logic.phoneCtrl.text.trim();
-      if (phone.length < 10) return;
-
-      logic.phoneFocus.unfocus();
-      final data = SendOtpModel(
-        phone: logic.phoneCtrl.text,
-        isRegistered: true,
-      );
-      await ref.read(sendOtpProvider.notifier).sendOtp(data);
-    }
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -130,12 +145,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 const SizedBox(height: 28),
                 _PrimaryButton(
                   label: 'Send OTP',
-                  isLoading: state.maybeWhen(
-                    loading: () => true,
-                    orElse: () => false,
-                  ),
+                  isLoading: _isLoading,
                   isEnabled: logic.isPhoneValid,
-                  onTap: sendOtp,
+                  onTap: _handleSendOtp,
                 ),
                 const SizedBox(height: 16),
                 const Center(
@@ -149,37 +161,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       letterSpacing: 1.2,
                     ),
                   ),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    const Text(
-                      "New User?",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: _kGrey,
-                        height: 1.5,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => ref
-                          .read(routeService)
-                          .push(const SignupRoute(), context),
-                      child: const Text(
-                        "Register",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: _kAccentBlue,
-                          height: 1.5,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    )
-                  ],
                 ),
                 const SizedBox(height: 24),
               ],
