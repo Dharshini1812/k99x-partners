@@ -256,10 +256,10 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                             children: [
                               Expanded(
                                 child: UploadTile(
-                                  label: 'Identity front photo',
+                                  label: 'Aadhar front photo',
                                   required: true,
                                   icon: Icons.upload_file_outlined,
-                                  actionText: 'Upload ID front',
+                                  actionText: 'Upload Aadhar front',
                                   file: logic.images.aadhaarFront,
                                   onTap: () => _pickDoc(logic,
                                       (f) => logic.images.aadhaarFront = f),
@@ -270,10 +270,10 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                               const SizedBox(width: 14),
                               Expanded(
                                 child: UploadTile(
-                                  label: 'Identity back photo',
+                                  label: 'Aadhar back photo',
                                   required: true,
                                   icon: Icons.upload_file_outlined,
-                                  actionText: 'Upload ID back',
+                                  actionText: 'Upload Aadhar back',
                                   file: logic.images.aadhaarBack,
                                   onTap: () => _pickDoc(logic,
                                       (f) => logic.images.aadhaarBack = f),

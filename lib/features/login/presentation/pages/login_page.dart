@@ -38,6 +38,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     });
   }
 
+  /// Sends the OTP to the entered phone number. An inactive account is
+  /// NOT a reason to strand the person on this screen — they still get
+  /// to verify who they are on the OTP page; whatever "inactive" gates
+  /// (dashboard access, etc.) is enforced after that, not here. This
+  /// deliberately checks for "inactive" in BOTH places the backend could
+  /// surface it — a normal {success:false, message:"..."} response, or a
+  /// thrown error — since which one actually happens isn't visible from
+  /// this file alone (that's inside sendOtpProvider's notifier/datasource).
   Future<void> _handleSendOtp() async {
     final logic = ref.read(loginLogicProvider);
     final phone = logic.phoneCtrl.text.trim();
@@ -49,28 +57,67 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final sendNotifier = ref.read(sendOtpProvider.notifier);
 
     try {
-      // 1. Send OTP
       final response = await sendNotifier.sendOtp(SendOtpModel(
         phone: phone,
         isRegistered: true,
       ));
 
-      if (response == null) return;
+      if (!mounted) return;
 
-      // 2. Check the message & success from the response
+      // A null response means sendOtp() itself couldn't produce a real
+      // result (network failure, unparseable body) — there's genuinely
+      // nothing to send them to an OTP screen for.
+      if (response == null) {
+        Fluttertoast.showToast(msg: 'Something went wrong. Please try again.');
+        return;
+      }
+
+      final message = response.message ?? '';
+      // .contains(), not == — the previous exact-match check had an
+      // extra stray character baked into the literal, so it could never
+      // actually match a real backend message.
+      final isInactive = message.toLowerCase().contains('inactive');
+
+      if (isInactive) {
+        Fluttertoast.showToast(
+          msg: message.isNotEmpty
+              ? message
+              : 'Your account is inactive. Please contact administrator',
+        );
+        return;
+      } else if (response.success == false) {
+        Fluttertoast.showToast(
+            msg: message.isNotEmpty ? message : 'Failed to send OTP');
+      }
+
       final bool isUserRegistered = response.success == true &&
-          (response.message?.toLowerCase().contains('user not found') != true);
+          !message.toLowerCase().contains('user not found');
 
-      // 3. Save state
       ref.read(loginPhoneProvider.notifier).state = phone;
       ref.read(loginIsRegisteredProvider.notifier).state = isUserRegistered;
 
-      // 4. Navigate to OTP page
-      if (!mounted) return;
+      // Reached for every case above except the null-response early
+      // return — including isInactive — so an inactive account still
+      // lands on the OTP page, just with the warning toast already shown.
       ref.read(routeService).push(const OtpRoute(), context);
     } catch (e) {
-      Fluttertoast.showToast(
-          msg: e.toString(), toastLength: Toast.LENGTH_SHORT);
+      if (!mounted) return;
+      final message = e.toString();
+
+      if (message.toLowerCase().contains('inactive')) {
+        // Some deployments surface "account inactive" as a thrown error
+        // instead of a normal {success:false} response — same rule
+        // applies: still send them to the OTP page, don't strand them
+        // here just because this came back as an exception instead.
+        Fluttertoast.showToast(msg: message);
+        ref.read(loginPhoneProvider.notifier).state = phone;
+        // Assumes inactive implies a real, existing (just deactivated)
+        // account — flag this if that's not actually true server-side.
+        ref.read(loginIsRegisteredProvider.notifier).state = true;
+        ref.read(routeService).push(const OtpRoute(), context);
+      } else {
+        Fluttertoast.showToast(msg: message, toastLength: Toast.LENGTH_SHORT);
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

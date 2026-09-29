@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
       routerDelegate: _appRouter.delegate(),
       routeInformationParser: _appRouter.defaultRouteParser(),
       debugShowCheckedModeBanner: false,
-      title: 'Flutter Demo',
+      title: 'K99x Partners',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,

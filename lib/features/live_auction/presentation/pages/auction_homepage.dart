@@ -33,6 +33,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
   ];
 
   @override
+  @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
@@ -47,6 +48,10 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
       final twoMonthsAhead = DateTime(today.year, today.month + 2, today.day);
 
       final logic = ref.read(auctionLogic);
+
+      // FIX: Set the initial tab status explicitly (tab 0 is 'LIVE')
+      logic.setActiveTabStatus(_tabs.first.status);
+
       logic.setDefaultDateRange(twoMonthsAgo, twoMonthsAhead);
       logic.search();
 
@@ -270,11 +275,9 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
       data: (auctions) {
         final filtered = auctions
             .where((a) => !_isEnded(a))
-            .where((a) {
-              if (logic.activeTabStatus == null) return true;
-              return (a.status ?? '').trim().toUpperCase() ==
-                  status.toUpperCase();
-            })
+            .where((a) =>
+                (a.status ?? '').trim().toUpperCase() ==
+                status.toUpperCase()) // Strict check
             .where((a) => _matchesSearch(a, logic.searchQuery))
             .toList();
 

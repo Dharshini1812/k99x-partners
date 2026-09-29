@@ -129,13 +129,12 @@ class _ReviewStepState extends ConsumerState<ReviewStep> {
           'Review all details before submitting your listing.',
           style: UploadText.stepSubtitle,
         ),
-        const SizedBox(height: 16),
 
-        reviewState.maybeWhen(
-          data: (review) =>
-              _EstimatedPrice(amount: review.data.vehicle.marketPrice),
-          orElse: () => _EstimatedPrice(amount: listing.estimatedMarketPrice),
-        ),
+        // reviewState.maybeWhen(
+        //   data: (review) =>
+        //       _EstimatedPrice(amount: review.data.vehicle.marketPrice),
+        //   orElse: () => _EstimatedPrice(amount: listing.estimatedMarketPrice),
+        // ),
 
         const SizedBox(height: 14),
         CommonTextField(
@@ -285,33 +284,33 @@ class _ReviewStepState extends ConsumerState<ReviewStep> {
   }
 }
 
-class _EstimatedPrice extends StatelessWidget {
-  final num? amount;
+// class _EstimatedPrice extends StatelessWidget {
+//   final num? amount;
 
-  const _EstimatedPrice({required this.amount});
+//   const _EstimatedPrice({required this.amount});
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: UploadColors.successBg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          const Text('Your Estimated Market Price', style: UploadText.label),
-          const SizedBox(height: 4),
-          Text(
-            amount != null ? '₹${amount!.toStringAsFixed(0)}' : '₹--',
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: UploadColors.success,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return Container(
+//       padding: const EdgeInsets.all(14),
+//       decoration: BoxDecoration(
+//         color: UploadColors.successBg,
+//         borderRadius: BorderRadius.circular(12),
+//       ),
+//       child: Column(
+//         children: [
+//           const Text('Your Estimated Market Price', style: UploadText.label),
+//           const SizedBox(height: 4),
+//           Text(
+//             amount != null ? '₹${amount!.toStringAsFixed(0)}' : '₹--',
+//             style: const TextStyle(
+//               fontSize: 22,
+//               fontWeight: FontWeight.w800,
+//               color: UploadColors.success,
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }

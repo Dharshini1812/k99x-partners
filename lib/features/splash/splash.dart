@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 import 'dart:io';
 
 import 'package:auto_route/auto_route.dart';
@@ -85,10 +86,20 @@ class _SplashPageState extends ConsumerState<SplashPage>
 
   Future<bool> _hasInternet() async {
     try {
-      final result = await InternetAddress.lookup('google.com');
+      // On a real device, DNS lookup can stall (slow/flaky Wi-Fi, a
+      // captive portal, VPN, firewall, etc.) far longer than it ever
+      // would on an emulator or simulator. Without a timeout here,
+      // that stall just hangs this Future forever — which is exactly
+      // what leaves the splash screen frozen with no error and no
+      // retry. Bounding it means a slow network becomes "offline +
+      // retry every 2s" instead of "stuck forever."
+      final result = await InternetAddress.lookup('google.com')
+          .timeout(const Duration(seconds: 5));
 
       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
     } on SocketException {
+      return false;
+    } on TimeoutException {
       return false;
     } catch (_) {
       return false;
@@ -173,8 +184,20 @@ class _SplashPageState extends ConsumerState<SplashPage>
     // ───────────────────────────────────────────
     // Get stored user
     // ───────────────────────────────────────────
-    final storage = SecureStorageService();
-    final user = await storage.getUser();
+    // Wrapped in try/catch on purpose: if secure storage throws here
+    // (e.g. R8 stripped a Keystore-related class it needed in a
+    // release build), the exception previously had nowhere to go —
+    // release mode shows no red-screen error like debug does, so the
+    // splash screen just froze forever with zero indication why. Now
+    // it logs the real error and falls back to onboarding instead of
+    // leaving the person stuck looking at a dead splash screen.
+    dynamic user;
+    try {
+      final storage = SecureStorageService();
+      user = await storage.getUser();
+    } catch (e, st) {
+      log('[SplashPage] Failed to read stored user: $e', stackTrace: st);
+    }
 
     if (!mounted) return;
 
@@ -188,8 +211,16 @@ class _SplashPageState extends ConsumerState<SplashPage>
       return;
     }
 
+    // Compare case-insensitively and trimmed — a stray space or a
+    // differently-cased role stored on the backend ("Dealer" instead
+    // of "DEALER") used to fail both exact-match checks below and
+    // silently leave the app stuck on the splash screen forever, with
+    // no navigation and no error. Doing the comparison this way means
+    // that class of mismatch just works instead of hanging.
+    final userType = user.userType?.trim().toUpperCase();
+
     // CLIENT
-    if (user.userType == 'CLIENT') {
+    if (userType == 'CLIENT') {
       ref.read(routeService).pushAndRemoveUntil(
             const ClientBottomNavRoute(),
             context,
@@ -199,7 +230,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
     }
 
     // DEALER
-    if (user.userType == 'DEALER') {
+    if (userType == 'DEALER') {
       ref.read(routeService).pushAndRemoveUntil(
             const BottomNavRoute(),
             context,
@@ -207,6 +238,18 @@ class _SplashPageState extends ConsumerState<SplashPage>
 
       return;
     }
+
+    // Neither matched — this used to be a silent dead end (splash
+    // screen stays up forever, no error, no clue why). Log it loudly
+    // so it's visible in the device logs instead of looking identical
+    // to a hang, and fall back to onboarding rather than leaving the
+    // person stranded on an unresponsive splash screen.
+    log('[SplashPage] Unrecognized userType "${user.userType}" — '
+        'falling back to onboarding.');
+    ref.read(routeService).pushAndRemoveUntil(
+          const DealerOnboardingRoute(),
+          context,
+        );
   }
 
   // ═════════════════════════════════════════════
