@@ -1,4 +1,5 @@
 import 'package:dealer/core/common/data/model/city_model.dart';
+import 'package:dealer/core/common/data/model/lender_model.dart';
 import 'package:dealer/core/common/data/model/state_model.dart';
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/features/live_auction/domain/usecase/live_auction_params.dart';
@@ -17,7 +18,7 @@ class AuctionLogic extends ChangeNotifier {
   String searchQuery = '';
   StateModel? selectedState;
   CityModel? selectedCity;
-  dynamic selectedLender;
+  LenderModel? selectedLender;
   DateTime? fromDate;
   DateTime? toDate;
   String? activeTabStatus;
@@ -357,7 +358,7 @@ class AuctionLogic extends ChangeNotifier {
     final params = LiveAuctionParams(
       stateId: selectedState?.stateId,
       cityId: selectedCity?.cityId,
-      lenderId: selectedLender?.id, // adjust field name to your lender model
+      lenderId: selectedLender?.sno, // adjust field name to your lender model
       categoryId: _categoryId(selectedCategory),
       status: explicitStatus ?? activeTabStatus,
       fromDate: fromDate,

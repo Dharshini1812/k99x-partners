@@ -23,13 +23,13 @@ class BottomNavBar extends StatelessWidget {
   static const activeColor = AppColors.primary;
 
   static const _icons = [
-    Icons.live_tv,
     Icons.home_rounded,
+    Icons.gavel,
     Icons.upload,
     Icons.history,
     Icons.person,
   ];
-  static const _labels = ['Auction', 'Home', 'Sell', 'Listings', 'Profile'];
+  static const _labels = ['Home', 'Auction', 'Sell', 'Listings', 'Profile'];
 
   @override
   Widget build(BuildContext context) {

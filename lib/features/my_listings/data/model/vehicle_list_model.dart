@@ -255,7 +255,7 @@ class DealerVehicleInspection {
   final MediaFile? tyreVideoUrl;
   final MediaFile? mergedVideoUrl;
 
-  final String? youtubeVideoUrl;
+  final YoutubeVideoInfo? youtubeVideoUrl;
   final String? displaySt;
 
   final int? createdAt;
@@ -321,10 +321,21 @@ class DealerVehicleInspection {
       tyreVideoUrl: json['tyreVideoUrl'] != null
           ? MediaFile.fromJson(json['tyreVideoUrl'])
           : null,
+      // mergedVideoUrl can come back as either a normal media object
+      // OR as {"status": "ERROR"} when processing failed — MediaFile
+      // parses either shape fine (fileName/type/url/publicId just end
+      // up null for the error case), and anything checking this field
+      // for playability should test `mergedVideoUrl?.url` being
+      // non-empty rather than just non-null.
       mergedVideoUrl: json['mergedVideoUrl'] != null
           ? MediaFile.fromJson(json['mergedVideoUrl'])
           : null,
-      youtubeVideoUrl: json['youtubeVideoUrl']?.toString(),
+      // The API sends an OBJECT here — {"youtubeUrl": "...", "thumbnail":
+      // "..."} — not a plain string. The previous `.toString()` call
+      // stringified the whole Map instead of extracting the real URL.
+      youtubeVideoUrl: json['youtubeVideoUrl'] != null
+          ? YoutubeVideoInfo.fromJson(json['youtubeVideoUrl'])
+          : null,
       displaySt: json['displaySt']?.toString(),
       createdAt: json['createdAt'],
       updatedAt: json['updatedAt'],
@@ -350,13 +361,32 @@ class DealerVehicleInspection {
         'engineBayVideoUrl': engineBayVideoUrl?.toJson(),
         'tyreVideoUrl': tyreVideoUrl?.toJson(),
         'mergedVideoUrl': mergedVideoUrl?.toJson(),
-        'youtubeVideoUrl': youtubeVideoUrl,
+        'youtubeVideoUrl': youtubeVideoUrl?.toJson(),
         'displaySt': displaySt,
         'createdAt': createdAt,
         'updatedAt': updatedAt,
         'rc': rc,
         'overallCondition': overallCondition,
         'remarks': remarks,
+      };
+}
+
+class YoutubeVideoInfo {
+  final String? youtubeUrl;
+  final String? thumbnail;
+
+  YoutubeVideoInfo({this.youtubeUrl, this.thumbnail});
+
+  factory YoutubeVideoInfo.fromJson(Map<String, dynamic> json) {
+    return YoutubeVideoInfo(
+      youtubeUrl: json['youtubeUrl'],
+      thumbnail: json['thumbnail'],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'youtubeUrl': youtubeUrl,
+        'thumbnail': thumbnail,
       };
 }
 

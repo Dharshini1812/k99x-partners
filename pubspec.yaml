@@ -65,6 +65,7 @@ dependencies:
   camera: 0.10.6
   camera_android: 0.10.9+11
   device_info_plus: ^11.3.0
+  audioplayers: ^6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -95,6 +96,7 @@ flutter:
     - images/
     - images/onboarding/
     - images/logo/
+    - assets/sounds/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

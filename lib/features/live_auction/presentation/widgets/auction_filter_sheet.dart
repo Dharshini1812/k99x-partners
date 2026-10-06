@@ -1,7 +1,9 @@
 import 'package:dealer/core/common/data/model/city_model.dart';
+import 'package:dealer/core/common/data/model/lender_model.dart';
 import 'package:dealer/core/common/data/model/state_model.dart';
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
+import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:flutter/material.dart';
@@ -19,8 +21,6 @@ class _AuctionFilterSheetState extends ConsumerState<AuctionFilterSheet> {
   final _regNoController = TextEditingController();
   final _modelController = TextEditingController();
 
-  // Auctions can be scheduled ahead of time, so allow picking dates up
-  // through the end of next year rather than capping at "today".
   static final DateTime _maxSelectableDate = DateTime(2027, 12, 31);
 
   @override
@@ -32,6 +32,7 @@ class _AuctionFilterSheetState extends ConsumerState<AuctionFilterSheet> {
     _modelController.text = logic.model;
     Future.microtask(() {
       ref.read(getStateProvider.notifier).getState();
+      ref.read(getLenderProvider.notifier).getLender();
       if (logic.selectedState != null) {
         ref
             .read(getCityProvider.notifier)
@@ -48,13 +49,39 @@ class _AuctionFilterSheetState extends ConsumerState<AuctionFilterSheet> {
     super.dispose();
   }
 
-  /// "Clear All" / "Clear Filters" should restore the same launch
-  /// defaults (default date range + the dealer's own state), not wipe
-  /// everything to a blank slate — see AuctionLogic.resetToDefaults().
   void _resetFiltersToDefaults(AuctionLogic logic) {
     final states = ref.read(getStateProvider).whenOrNull(data: (s) => s) ?? [];
     final userStateName = ref.read(dLogic).user?.stateName;
     logic.resetToDefaults(userStateName: userStateName, states: states);
+  }
+
+  static bool _isEnded(LiveAuctionModel vehicle) {
+    final statusUpper = (vehicle.status ?? '').trim().toUpperCase();
+    if (statusUpper == 'SOLD' || statusUpper == 'UNSOLD') return true;
+
+    final closeDt = vehicle.auctionCloseDt;
+    if (closeDt != null && closeDt.isNotEmpty) {
+      final parsed = DateTime.tryParse(closeDt.replaceFirst(' ', 'T'));
+      if (parsed != null && parsed.isBefore(DateTime.now())) return true;
+    }
+    return false;
+  }
+
+  static bool _matchesSearch(LiveAuctionModel vehicle, String query) {
+    if (query.trim().isEmpty) return true;
+    final q = query.trim().toLowerCase();
+    final haystack = [
+      vehicle.make,
+      vehicle.model,
+      vehicle.variant,
+      vehicle.regno,
+      vehicle.vehicleId,
+      vehicle.categoryName,
+      vehicle.lenderName,
+      vehicle.cityName,
+      vehicle.stateName,
+    ].where((e) => e != null).map((e) => e.toString().toLowerCase());
+    return haystack.any((field) => field.contains(q));
   }
 
   @override
@@ -63,7 +90,21 @@ class _AuctionFilterSheetState extends ConsumerState<AuctionFilterSheet> {
     final stateData = ref.watch(getStateProvider);
     final cityData = ref.watch(getCityProvider);
     final liveAuctionState = ref.watch(liveAuctionNotifier);
-    final matchCount = liveAuctionState.whenOrNull(data: (r) => r.length) ?? 0;
+    final lenderData = ref.watch(getLenderProvider);
+
+    // Compute actual active matches respecting active tab status and search query
+    final matchCount = liveAuctionState.whenOrNull(data: (items) {
+          return items
+              .where((a) => !_isEnded(a))
+              .where((a) {
+                if (logic.activeTabStatus == null) return true;
+                return (a.status ?? '').trim().toUpperCase() ==
+                    logic.activeTabStatus!.toUpperCase();
+              })
+              .where((a) => _matchesSearch(a, logic.searchQuery))
+              .length;
+        }) ??
+        0;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.9,
@@ -271,26 +312,49 @@ class _AuctionFilterSheetState extends ConsumerState<AuctionFilterSheet> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    _label('Condition'),
-                    _buildStringDropdown(
-                      value: logic.condition,
-                      options: AuctionLogic.conditionOptions,
-                      onChanged: logic.updateCondition,
-                    ),
                     const SizedBox(height: 18),
-                    _label('Seller'),
-                    _buildStringDropdown(
-                      value: logic.seller,
-                      options: AuctionLogic.sellerOptions,
-                      onChanged: logic.updateSeller,
-                    ),
-                    const SizedBox(height: 18),
-                    _label('Ownership'),
-                    _buildStringDropdown(
-                      value: logic.ownership,
-                      options: AuctionLogic.ownershipOptions,
-                      onChanged: logic.updateOwnership,
+                    _label('Lender'),
+                    lenderData.maybeWhen(
+                      data: (data) {
+                        return Container(
+                          height: 44,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: const Color(0xFFD1D5DB),
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<LenderModel>(
+                              value: logic.selectedLender,
+                              isExpanded: true,
+                              hint: const Text(
+                                'Select Lender',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.black87,
+                              ),
+                              items: data.map((lender) {
+                                return DropdownMenuItem<LenderModel>(
+                                  value: lender,
+                                  child: Text(
+                                    lender.lenderName ?? '',
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (lender) {
+                                setState(() {
+                                  logic.selectedLender = lender;
+                                });
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                      orElse: () => const SizedBox(),
                     ),
                     const SizedBox(height: 18),
                     _label('Status'),
@@ -478,7 +542,6 @@ class _AuctionFilterSheetState extends ConsumerState<AuctionFilterSheet> {
     );
   }
 
-  /// Real calendar date picker field (replaces the old year-only dropdown).
   Widget _buildDateField({
     required BuildContext context,
     required String hint,
@@ -487,12 +550,8 @@ class _AuctionFilterSheetState extends ConsumerState<AuctionFilterSheet> {
     required DateTime lastDate,
     required ValueChanged<DateTime?> onChanged,
   }) {
-    // Guard against an invalid range (e.g. "to" firstDate after lastDate).
     final safeFirst = firstDate.isAfter(lastDate) ? lastDate : firstDate;
 
-    // Open the calendar on today's date when nothing is picked yet,
-    // clamped into the allowed range instead of always jumping to
-    // the far end of the range (e.g. 2027).
     DateTime defaultInitial = DateTime.now();
     if (defaultInitial.isBefore(safeFirst)) defaultInitial = safeFirst;
     if (defaultInitial.isAfter(lastDate)) defaultInitial = lastDate;

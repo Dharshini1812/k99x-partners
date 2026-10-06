@@ -119,3 +119,69 @@ void navigateToDashboard(WidgetRef ref, BuildContext context) {
   // 4. Pop any active modal sheets, review sub-pages, or dialogs if open
   Navigator.of(context).popUntil((route) => route.isFirst);
 }
+
+const Map<String, String> stateCodes = {
+  'andhra pradesh': 'AP',
+  'arunachal pradesh': 'AR',
+  'assam': 'AS',
+  'bihar': 'BR',
+  'chhattisgarh': 'CG',
+  'goa': 'GA',
+  'gujarat': 'GJ',
+  'haryana': 'HR',
+  'himachal pradesh': 'HP',
+  'jharkhand': 'JH',
+  'karnataka': 'KA',
+  'kerala': 'KL',
+  'madhya pradesh': 'MP',
+  'maharashtra': 'MH',
+  'manipur': 'MN',
+  'meghalaya': 'ML',
+  'mizoram': 'MZ',
+  'nagaland': 'NL',
+  'odisha': 'OD',
+  'orissa': 'OD',
+  'punjab': 'PB',
+  'rajasthan': 'RJ',
+  'sikkim': 'SK',
+  'tamil nadu': 'TN',
+  'tamilnadu': 'TN',
+  'telangana': 'TS',
+  'tripura': 'TR',
+  'uttar pradesh': 'UP',
+  'uttarakhand': 'UK',
+  'west bengal': 'WB',
+  'andaman and nicobar islands': 'AN',
+  'chandigarh': 'CH',
+  'dadra and nagar haveli and daman and diu': 'DD',
+  'delhi': 'DL',
+  'jammu and kashmir': 'JK',
+  'ladakh': 'LA',
+  'lakshadweep': 'LD',
+  'puducherry': 'PY',
+  'pondicherry': 'PY',
+};
+
+String shortState(String? state) {
+  if (state == null || state.trim().isEmpty) return '';
+  final key = state.trim().toLowerCase();
+  return stateCodes[key] ?? state.trim(); // fallback to original name
+}
+
+// "HDFC BANK ltd" -> "Hdfc Bank Ltd"
+String titleCase(String? input) {
+  if (input == null || input.trim().isEmpty) return '';
+  return input
+      .trim()
+      .split(RegExp(r'\s+'))
+      .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
+      .join(' ');
+}
+
+// "3.0" -> 3.0, null/invalid -> null
+double? parseRating(String? value) {
+  if (value == null) return null;
+  final r = double.tryParse(value.trim());
+  if (r == null) return null;
+  return r.clamp(0, 5).toDouble();
+}

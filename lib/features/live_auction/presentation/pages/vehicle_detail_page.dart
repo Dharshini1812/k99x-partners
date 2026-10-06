@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/a_vehicle_detail.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
+import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/pages/inspection_full_image_viewer_page.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/place_bid_sheet.dart';
@@ -49,22 +50,25 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
   static const int _minAboveBasePrice = 10000;
   static const int _minIncrement = 1000;
 
-  void _openBidSheet() {
+  Future<void> _openBidSheet(BidSheetMode mode) async {
     final user = ref.read(dLogic).user;
     final trial = ref.read(trialLogic);
 
-    // If user is NOT logged in and is in trial mode, show blocked dialog
     if (user == null && trial.isTrialSession) {
       showTrialBlockedDialog(context, ref, expired: trial.isTrialExpired);
       return;
     }
 
-    showModalBottomSheet<int>(
+    final result = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => PlaceBidSheet(vehicle: widget.vehicle),
+      builder: (_) => PlaceBidSheet(vehicle: widget.vehicle, mode: mode),
     );
+
+    if (result != null && mounted) {
+      ref.read(auctionLogic).search();
+    }
   }
 
   @override
@@ -1016,7 +1020,9 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: _ended ? null : () => _openBidSheet(),
+                    onPressed: _ended
+                        ? null
+                        : () => _openBidSheet(BidSheetMode.autobid),
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(
                           color: isTrialLocked
@@ -1056,7 +1062,8 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: _ended ? null : () => _openBidSheet(),
+                    onPressed:
+                        _ended ? null : () => _openBidSheet(BidSheetMode.bid),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isTrialLocked
                           ? Colors.grey.shade400

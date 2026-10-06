@@ -6,6 +6,8 @@ import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
 import 'package:dealer/features/my_listings/presentation/logic/provider.dart';
 import 'package:dealer/features/my_listings/presentation/pages/add_wanted_vehicle_page.dart';
 import 'package:dealer/features/my_listings/presentation/pages/vehicle_card.dart';
+
+import 'package:dealer/features/my_listings/presentation/widgets/vehcile_card_skeleton.dart';
 import 'package:dealer/features/my_listings/presentation/widgets/vehicle_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -359,10 +361,8 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
           },
         ),
         liveStockAsync.maybeWhen(
-          loading: () => const Padding(
-            padding: EdgeInsets.only(top: 40),
-            child: Center(child: CircularProgressIndicator()),
-          ),
+          initial: () => const VehicleCardSkeletonList(),
+          loading: () => const VehicleCardSkeletonList(),
           error: (msg) => Padding(
             padding: const EdgeInsets.only(top: 40),
             child: Center(
@@ -498,10 +498,14 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
         ),
         Expanded(
           child: myListingAsync.maybeWhen(
-            error: (msg) => Center(child: Text(msg)),
-            orElse: () => const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
+            initial: () => const VehicleCardSkeletonList(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
             ),
+            loading: () => const VehicleCardSkeletonList(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
+            ),
+            error: (msg) => Center(child: Text(msg)),
+            orElse: () => const SizedBox.shrink(),
             data: (vehicleResponse) {
               final liveStocks = liveListingAsync.maybeWhen(
                 data: (res) => res.data,

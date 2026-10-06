@@ -5,11 +5,13 @@ import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
 import 'package:dealer/features/my_listings/presentation/logic/provider.dart';
 import 'package:dealer/features/my_listings/presentation/widgets/pre-approved_tab.dart';
+import 'package:dealer/features/my_listings/presentation/widgets/veh_media_gallery_page.dart';
 import 'package:dealer/features/upload/presentation/logic/vehicle_edit_logic.dart';
 import 'package:dealer/features/upload/presentation/pages/vehicle_details_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 enum _CardTab { pricing, details, market }
 
@@ -283,14 +285,27 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _Thumbnail(
-                      imagePath: data.dealerVehicleInspection
-                              ?.frontVehicleImageUrl?.url ??
-                          '',
-                      statusLabel: data.status ?? '',
-                      statusColor: (data.status ?? '').toUpperCase() == 'LIVE'
-                          ? const Color(0xFF27AE60)
-                          : const Color(0xFFF39C12),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => VehicleMediaGalleryPage(
+                              inspection: data.dealerVehicleInspection,
+                              vehicleTitle: fullVehicleTitle,
+                            ),
+                          ),
+                        );
+                      },
+                      child: _Thumbnail(
+                        imagePath: data.dealerVehicleInspection
+                                ?.frontVehicleImageUrl?.url ??
+                            '',
+                        statusLabel: data.status ?? '',
+                        statusColor: (data.status ?? '').toUpperCase() == 'LIVE'
+                            ? const Color(0xFF27AE60)
+                            : const Color(0xFFF39C12),
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1611,6 +1626,15 @@ class _DemandRow extends ConsumerWidget {
     return DateFormat('d MMM yyyy, h:mm a').format(parsed);
   }
 
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    // Strip non-digit characters except leading '+'
+    final cleanNumber = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
+    final uri = Uri(scheme: 'tel', path: cleanNumber);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hasNotes = item.notes != null && item.notes!.trim().isNotEmpty;
@@ -1663,20 +1687,34 @@ class _DemandRow extends ConsumerWidget {
                   ),
                 ),
                 if ((item.phoneNumber ?? '').isNotEmpty)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.phone_rounded,
-                          size: 13, color: _labelColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        item.phoneNumber!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF444444),
-                        ),
+                  InkWell(
+                    onTap: () => _makePhoneCall(item.phoneNumber!),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.phone_rounded,
+                            size: 13,
+                            color: _labelColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            item.phoneNumber!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(
+                                  0xFF1E88E5), // Blue tint to indicate clickability
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 if (address.isNotEmpty)
                   Row(

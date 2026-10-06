@@ -633,7 +633,7 @@ class _KmRangeFilter extends StatelessWidget {
         Row(
           children: [
             const Text(
-              'KM RANGE',
+              'LOCATION RANGE',
               style: TextStyle(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w700,

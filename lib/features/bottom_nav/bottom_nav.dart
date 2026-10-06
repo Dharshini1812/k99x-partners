@@ -34,8 +34,8 @@ class _BottomNavPageState extends ConsumerState<BottomNavPage> {
     final lockedIndices = isTrialMode ? {1, 2, 3, 4} : <int>{};
 
     final pages = [
-      const AuctionHomePage(),
       const DashboardPage(),
+      const AuctionHomePage(),
       const VehicleListingPage(),
       const MyListPage(),
       const Profile(),

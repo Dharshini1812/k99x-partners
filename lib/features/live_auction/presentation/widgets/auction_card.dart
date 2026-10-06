@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:dealer/core/helper/feedback_helper.dart';
+import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
 import 'package:dealer/features/trial/presentation/widgets/trial_blocked_dialog.dart';
@@ -94,11 +96,10 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     super.dispose();
   }
 
-  Future<void> _openBidSheet() async {
+  Future<void> _openBidSheet(BidSheetMode mode) async {
     final user = ref.read(dLogic).user;
     final trial = ref.read(trialLogic);
 
-    // Only block bidding if the user is NOT logged in and currently in trial mode
     if (user == null && trial.isTrialSession) {
       showTrialBlockedDialog(context, ref, expired: trial.isTrialExpired);
       return;
@@ -108,13 +109,21 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => PlaceBidSheet(vehicle: widget.vehicle),
+      builder: (_) => PlaceBidSheet(vehicle: widget.vehicle, mode: mode),
     );
 
     if (result != null && mounted) {
+      // The sheet only ever pops with a non-null amount on an actually
+      // successful bid/autobid (see PlaceBidSheet's result dialog) — so
+      // this is the right, specific moment for the success feedback,
+      // not just "the sheet closed". Fires even with the phone on
+      // silent (see FeedbackHelper for why).
+      await FeedbackHelper.success();
       ref.read(auctionLogic).search();
     }
   }
+
+// Auto bid button:
 
   @override
   Widget build(BuildContext context) {
@@ -122,9 +131,9 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     final title = [v.mfgYear, v.make, v.model, v.variant]
         .where((e) => e != null && e.toString().trim().isNotEmpty)
         .join(' ');
-    final location = [v.cityName, v.stateName]
+    final location = [v.cityName, shortState(v.stateName)]
         .where((e) => e != null && e.toString().trim().isNotEmpty)
-        .join('  ');
+        .join(', ');
     final specs = [
       v.fuel,
       v.kmsDriven != null ? '${v.kmsDriven}K km' : null,
@@ -216,22 +225,44 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                     Text(specs,
                         style: const TextStyle(
                             color: Colors.black54, fontSize: 12)),
-                  const SizedBox(height: 6),
-                  Text(
-                    v.lenderName ?? '',
-                    style: const TextStyle(
-                        color: Color(0xFF00897B),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        titleCase(v.lenderName),
+                        style: const TextStyle(
+                            color: Color(0xFF00897B),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12),
+                      ),
+                      RichText(
+                        text: TextSpan(
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.black,
+                          ),
+                          children: [
+                            const TextSpan(
+                              text: 'Base price: ',
+                              style: TextStyle(fontWeight: FontWeight.normal),
+                            ),
+                            TextSpan(
+                              text: _formatPrice(v.basePrice?.toInt()),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
                         children: [
                           Icon(Icons.timer_outlined,
-                              size: 16,
+                              size: 18,
                               color: _ended ? Colors.red : Colors.black87),
                           const SizedBox(width: 4),
                           Text(
@@ -244,61 +275,59 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                           ),
                         ],
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          RichText(
-                            text: TextSpan(
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.black,
-                              ),
-                              children: [
-                                const TextSpan(
-                                  text: 'Base price: ',
-                                  style:
-                                      TextStyle(fontWeight: FontWeight.normal),
-                                ),
-                                TextSpan(
-                                  text: _formatPrice(v.basePrice?.toInt()),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold),
-                                ),
-                              ],
-                            ),
+                      RichText(
+                        text: TextSpan(
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.black,
                           ),
-                          RichText(
-                            text: TextSpan(
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.black,
-                              ),
-                              children: [
-                                const TextSpan(
-                                  text: 'Current Bid: ',
-                                  style:
-                                      TextStyle(fontWeight: FontWeight.normal),
-                                ),
-                                TextSpan(
-                                  text: currentBid != null
-                                      ? _formatPrice(currentBid.toInt())
-                                      : 'No bids yet',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold),
-                                ),
-                              ],
+                          children: [
+                            const TextSpan(
+                              text: 'Current Bid: ',
+                              style: TextStyle(fontWeight: FontWeight.normal),
                             ),
-                          ),
-                        ],
+                            TextSpan(
+                              text: currentBid != null
+                                  ? _formatPrice(currentBid.toInt())
+                                  : 'No bids yet',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
+                  //  Row(
+                  //   children: [
+                  //     Expanded(
+                  //       child: _ConditionItem(
+                  //         label: 'Exterior',
+                  //         rating: parseRating(v.),
+                  //       ),
+                  //     ),
+                  //     Expanded(
+                  //       child: _ConditionItem(
+                  //         label: 'Interior',
+                  //         rating: parseRating(v.interiorCondition),
+                  //       ),
+                  //     ),
+                  //     Expanded(
+                  //       child: _ConditionItem(
+                  //         label: 'Engine',
+                  //         rating: parseRating(v.engineCondition),
+                  //       ),
+                  //     ),
+                  //   ],
+                  // ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: _ended ? null : _openBidSheet,
+                          onPressed: _ended
+                              ? null
+                              : () => _openBidSheet(BidSheetMode.autobid),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFF3E5F5),
                             foregroundColor: const Color(0xFF6200EE),
@@ -313,7 +342,9 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: _ended ? null : _openBidSheet,
+                          onPressed: _ended
+                              ? null
+                              : () => _openBidSheet(BidSheetMode.bid),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF3F00E6),
                             foregroundColor: Colors.white,
@@ -398,6 +429,56 @@ class _AuctionThumbnail extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _StarRating extends StatelessWidget {
+  final double rating;
+  final double size;
+  const _StarRating({required this.rating, this.size = 14});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (i) {
+        final diff = rating - i;
+        IconData icon;
+        if (diff >= 1) {
+          icon = Icons.star_rounded;
+        } else if (diff >= 0.5) {
+          icon = Icons.star_half_rounded;
+        } else {
+          icon = Icons.star_border_rounded;
+        }
+        return Icon(icon, size: size, color: const Color(0xFFFFB300));
+      }),
+    );
+  }
+}
+
+class _ConditionItem extends StatelessWidget {
+  final String label;
+  final double? rating;
+  const _ConditionItem({required this.label, required this.rating});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 11,
+                color: Colors.black54,
+                fontWeight: FontWeight.w600)),
+        const SizedBox(height: 2),
+        rating == null
+            ? const Text('-',
+                style: TextStyle(fontSize: 12, color: Colors.black54))
+            : _StarRating(rating: rating!),
+      ],
     );
   }
 }

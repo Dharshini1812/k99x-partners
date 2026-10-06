@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:dealer/core/common/presentation/provider.dart';
+import 'package:dealer/core/helper/feedback_helper.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
@@ -27,12 +28,11 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
   late final TabController _tabController;
 
   static const _tabs = [
-    (label: 'Auctions', count: '51', status: 'LIVE'),
-    (label: 'One click buy', count: '117', status: null),
-    (label: 'Upcoming', count: '12', status: 'UPCOMING'),
+    (label: 'Auctions', status: 'LIVE'),
+    (label: 'One click buy', status: null),
+    (label: 'Upcoming', status: 'UPCOMING'),
   ];
 
-  @override
   @override
   void initState() {
     super.initState();
@@ -49,7 +49,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
 
       final logic = ref.read(auctionLogic);
 
-      // FIX: Set the initial tab status explicitly (tab 0 is 'LIVE')
+      // Set initial tab status (tab 0 is 'LIVE')
       logic.setActiveTabStatus(_tabs.first.status);
 
       logic.setDefaultDateRange(twoMonthsAgo, twoMonthsAhead);
@@ -118,6 +118,46 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     super.dispose();
   }
 
+  static bool _isEnded(LiveAuctionModel vehicle) {
+    final statusUpper = (vehicle.status ?? '').trim().toUpperCase();
+    if (statusUpper == 'SOLD' || statusUpper == 'UNSOLD') return true;
+
+    final closeDt = vehicle.auctionCloseDt;
+    if (closeDt != null && closeDt.isNotEmpty) {
+      final parsed = DateTime.tryParse(closeDt.replaceFirst(' ', 'T'));
+      if (parsed != null && parsed.isBefore(DateTime.now())) return true;
+    }
+    return false;
+  }
+
+  static bool _matchesSearch(LiveAuctionModel vehicle, String query) {
+    if (query.trim().isEmpty) return true;
+    final q = query.trim().toLowerCase();
+    final haystack = [
+      vehicle.make,
+      vehicle.model,
+      vehicle.variant,
+      vehicle.regno,
+      vehicle.vehicleId,
+      vehicle.categoryName,
+      vehicle.lenderName,
+      vehicle.cityName,
+      vehicle.stateName,
+    ].where((e) => e != null).map((e) => e.toString().toLowerCase());
+    return haystack.any((field) => field.contains(q));
+  }
+
+  int _countForStatus(
+      List<LiveAuctionModel> auctions, String? status, String query) {
+    if (status == null) return 0; // One click buy placeholder
+    return auctions
+        .where((a) => !_isEnded(a))
+        .where((a) =>
+            (a.status ?? '').trim().toUpperCase() == status.toUpperCase())
+        .where((a) => _matchesSearch(a, query))
+        .length;
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(getStateProvider, (previous, next) {
@@ -127,6 +167,21 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     ref.listen(liveAuctionNotifier, (previous, next) {
       next.whenOrNull(data: (_) => _maybeShowVoucherPopup());
     });
+
+    final liveAuctionState = ref.watch(liveAuctionNotifier);
+    final logic = ref.watch(auctionLogic);
+
+    final allAuctions = liveAuctionState.maybeWhen(
+      data: (list) => list,
+      orElse: () => const <LiveAuctionModel>[],
+    );
+
+    // Dynamic counts reflecting current search query and live API results
+    final tabCounts = [
+      _countForStatus(allAuctions, 'LIVE', logic.searchQuery).toString(),
+      '0', // One Click Buy count placeholder
+      _countForStatus(allAuctions, 'UPCOMING', logic.searchQuery).toString(),
+    ];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -162,11 +217,14 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
                     for (int i = 0; i < _tabs.length; i++)
                       _buildTab(
                         label: _tabs[i].label,
-                        count: _tabs[i].count,
+                        count: tabCounts[i],
                         isActive: _tabController.index == i,
                       ),
                   ],
-                  onTap: (_) => setState(() {}),
+                  onTap: (_) {
+                    FeedbackHelper.tap();
+                    setState(() {});
+                  },
                 ),
               ),
             ),
@@ -226,35 +284,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     );
   }
 
-  static bool _isEnded(LiveAuctionModel vehicle) {
-    final statusUpper = (vehicle.status ?? '').trim().toUpperCase();
-    if (statusUpper == 'SOLD' || statusUpper == 'UNSOLD') return true;
-
-    final closeDt = vehicle.auctionCloseDt;
-    if (closeDt != null && closeDt.isNotEmpty) {
-      final parsed = DateTime.tryParse(closeDt.replaceFirst(' ', 'T'));
-      if (parsed != null && parsed.isBefore(DateTime.now())) return true;
-    }
-    return false;
-  }
-
-  bool _matchesSearch(LiveAuctionModel vehicle, String query) {
-    if (query.trim().isEmpty) return true;
-    final q = query.trim().toLowerCase();
-    final haystack = [
-      vehicle.make,
-      vehicle.model,
-      vehicle.variant,
-      vehicle.regno,
-      vehicle.vehicleId,
-      vehicle.categoryName,
-      vehicle.lenderName,
-      vehicle.cityName,
-      vehicle.stateName,
-    ].where((e) => e != null).map((e) => e.toString().toLowerCase());
-    return haystack.any((field) => field.contains(q));
-  }
-
   Widget _buildAuctionsList({required String status}) {
     final state = ref.watch(liveAuctionNotifier);
     final logic = ref.watch(auctionLogic);
@@ -276,8 +305,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
         final filtered = auctions
             .where((a) => !_isEnded(a))
             .where((a) =>
-                (a.status ?? '').trim().toUpperCase() ==
-                status.toUpperCase()) // Strict check
+                (a.status ?? '').trim().toUpperCase() == status.toUpperCase())
             .where((a) => _matchesSearch(a, logic.searchQuery))
             .toList();
 
@@ -322,17 +350,15 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
   }
 
   Widget _buildOneClickBuyList() {
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: [
-        Center(
-          child: Column(
-            children: [
-              Image.asset('images/coming_soon.jpeg'),
-            ],
-          ),
+    return const Center(
+      child: Text(
+        'One Click Buy coming soon',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Colors.grey,
         ),
-      ],
+      ),
     );
   }
 }
@@ -366,7 +392,6 @@ class _TrialStatusBannerState extends ConsumerState<_TrialStatusBanner> {
     final trial = ref.watch(trialLogic);
     final user = ref.watch(dLogic).user;
 
-    // If user is already logged in or not in trial session, hide the timer
     final bool isLoggedIn = user != null;
     if (isLoggedIn || !trial.isTrialSession) {
       return const SizedBox.shrink();
