@@ -92,36 +92,38 @@ class LiveAuctionModel {
   String? stateName;
   String? cityName;
   List<BidsModel>? bids;
-  VehicleImageModelF?
-      imageUrl; // ADAPT: rename to match the actual JSON key once confirmed
+  VehicleImageModelF? imageUrl;
+  String? mode;
 
-  LiveAuctionModel(
-      {this.vehicleId,
-      this.loanNo,
-      this.mfgYear,
-      this.make,
-      this.model,
-      this.variant,
-      this.regno,
-      this.fuel,
-      this.kmsDriven,
-      this.ownerCount,
-      this.basePrice,
-      this.status,
-      this.auctionStartDt,
-      this.auctionCloseDt,
-      this.createdDt,
-      this.updatedAt,
-      this.winningBid,
-      this.vehReport,
-      this.lenderId,
-      this.lenderName,
-      this.categoryId,
-      this.categoryName,
-      this.stateName,
-      this.cityName,
-      this.bids,
-      this.imageUrl});
+  LiveAuctionModel({
+    this.vehicleId,
+    this.loanNo,
+    this.mfgYear,
+    this.make,
+    this.model,
+    this.variant,
+    this.regno,
+    this.fuel,
+    this.kmsDriven,
+    this.ownerCount,
+    this.basePrice,
+    this.status,
+    this.auctionStartDt,
+    this.auctionCloseDt,
+    this.createdDt,
+    this.updatedAt,
+    this.winningBid,
+    this.vehReport,
+    this.lenderId,
+    this.lenderName,
+    this.categoryId,
+    this.categoryName,
+    this.stateName,
+    this.cityName,
+    this.mode,
+    this.bids,
+    this.imageUrl,
+  });
 
   LiveAuctionModel.fromJson(Map<String, dynamic> json) {
     vehicleId = json['vehicle_id'];
@@ -148,6 +150,7 @@ class LiveAuctionModel {
     categoryName = json['category_name'];
     stateName = json['state_name'];
     cityName = json['city_name'];
+    mode = json['mode'];
     if (json['front_view'] != null) {
       imageUrl = VehicleImageModelF.fromJson(json['front_view']);
     } // ADAPT: match actual key from real payload

@@ -214,18 +214,61 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
   }
 
   List<LiveAuctionModel> _findSimilarVehicles(List<LiveAuctionModel> all) {
-    final curMake = (widget.vehicle.make ?? '').trim().toLowerCase();
-    final curModel = (widget.vehicle.model ?? '').trim().toLowerCase();
+    final curYear = int.tryParse(widget.vehicle.mfgYear?.toString() ?? '');
+    final curPrice = widget.vehicle.basePrice ?? 0.0;
 
-    return all.where((item) {
+    // Filter out the current vehicle
+    final candidates = all.where((item) {
       if (item.vehicleId == widget.vehicle.vehicleId) return false;
-      final m = (item.make ?? '').trim().toLowerCase();
-      final mo = (item.model ?? '').trim().toLowerCase();
-
-      final matchesMake = curMake.isNotEmpty && m == curMake;
-      final matchesModel = curModel.isNotEmpty && mo == curModel;
-      return matchesMake || matchesModel;
+      return true;
     }).toList();
+
+    final matches = candidates.where((item) {
+      final itemYear = int.tryParse(item.mfgYear?.toString() ?? '');
+      final itemPrice = item.basePrice ?? 0.0;
+
+      // 1. Year comparison: within +/- 2 years
+      bool yearMatch = false;
+      if (curYear != null && itemYear != null) {
+        yearMatch = (itemYear - curYear).abs() <= 2;
+      } else {
+        // If year is not present, don't penalize
+        yearMatch = true;
+      }
+
+      // 2. Rate (Base Price) comparison: within +/- 30% range
+      bool priceMatch = false;
+      if (curPrice > 0 && itemPrice > 0) {
+        final minPrice = curPrice * 0.70; // 30% lower
+        final maxPrice = curPrice * 1.30; // 30% higher
+        priceMatch = itemPrice >= minPrice && itemPrice <= maxPrice;
+      } else {
+        priceMatch = true;
+      }
+
+      return yearMatch && priceMatch;
+    }).toList();
+
+    // Fallback: If no strict matches exist, take vehicles closest in price
+    final resultList = matches.isNotEmpty
+        ? matches
+        : (candidates
+              ..sort((a, b) {
+                final diffA = ((a.basePrice ?? 0) - curPrice).abs();
+                final diffB = ((b.basePrice ?? 0) - curPrice).abs();
+                return diffA.compareTo(diffB);
+              }))
+            .take(5)
+            .toList();
+
+    // Sort by price proximity so the closest rate appears first
+    resultList.sort((a, b) {
+      final diffA = ((a.basePrice ?? 0) - curPrice).abs();
+      final diffB = ((b.basePrice ?? 0) - curPrice).abs();
+      return diffA.compareTo(diffB);
+    });
+
+    return resultList;
   }
 
   @override
@@ -563,6 +606,15 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            'Similar price range & manufacturing year',
+            style: TextStyle(
+              fontSize: 12,
+              color: Color(0xFF6B7280),
+              fontWeight: FontWeight.w500,
+            ),
           ),
           const SizedBox(height: 12),
           ListView.separated(

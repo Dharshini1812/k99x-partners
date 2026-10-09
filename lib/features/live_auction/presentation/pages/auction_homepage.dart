@@ -29,7 +29,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
 
   static const _tabs = [
     (label: 'Auctions', status: 'LIVE'),
-    (label: 'One click buy', status: null),
+    (label: 'Quote price', status: null),
     (label: 'Upcoming', status: 'UPCOMING'),
   ];
 
