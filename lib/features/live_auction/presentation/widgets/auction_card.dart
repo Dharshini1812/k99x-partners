@@ -1,15 +1,18 @@
+// lib/features/live_auction/presentation/widgets/auction_card.dart
+
 import 'dart:async';
 import 'package:dealer/core/helper/feedback_helper.dart';
 import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
+import 'package:dealer/features/live_auction/data/model/live_model.dart';
+import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
+import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
+import 'package:dealer/features/live_auction/presentation/pages/vehicle_detail_page.dart';
+import 'package:dealer/features/live_auction/presentation/widgets/place_bid_sheet.dart';
 import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
 import 'package:dealer/features/trial/presentation/widgets/trial_blocked_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dealer/features/live_auction/data/model/live_model.dart';
-import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
-import 'package:dealer/features/live_auction/presentation/pages/vehicle_detail_page.dart';
-import 'package:dealer/features/live_auction/presentation/widgets/place_bid_sheet.dart';
 
 class LiveAuctionCard extends ConsumerStatefulWidget {
   final LiveAuctionModel vehicle;
@@ -96,6 +99,21 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     super.dispose();
   }
 
+  Future<void> _handleWatchlistToggle(bool isCurrentlyWatchlisted) async {
+    final targetId = widget.vehicle.vehicleId ?? '';
+    if (targetId.isEmpty) return;
+
+    final success = await ref
+        .read(watchlistUpdateNotifierProvider.notifier)
+        .updateWatchlist(vehicleId: targetId, add: !isCurrentlyWatchlisted);
+
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update watchlist')),
+      );
+    }
+  }
+
   Future<void> _openBidSheet(BidSheetMode mode) async {
     final user = ref.read(dLogic).user;
     final trial = ref.read(trialLogic);
@@ -113,17 +131,10 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     );
 
     if (result != null && mounted) {
-      // The sheet only ever pops with a non-null amount on an actually
-      // successful bid/autobid (see PlaceBidSheet's result dialog) — so
-      // this is the right, specific moment for the success feedback,
-      // not just "the sheet closed". Fires even with the phone on
-      // silent (see FeedbackHelper for why).
       await FeedbackHelper.success();
       ref.read(auctionLogic).search();
     }
   }
-
-// Auto bid button:
 
   @override
   Widget build(BuildContext context) {
@@ -143,15 +154,24 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     ].where((e) => e != null).join(' • ');
     final currentBid = _currentBidAmount(v);
 
+    // Dynamic resolution: check if current vehicle is in the user's watchlist
+    final watchlistState = ref.watch(watchlistNotifierProvider);
+    final isWatchlisted = watchlistState.maybeWhen(
+      data: (items) =>
+          items.any((item) => item.vehicle?.vehicleId == v.vehicleId),
+      orElse: () => false,
+    );
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-              builder: (context) => VehicleDetailPage(
-                    vehicleId: widget.vehicle.vehicleId ?? '',
-                    vehicle: widget.vehicle,
-                  )),
+            builder: (context) => VehicleDetailPage(
+              vehicleId: widget.vehicle.vehicleId ?? '',
+              vehicle: widget.vehicle,
+            ),
+          ),
         );
       },
       child: Container(
@@ -161,7 +181,10 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
           border: Border.all(color: Colors.grey.shade200),
           boxShadow: const [
             BoxShadow(
-                color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
           ],
         ),
         child: Column(
@@ -176,9 +199,14 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                   child: CircleAvatar(
                     backgroundColor: Colors.black45,
                     child: IconButton(
-                      icon: const Icon(Icons.favorite_border,
-                          color: Colors.white, size: 20),
-                      onPressed: () {},
+                      icon: Icon(
+                        isWatchlisted ? Icons.favorite : Icons.favorite_border,
+                        color: isWatchlisted
+                            ? const Color(0xFFE74C3C)
+                            : Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: () => _handleWatchlistToggle(isWatchlisted),
                     ),
                   ),
                 ),
@@ -192,11 +220,14 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                       color: Colors.black87,
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(v.regno ?? '-',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold)),
+                    child: Text(
+                      v.regno ?? '-',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -212,28 +243,38 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                       Text(
                         location.isNotEmpty ? location : '-',
                         style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
-                            color: Colors.black54),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          color: Colors.black54,
+                        ),
                       ),
                     ],
                   ),
-                  Text(title.isNotEmpty ? title : 'Vehicle',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(
+                    title.isNotEmpty ? title : 'Vehicle',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                   if (specs.isNotEmpty)
-                    Text(specs,
-                        style: const TextStyle(
-                            color: Colors.black54, fontSize: 12)),
+                    Text(
+                      specs,
+                      style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 12,
+                      ),
+                    ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         titleCase(v.lenderName),
                         style: const TextStyle(
-                            color: Color(0xFF00897B),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12),
+                          color: Color(0xFF00897B),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                       RichText(
                         text: TextSpan(
@@ -261,9 +302,11 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.timer_outlined,
-                              size: 18,
-                              color: _ended ? Colors.red : Colors.black87),
+                          Icon(
+                            Icons.timer_outlined,
+                            size: 18,
+                            color: _ended ? Colors.red : Colors.black87,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             _ended ? 'Ended' : _fmt(_remaining),
@@ -298,28 +341,6 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                       ),
                     ],
                   ),
-                  //  Row(
-                  //   children: [
-                  //     Expanded(
-                  //       child: _ConditionItem(
-                  //         label: 'Exterior',
-                  //         rating: parseRating(v.),
-                  //       ),
-                  //     ),
-                  //     Expanded(
-                  //       child: _ConditionItem(
-                  //         label: 'Interior',
-                  //         rating: parseRating(v.interiorCondition),
-                  //       ),
-                  //     ),
-                  //     Expanded(
-                  //       child: _ConditionItem(
-                  //         label: 'Engine',
-                  //         rating: parseRating(v.engineCondition),
-                  //       ),
-                  //     ),
-                  //   ],
-                  // ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -333,10 +354,13 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                             foregroundColor: const Color(0xFF6200EE),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
-                          child: const Text('Auto bid',
-                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: const Text(
+                            'Auto bid',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -350,11 +374,14 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
-                          child: const Text('Bid',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 14)),
+                          child: const Text(
+                            'Bid',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
                         ),
                       ),
                     ],
@@ -429,56 +456,6 @@ class _AuctionThumbnail extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _StarRating extends StatelessWidget {
-  final double rating;
-  final double size;
-  const _StarRating({required this.rating, this.size = 14});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (i) {
-        final diff = rating - i;
-        IconData icon;
-        if (diff >= 1) {
-          icon = Icons.star_rounded;
-        } else if (diff >= 0.5) {
-          icon = Icons.star_half_rounded;
-        } else {
-          icon = Icons.star_border_rounded;
-        }
-        return Icon(icon, size: size, color: const Color(0xFFFFB300));
-      }),
-    );
-  }
-}
-
-class _ConditionItem extends StatelessWidget {
-  final String label;
-  final double? rating;
-  const _ConditionItem({required this.label, required this.rating});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(
-                fontSize: 11,
-                color: Colors.black54,
-                fontWeight: FontWeight.w600)),
-        const SizedBox(height: 2),
-        rating == null
-            ? const Text('-',
-                style: TextStyle(fontSize: 12, color: Colors.black54))
-            : _StarRating(rating: rating!),
-      ],
     );
   }
 }

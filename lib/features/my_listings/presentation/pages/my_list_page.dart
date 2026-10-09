@@ -140,12 +140,15 @@ class _PeekTabBar extends StatelessWidget {
   static const double _cardTopRadius = 15;
   static const double _railRadius = 0;
 
-  static const Color _railBg = Color(0xFFDCEEFC);
-  static const Color _activeColor = Color(0xFF4F93E3);
-  static const Color _inactiveBorder = Color(0xFFB9D9F5);
-  static const Color _textInactive = Color(0xFF5A87B3);
-  static const Color _textActive = Colors.white;
+  static const Color _railBg = Color(0xFFE4E4FF);
 
+  static const Color _activeColor = Color(0xFF6161FF);
+
+  static const Color _inactiveBorder = Color(0xFFBDBDFF);
+
+  static const Color _textInactive = Color(0xFF6666CC);
+
+  static const Color _textActive = Colors.white;
   @override
   Widget build(BuildContext context) {
     const totalHeight = _baseHeight + _peekHeight;

@@ -1,4 +1,5 @@
 // lib/features/auction/data/datasource/auction_datasource.dart
+import 'dart:convert';
 import 'dart:developer';
 import 'package:dealer/core/utils/url.dart';
 import 'package:dealer/features/live_auction/data/model/a_vehicle_detail.dart';
@@ -6,6 +7,8 @@ import 'package:dealer/features/live_auction/data/model/auto_bid_model.dart';
 
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/data/model/place_bid_model.dart';
+import 'package:dealer/features/live_auction/data/model/watch_request_model.dart';
+import 'package:dealer/features/live_auction/data/model/watch_response_model.dart';
 import 'package:dealer/features/live_auction/domain/usecase/live_auction_params.dart';
 
 import 'package:dealer/features/login/presentation/logic/provider.dart';
@@ -41,6 +44,10 @@ abstract class AuctionDatasource {
     required double maxBidAmount,
   });
   Future<Response> getBidActivity(String vehicleId);
+  Future<WatchlistFetchResponseModel> getWatchlist();
+
+  Future<WatchlistUpdateResponseModel> updateWatchlist(
+      WatchlistUpdateRequestModel request);
 }
 
 class AuctionDatasourceImpl implements AuctionDatasource {
@@ -176,6 +183,41 @@ class AuctionDatasourceImpl implements AuctionDatasource {
         : await api.get1('$url$vehicleId');
 
     return VehicleDetailResponse.fromJson(response.data);
+  }
+
+  @override
+  Future<WatchlistFetchResponseModel> getWatchlist() async {
+    final api = ref.read(apiService);
+    final response = await api.get1(Url.watchListUrl);
+
+    // Extract the body payload from the Dio Response
+    final rawData = response.data;
+
+    final Map<String, dynamic> map = rawData is String
+        ? jsonDecode(rawData) as Map<String, dynamic>
+        : Map<String, dynamic>.from(rawData as Map);
+
+    return WatchlistFetchResponseModel.fromJson(map);
+  }
+
+  @override
+  @override
+  Future<WatchlistUpdateResponseModel> updateWatchlist(
+      WatchlistUpdateRequestModel request) async {
+    final api = ref.read(apiService);
+
+    // POST with body data matching the curl --data payload[cite: 6]
+    final response = await api.post1(
+      Url.watchAddUrl,
+      request.toJson(),
+    );
+
+    final rawData = response.data;
+    final Map<String, dynamic> map = rawData is String
+        ? jsonDecode(rawData) as Map<String, dynamic>
+        : Map<String, dynamic>.from(rawData as Map);
+
+    return WatchlistUpdateResponseModel.fromJson(map);
   }
 }
 

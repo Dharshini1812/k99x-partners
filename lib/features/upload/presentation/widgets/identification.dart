@@ -746,7 +746,7 @@ class _RcReferenceCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
-                    color: Colors.blue.shade800,
+                    color: AppColors.primary,
                   ),
                 ),
               ),

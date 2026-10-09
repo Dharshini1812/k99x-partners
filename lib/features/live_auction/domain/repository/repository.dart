@@ -8,6 +8,8 @@ import 'package:dealer/features/live_auction/data/model/auto_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/data/model/place_bid_model.dart';
+import 'package:dealer/features/live_auction/data/model/watch_request_model.dart';
+import 'package:dealer/features/live_auction/data/model/watch_response_model.dart';
 import 'package:dealer/features/live_auction/domain/usecase/live_auction_params.dart';
 
 abstract class AuctionRepository {
@@ -25,4 +27,7 @@ abstract class AuctionRepository {
   Future<VehicleDetailResponse> getVehicleDetail(String vehicleId);
   Future<List<LiveAuctionModel>> getLiveAuctionVehicles(
       LiveAuctionVehiclesParams params);
+  Future<WatchlistFetchResponseModel> getWatchlist();
+  Future<WatchlistUpdateResponseModel> updateWatchlist(
+      WatchlistUpdateRequestModel request);
 }

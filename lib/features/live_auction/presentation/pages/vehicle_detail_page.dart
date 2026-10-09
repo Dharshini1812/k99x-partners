@@ -1,3 +1,5 @@
+// lib/features/live_auction/presentation/pages/vehicle_detail_page.dart
+
 import 'dart:async';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/a_vehicle_detail.dart';
@@ -5,6 +7,7 @@ import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/pages/inspection_full_image_viewer_page.dart';
+import 'package:dealer/features/live_auction/presentation/widgets/auction_card.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/place_bid_sheet.dart';
 import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
 import 'package:dealer/features/trial/presentation/widgets/trial_blocked_dialog.dart';
@@ -41,6 +44,9 @@ class VehicleDetailPage extends ConsumerStatefulWidget {
 
 class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey _anchorKey = GlobalKey();
+  double _biddingBarHeight = 135.0;
+
   bool _showBackToTop = false;
 
   Timer? _timer;
@@ -49,6 +55,62 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
 
   static const int _minAboveBasePrice = 10000;
   static const int _minIncrement = 1000;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _scrollController.addListener(() {
+      if (_scrollController.offset > 300 && !_showBackToTop) {
+        setState(() => _showBackToTop = true);
+      } else if (_scrollController.offset <= 300 && _showBackToTop) {
+        setState(() => _showBackToTop = false);
+      }
+    });
+
+    Future.microtask(() {
+      ref
+          .read(vehicleDetailProvider.notifier)
+          .fetchVehicleDetail(widget.vehicleId);
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant VehicleDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.vehicleId != widget.vehicleId) {
+      _timer?.cancel();
+      _timer = null;
+      _ended = false;
+      _remaining = Duration.zero;
+      ref
+          .read(vehicleDetailProvider.notifier)
+          .fetchVehicleDetail(widget.vehicleId);
+      _scrollController.jumpTo(0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _toggleWatchlist(bool isCurrentlyWatchlisted) async {
+    final targetId = widget.vehicleId;
+    if (targetId.isEmpty) return;
+
+    final success = await ref
+        .read(watchlistUpdateNotifierProvider.notifier)
+        .updateWatchlist(vehicleId: targetId, add: !isCurrentlyWatchlisted);
+
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update watchlist')),
+      );
+    }
+  }
 
   Future<void> _openBidSheet(BidSheetMode mode) async {
     final user = ref.read(dLogic).user;
@@ -69,31 +131,6 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
     if (result != null && mounted) {
       ref.read(auctionLogic).search();
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(() {
-      if (_scrollController.offset > 300 && !_showBackToTop) {
-        setState(() => _showBackToTop = true);
-      } else if (_scrollController.offset <= 300 && _showBackToTop) {
-        setState(() => _showBackToTop = false);
-      }
-    });
-
-    Future.microtask(() {
-      ref
-          .read(vehicleDetailProvider.notifier)
-          .fetchVehicleDetail(widget.vehicleId);
-    });
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    _timer?.cancel();
-    super.dispose();
   }
 
   void _startTimer(int? endTimeMs) {
@@ -176,9 +213,38 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
     );
   }
 
+  List<LiveAuctionModel> _findSimilarVehicles(List<LiveAuctionModel> all) {
+    final curMake = (widget.vehicle.make ?? '').trim().toLowerCase();
+    final curModel = (widget.vehicle.model ?? '').trim().toLowerCase();
+
+    return all.where((item) {
+      if (item.vehicleId == widget.vehicle.vehicleId) return false;
+      final m = (item.make ?? '').trim().toLowerCase();
+      final mo = (item.model ?? '').trim().toLowerCase();
+
+      final matchesMake = curMake.isNotEmpty && m == curMake;
+      final matchesModel = curModel.isNotEmpty && mo == curModel;
+      return matchesMake || matchesModel;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(vehicleDetailProvider);
+
+    final allAuctions = ref.watch(liveAuctionNotifier).maybeWhen(
+          data: (list) => list,
+          orElse: () => const <LiveAuctionModel>[],
+        );
+    final similarVehicles = _findSimilarVehicles(allAuctions);
+
+    // Dynamic Watchlist resolution by matching vehicle ID
+    final watchlistState = ref.watch(watchlistNotifierProvider);
+    final isWatchlisted = watchlistState.maybeWhen(
+      data: (items) =>
+          items.any((item) => item.vehicle?.vehicleId == widget.vehicleId),
+      orElse: () => false,
+    );
 
     return state.when(
       initial: () => const VehicleDetailSkeleton(),
@@ -258,19 +324,24 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
             ),
             actions: [
               IconButton(
-                  icon: const Icon(Icons.share_outlined, color: Colors.black87),
-                  onPressed: () {}),
+                icon: const Icon(Icons.share_outlined, color: Colors.black87),
+                onPressed: () {},
+              ),
               IconButton(
-                  icon:
-                      const Icon(Icons.favorite_border, color: Colors.black87),
-                  onPressed: () {}),
+                icon: Icon(
+                  isWatchlisted ? Icons.favorite : Icons.favorite_border,
+                  color:
+                      isWatchlisted ? const Color(0xFFE74C3C) : Colors.black87,
+                ),
+                onPressed: () => _toggleWatchlist(isWatchlisted),
+              ),
             ],
           ),
           body: Stack(
             children: [
               ListView(
                 controller: _scrollController,
-                padding: const EdgeInsets.only(bottom: 120),
+                padding: const EdgeInsets.only(bottom: 24),
                 children: [
                   _buildImageHeader(
                       v?.regno ?? '', v?.rtoCode, v?.rtoName, detail.images),
@@ -282,6 +353,7 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
                     v?.transmissionType,
                     v?.kmsDriven,
                     v?.ownerCount,
+                    isWatchlisted,
                   ),
                   const SizedBox(height: 5),
                   _buildRatingBadges(),
@@ -338,61 +410,189 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
                   ),
                   const SizedBox(height: 10),
                   _buildInspectionDetails(detail.images),
+
+                  // Anchor reserving height for bottom bidding sheet
+                  SizedBox(
+                    key: _anchorKey,
+                    height: detail.biddingAllowed ? _biddingBarHeight : 0,
+                  ),
+
+                  // More Like This section
+                  if (similarVehicles.isNotEmpty)
+                    _buildMoreLikeThisSection(similarVehicles),
                 ],
               ),
-              if (_showBackToTop)
-                Positioned(
-                  bottom: 140,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: _scrollToTop,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2C2D35),
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: const [
-                            BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 6,
-                                offset: Offset(0, 2))
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.arrow_upward,
-                                size: 16, color: Colors.white),
-                            SizedBox(width: 6),
-                            Text('GO TO TOP',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
+
+              // Bidding Bar (Sticky at bottom, shifts upward once anchor scrolls past)
+              if (detail.biddingAllowed)
+                AnimatedBuilder(
+                  animation: _scrollController,
+                  builder: (context, child) {
+                    double bottomOffset = 0;
+                    if (_anchorKey.currentContext != null) {
+                      final renderBox = _anchorKey.currentContext
+                          ?.findRenderObject() as RenderBox?;
+                      if (renderBox != null && renderBox.hasSize) {
+                        final pos = renderBox.localToGlobal(Offset.zero);
+                        final screenH = MediaQuery.of(context).size.height;
+                        final threshold = screenH - renderBox.size.height;
+                        final diff = threshold - pos.dy;
+                        if (diff > 0) {
+                          bottomOffset = diff;
+                        }
+                      }
+                    }
+                    return Positioned(
+                      bottom: bottomOffset,
+                      left: 0,
+                      right: 0,
+                      child: child!,
+                    );
+                  },
+                  child: _MeasuredWidget(
+                    onSizeChanged: (size) {
+                      if (size.height != _biddingBarHeight && mounted) {
+                        setState(() {
+                          _biddingBarHeight = size.height;
+                        });
+                      }
+                    },
+                    child: _buildBiddingBottomBar(
+                      currentBid: currentBid,
+                      basePrice: basePrice,
+                      nextBid: nextBid,
                     ),
                   ),
                 ),
-              if (detail.biddingAllowed)
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: _buildBiddingBottomBar(
-                    currentBid: currentBid,
-                    basePrice: basePrice,
-                    nextBid: nextBid,
+
+              // Floating "Go to top" button shifts smoothly with the bidding bar
+              if (_showBackToTop)
+                AnimatedBuilder(
+                  animation: _scrollController,
+                  builder: (context, child) {
+                    double extraShift = 0;
+                    if (_anchorKey.currentContext != null) {
+                      final renderBox = _anchorKey.currentContext
+                          ?.findRenderObject() as RenderBox?;
+                      if (renderBox != null && renderBox.hasSize) {
+                        final pos = renderBox.localToGlobal(Offset.zero);
+                        final screenH = MediaQuery.of(context).size.height;
+                        final threshold = screenH - renderBox.size.height;
+                        final diff = threshold - pos.dy;
+                        if (diff > 0) {
+                          extraShift = diff;
+                        }
+                      }
+                    }
+                    return Positioned(
+                      bottom: 140 + extraShift,
+                      left: 0,
+                      right: 0,
+                      child: Center(child: child),
+                    );
+                  },
+                  child: GestureDetector(
+                    onTap: _scrollToTop,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2C2D35),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: const [
+                          BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 6,
+                              offset: Offset(0, 2))
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.arrow_upward,
+                              size: 16, color: Colors.white),
+                          SizedBox(width: 6),
+                          Text('GO TO TOP',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildMoreLikeThisSection(List<LiveAuctionModel> vehicles) {
+    return Container(
+      color: const Color(0xFFF7F8FA),
+      padding: const EdgeInsets.fromLTRB(14, 20, 14, 30),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'More Like This',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF111111),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6200EE).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${vehicles.length}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF6200EE),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: vehicles.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final item = vehicles[index];
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => VehicleDetailPage(
+                        vehicleId: item.vehicleId ?? '',
+                        vehicle: item,
+                      ),
+                    ),
+                  );
+                },
+                child: IgnorePointer(
+                  child: LiveAuctionCard(vehicle: item),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -590,6 +790,7 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
     String? transmission,
     int? kms,
     int? owners,
+    bool isWatchlisted,
   ) {
     final specs = [
       fuel,
@@ -616,17 +817,35 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
                       fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
+              InkWell(
+                onTap: () => _toggleWatchlist(isWatchlisted),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: isWatchlisted
+                          ? const Color(0xFFE74C3C).withOpacity(0.4)
+                          : Colors.grey.shade300,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    color: isWatchlisted
+                        ? const Color(0xFFE74C3C).withOpacity(0.08)
+                        : Colors.transparent,
+                  ),
+                  child: Icon(
+                    isWatchlisted ? Icons.favorite : Icons.favorite_border,
+                    size: 20,
+                    color: isWatchlisted
+                        ? const Color(0xFFE74C3C)
+                        : Colors.black87,
+                  ),
                 ),
-                child: const Icon(Icons.favorite_border, size: 20),
               ),
               const SizedBox(width: 4),
               InkWell(
                 onTap: () async {
+                  if (widget.vehicle.vehReport == null) return;
                   final uri = Uri.parse(widget.vehicle.vehReport!);
 
                   if (await canLaunchUrl(uri)) {
@@ -931,7 +1150,6 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
     final trial = ref.watch(trialLogic);
     final user = ref.watch(dLogic).user;
 
-    // Locked ONLY if user has no active account/token AND is currently in trial session
     final isTrialLocked = (user == null) && trial.isTrialSession;
 
     return Container(
@@ -942,7 +1160,7 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
           BoxShadow(
               color: Colors.black.withOpacity(0.08),
               offset: const Offset(0, -2),
-              blurRadius: 8)
+              blurRadius: 8),
         ],
       ),
       child: SafeArea(
@@ -1119,6 +1337,37 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
         ),
       ),
     );
+  }
+}
+
+class _MeasuredWidget extends StatefulWidget {
+  final Widget child;
+  final ValueChanged<Size> onSizeChanged;
+  const _MeasuredWidget({required this.child, required this.onSizeChanged});
+
+  @override
+  State<_MeasuredWidget> createState() => _MeasuredWidgetState();
+}
+
+class _MeasuredWidgetState extends State<_MeasuredWidget> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkSize());
+  }
+
+  void _checkSize() {
+    if (!mounted) return;
+    final size = context.size;
+    if (size != null) {
+      widget.onSizeChanged(size);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkSize());
+    return widget.child;
   }
 }
 

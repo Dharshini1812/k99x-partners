@@ -42,7 +42,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
 
     Future.microtask(() {
       ref.read(getStateProvider.notifier).getState();
-
+      ref.read(watchlistNotifierProvider.notifier).fetchWatchlist();
       final today = DateTime.now();
       final twoMonthsAgo = DateTime(today.year, today.month - 2, today.day);
       final twoMonthsAhead = DateTime(today.year, today.month + 2, today.day);

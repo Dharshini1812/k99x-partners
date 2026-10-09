@@ -4,6 +4,7 @@ import 'package:dealer/core/common/data/model/make_model_variant.dart';
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/core/common/presentation/widgets/common_dropdown.dart';
 import 'package:dealer/core/common/presentation/widgets/common_textfield.dart';
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/my_listings/data/model/add_wanted_list_model.dart';
 import 'package:dealer/features/my_listings/data/model/wanted_list_model.dart';
 import 'package:dealer/features/my_listings/presentation/logic/add_wanted/add_wanted_state.dart';
@@ -166,7 +167,7 @@ class _AddWantedVehiclePageState extends ConsumerState<AddWantedVehiclePage> {
                   child: ElevatedButton(
                     onPressed: isSaving ? null : () => _saveListing(context),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2F6FED),
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(

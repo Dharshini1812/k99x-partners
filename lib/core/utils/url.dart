@@ -49,6 +49,8 @@ class Url {
   static const String liveAuctionVehiclesUrl =
       '${baseUrl}api/admin/live-auction/vehicles';
   static const String registerUrl = '${baseUrl}auth/register';
+  static const String watchAddUrl = '${baseUrl}dealer/watchlist/update';
+  static const String watchListUrl = '${baseUrl}dealer/watchlist';
 
   //clent
 

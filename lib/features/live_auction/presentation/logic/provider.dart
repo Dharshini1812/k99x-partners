@@ -9,6 +9,8 @@ import 'package:dealer/features/live_auction/domain/usecase/bid_activity_usecase
 import 'package:dealer/features/live_auction/domain/usecase/get_detail_vehcile_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/get_live_uzecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/place_bid_usecase.dart';
+import 'package:dealer/features/live_auction/domain/usecase/watch_add_usecase.dart';
+import 'package:dealer/features/live_auction/domain/usecase/watch_fetch_usecase.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auction/live_auction_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auction/live_auction_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auto_bid/auto_bid_notifier.dart';
@@ -22,6 +24,10 @@ import 'package:dealer/features/live_auction/presentation/logic/place_bid/place_
 import 'package:dealer/features/live_auction/presentation/logic/place_bid/place_bid_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/vehicle_detail/vehicle_detail_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/vehicle_detail/vehicle_detail_state.dart';
+import 'package:dealer/features/live_auction/presentation/logic/watchlist_add/watch_add_notifier.dart';
+import 'package:dealer/features/live_auction/presentation/logic/watchlist_add/watchlist_update_state.dart';
+import 'package:dealer/features/live_auction/presentation/logic/watchlist_fetch/watch_get_notifier.dart';
+import 'package:dealer/features/live_auction/presentation/logic/watchlist_fetch/watchlist_state.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final _auctionDatasource =
@@ -101,3 +107,32 @@ final liveAuctionVehiclesNotifier = StateNotifierProvider.family<
     getLiveAuctionVehiclesUsecase: ref.read(_getLiveAuctionVehiclesUsecase),
   )..getLiveAuctionVehicles(status),
 );
+
+// UseCases
+final getWatchlistUseCaseProvider = Provider<GetWatchlistUseCase>((ref) {
+  final repo = ref.watch(_auctionRepository);
+  return GetWatchlistUseCase(repository: repo);
+});
+
+final updateWatchlistUseCaseProvider = Provider<UpdateWatchlistUseCase>((ref) {
+  final repo = ref.watch(_auctionRepository);
+  return UpdateWatchlistUseCase(repository: repo);
+});
+
+// Separate Notifiers:
+// 1. Fetch/List Provider
+final watchlistNotifierProvider =
+    StateNotifierProvider<WatchlistNotifier, WatchlistState>((ref) {
+  return WatchlistNotifier(
+    getWatchlistUseCase: ref.watch(getWatchlistUseCaseProvider),
+  );
+});
+
+// 2. Add/Update Provider
+final watchlistUpdateNotifierProvider =
+    StateNotifierProvider<WatchlistUpdateNotifier, WatchlistUpdateState>((ref) {
+  return WatchlistUpdateNotifier(
+    updateWatchlistUseCase: ref.watch(updateWatchlistUseCaseProvider),
+    ref: ref,
+  );
+});

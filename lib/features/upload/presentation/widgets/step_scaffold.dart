@@ -1,5 +1,6 @@
 // lib/features/upload/presentation/widgets/step_scaffold.dart
 
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/upload/presentation/widgets/upload_colors.dart';
 import 'package:flutter/material.dart';
 
@@ -47,10 +48,9 @@ class StepScaffold extends StatelessWidget {
                     if (nextEnabled) onNext();
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: UploadColors.primary,
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor:
-                        UploadColors.primary.withOpacity(0.4),
+                    disabledBackgroundColor: AppColors.primary.withOpacity(.4),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),

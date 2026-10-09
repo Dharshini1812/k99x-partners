@@ -1,8 +1,12 @@
+// lib/features/profile/presentation/pages/profile.dart
+
 import 'package:dealer/core/route/router.gr.dart';
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
+import 'package:dealer/features/live_auction/presentation/pages/watch_list_page.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,6 +17,19 @@ class Profile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
+
+    // Fetch watchlist count to display dynamically on the tile
+    final watchlistCount = ref.watch(watchlistNotifierProvider).maybeWhen(
+          data: (items) {
+            final uniqueIds = <String>{};
+            for (final e in items) {
+              final id = e.vehicle?.vehicleId;
+              if (id != null && id.isNotEmpty) uniqueIds.add(id);
+            }
+            return uniqueIds.length;
+          },
+          orElse: () => 0,
+        );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
@@ -40,6 +57,23 @@ class Profile extends ConsumerWidget {
                 _HeroCard(isLandscape: isLandscape),
                 const SizedBox(height: 18),
                 const _SectionLabel('ACCOUNT'),
+                const SizedBox(height: 10),
+                _ModernTile(
+                  icon: Icons.favorite_rounded,
+                  label: 'My Watchlist',
+                  subtitle: watchlistCount > 0
+                      ? '$watchlistCount saved vehicle${watchlistCount == 1 ? '' : 's'}'
+                      : 'Vehicles you are monitoring',
+                  iconColor: const Color(0xFFE74C3C),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const WatchlistPage(),
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 10),
                 _ModernTile(
                   icon: Icons.manage_accounts_rounded,
@@ -86,7 +120,7 @@ class Profile extends ConsumerWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HERO CARD — gradient background, avatar, name/role, stat pills
+// HERO CARD
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HeroCard extends ConsumerWidget {
@@ -320,7 +354,7 @@ class _SectionLabel extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MODERN TILE — icon chip + label + subtitle + chevron
+// MODERN TILE
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ModernTile extends StatelessWidget {
@@ -399,7 +433,7 @@ class _ModernTile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LOGOUT BUTTON — confirms with an alert dialog before logging out
+// LOGOUT BUTTON
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _LogoutButton extends ConsumerWidget {
@@ -446,19 +480,7 @@ class _LogoutButton extends ConsumerWidget {
     if (!confirmed) return;
     if (!context.mounted) return;
 
-    // Cancel every in-flight request FIRST — this is what actually
-    // fixes the 500s you were seeing right after logout: requests
-    // like the dashboard's stats/mylisting/wanted-listing calls,
-    // fired in initState() and still in flight when Logout is tapped,
-    // get aborted immediately instead of finishing after the session
-    // is already invalidated server-side. The API service hands out a
-    // fresh CancelToken automatically for the very next request (the
-    // logout call itself, right below), so this doesn't block it.
     ref.read(apiService).cancelAllRequests();
-
-    // Stop any live bid-activity polling too, for the same reason —
-    // a poll cycle firing mid-logout shouldn't hit the API with a
-    // stale/expired session either.
     ref.read(bidActivityNotifierProvider.notifier).stopPolling();
 
     await ref.read(logoutNotifierProvider.notifier).logout();
