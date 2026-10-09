@@ -69,7 +69,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     final staticFloor =
         (staticTop != null && staticTop > 0) ? staticTop : staticBase;
 
-    // Minimum valid next bid is the current highest/base price + increment
+    // Minimum valid next bid is the auction's top/base price + increment
     _amount = staticFloor + _minIncrement;
     _amountController = TextEditingController(text: '$_amount');
 
@@ -222,6 +222,9 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       widget.currentDealerId ?? ref.read(dLogic).user?.userId;
 
   bool get _hasMyBid => _bestAmountForDealer(_currentDealerId) != null;
+
+  /// The logged-in user's personal highest bid amount
+  num? get _myHighestBid => _bestAmountForDealer(_currentDealerId);
 
   bool get _isCurrentUserWinning {
     final top = _topBid;
@@ -646,18 +649,18 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Price summary ───────────────────────────────────────────────
+  // ── Price summary: base price / user's highest bid / total bids ──
   Widget _summaryTiles() {
-    final current = _currentHighestBid;
-    final currentLabel =
-        (current != null && current > 0) ? _formatAmount(current) : 'No bids';
+    final myBid = _myHighestBid;
+    final myBidLabel =
+        (myBid != null && myBid > 0) ? _formatAmount(myBid) : 'No bids';
     final base = widget.vehicle.basePrice;
 
     return Row(
       children: [
         _summaryTile('Base price', base != null ? _formatAmount(base) : '—'),
         const SizedBox(width: 8),
-        _summaryTile('Current bid', currentLabel),
+        _summaryTile('Your bid', myBidLabel),
         const SizedBox(width: 8),
         _summaryTile('Total bids', '${_sortedBids.length}'),
       ],
