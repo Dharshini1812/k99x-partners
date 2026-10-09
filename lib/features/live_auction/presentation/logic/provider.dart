@@ -77,12 +77,11 @@ final bidActivityNotifierProvider =
   final useCase = ref.watch(bidActivityUseCaseProvider);
   return BidActivityNotifier(useCase);
 });
-final liveBidSocketNotifierProvider = StateNotifierProvider.autoDispose<
-    LiveBidSocketNotifier, LiveBidSocketState>((ref) {
-  final useCase = ref.watch(bidActivityUseCaseProvider);
-  return LiveBidSocketNotifier(useCase);
+final liveBidSocketProvider = Provider<LiveBidSocketNotifier>((ref) {
+  final socket = LiveBidSocketNotifier();
+  ref.onDispose(() => socket.dispose());
+  return socket;
 });
-
 // 1. Use case provider (injected with repository)
 final getVehicleDetailUseCaseProvider =
     Provider<GetVehicleDetailUseCase>((ref) {

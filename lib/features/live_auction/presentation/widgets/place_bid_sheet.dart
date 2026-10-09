@@ -4,11 +4,11 @@ import 'dart:async';
 
 import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
+import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
+import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:dealer/features/live_auction/data/model/live_model.dart';
-import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum BidSheetMode { bid, autobid }
@@ -80,13 +80,34 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     final vehicleId = widget.vehicle.vehicleId;
     if (vehicleId != null && vehicleId.isNotEmpty) {
       Future.microtask(() {
-        ref.read(bidActivityNotifierProvider.notifier).startPolling(vehicleId);
+        // 1. Snapshot fetch via HTTP
+        ref
+            .read(bidActivityNotifierProvider.notifier)
+            .fetchBidActivity(vehicleId);
+
+        // 2. Connect WebSocket and subscribe to real-time events
+        final socket = ref.read(liveBidSocketProvider);
+        socket.connect(
+          onMessage: (data) {
+            if (!mounted) return;
+            // Silent refresh when an auction update message arrives
+            ref
+                .read(bidActivityNotifierProvider.notifier)
+                .fetchBidActivity(vehicleId, silent: true);
+          },
+        );
+        socket.subscribe(vehicleId);
       });
     }
   }
 
   @override
   void dispose() {
+    final vehicleId = widget.vehicle.vehicleId;
+    if (vehicleId != null && vehicleId.isNotEmpty) {
+      ref.read(liveBidSocketProvider).unsubscribe(vehicleId);
+    }
+
     _timer?.cancel();
     _amountController.dispose();
     ref.read(bidActivityNotifierProvider.notifier).stopPolling();
@@ -404,7 +425,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
   // ── Build ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    // Keep input field updated if a higher bid arrives while the sheet is visible
+    // Keep input field updated if a higher bid comes in while the user has the sheet open
     ref.listen(bidActivityNotifierProvider, (previous, next) {
       next.maybeWhen(
         data: (data) {
@@ -430,7 +451,8 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
 
     final placeBidState = ref.watch(placeBidNotifier);
     final autoBidState = ref.watch(autoBidNotifier);
-    ref.watch(bidActivityNotifierProvider); // rebuild on poll updates
+    ref.watch(
+        bidActivityNotifierProvider); // Rebuilds on activity state changes
 
     final isPlacingBid =
         placeBidState.maybeWhen(loading: () => true, orElse: () => false);

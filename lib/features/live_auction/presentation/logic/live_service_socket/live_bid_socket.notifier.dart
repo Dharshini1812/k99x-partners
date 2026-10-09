@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:developer';
+
 import 'package:dealer/core/services/auction_socket_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
 import 'package:dealer/features/live_auction/domain/usecase/bid_activity_usecase.dart';
+import 'package:stomp_dart_client/stomp_dart_client.dart';
 
 class LiveBidSocketState {
   final bool isConnected;
@@ -27,40 +31,71 @@ class LiveBidSocketState {
   }
 }
 
-class LiveBidSocketNotifier extends StateNotifier<LiveBidSocketState> {
-  final BidActivityUseCase _activityUseCase;
-  AuctionSocketService? _socketService;
+// lib/features/live_auction/presentation/logic/live_service_socket/live_bid_socket.notifier.dart
 
-  LiveBidSocketNotifier(this._activityUseCase)
-      : super(const LiveBidSocketState());
+class LiveBidSocketNotifier {
+  StompClient? _client;
+  final Map<String, StompUnsubscribe> _subscriptions = {};
+  void Function(Map<String, dynamic> data)? _onMessage;
 
-  Future<void> init(String vehicleId) async {
-    // 1. Initial snapshot via HTTP REST
-    final result = await _activityUseCase(vehicleId);
-    result.fold(
-      (failure) => state = state.copyWith(error: failure.msg),
-      (data) => state = state.copyWith(activity: data),
+  bool get isConnected => _client?.connected ?? false;
+
+  void connect({required void Function(Map<String, dynamic> data) onMessage}) {
+    _onMessage = onMessage;
+    if (_client != null && _client!.connected) return;
+
+    _client = StompClient(
+      config: StompConfig(
+        url: 'wss://dev.k99x.com/servlet/ws-auction/websocket',
+        onConnect: (frame) => log('[Auction WS] Connected'),
+        onWebSocketError: (err) => log('[Auction WS] Error: $err'),
+        onDisconnect: (frame) => log('[Auction WS] Disconnected'),
+        reconnectDelay: const Duration(seconds: 3),
+        heartbeatOutgoing: const Duration(seconds: 10),
+        heartbeatIncoming: const Duration(seconds: 10),
+      ),
     );
 
-    // 2. Connect WebSocket for live updates
-    _socketService = AuctionSocketService();
-    _socketService?.connectAndSubscribe(
-      vehicleId: vehicleId,
-      onActivityReceived: (data) {
-        state = state.copyWith(
-          isConnected: true,
-          activity: data,
-        );
-      },
-      onError: (err) {
-        state = state.copyWith(error: err.toString());
-      },
-    );
+    _client?.activate();
   }
 
-  @override
+  void subscribe(String vehicleId) {
+    if (_subscriptions.containsKey(vehicleId)) return;
+
+    final topic = '/topic/auction/$vehicleId';
+    log('[Auction WS] Subscribing: $topic');
+
+    final unsubscribe = _client?.subscribe(
+      destination: topic,
+      callback: (StompFrame frame) {
+        if (frame.body != null) {
+          try {
+            final data = jsonDecode(frame.body!) as Map<String, dynamic>;
+            _onMessage?.call(data);
+          } catch (e) {
+            log('[Auction WS] Parse error: $e');
+          }
+        }
+      },
+    );
+
+    if (unsubscribe != null) {
+      _subscriptions[vehicleId] = unsubscribe;
+    }
+  }
+
+  void unsubscribe(String vehicleId) {
+    if (_subscriptions.containsKey(vehicleId)) {
+      _subscriptions[vehicleId]?.call();
+      _subscriptions.remove(vehicleId);
+      log('[Auction WS] Unsubscribed: $vehicleId');
+    }
+  }
+
   void dispose() {
-    _socketService?.disconnect();
-    super.dispose();
+    _subscriptions.forEach((_, unsub) => unsub());
+    _subscriptions.clear();
+    _client?.deactivate();
+    _client = null;
   }
 }
