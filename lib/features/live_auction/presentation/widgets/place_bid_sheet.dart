@@ -114,23 +114,45 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     super.dispose();
   }
 
-  // ── Timer ────────────────────────────────────────────────────────
-  void _computeRemaining() {
+  // ── Dynamic End Time & Timer ─────────────────────────────────────
+  DateTime? _resolveTargetEndTime() {
+    final auction = _liveActivity?.auction;
+
+    // 1. Check live extendedEndTime from activity
+    final ext = auction?.extendedEndTime;
+    if (ext != null && ext > 0) {
+      return DateTime.fromMillisecondsSinceEpoch(ext);
+    }
+
+    // 2. Fallback to live endTime from activity
+    final end = auction?.endTime;
+    if (end != null && end > 0) {
+      return DateTime.fromMillisecondsSinceEpoch(end);
+    }
+
+    // 3. Fallback to initial vehicle model closeDt
     final closeDt = widget.vehicle.auctionCloseDt;
-    final parsed = (closeDt == null || closeDt.isEmpty)
-        ? null
-        : DateTime.tryParse(closeDt.replaceFirst(' ', 'T'));
+    if (closeDt != null && closeDt.isNotEmpty) {
+      return DateTime.tryParse(closeDt.replaceFirst(' ', 'T'));
+    }
+
+    return null;
+  }
+
+  void _computeRemaining() {
     if (!mounted) return;
-    if (parsed == null) {
+    final target = _resolveTargetEndTime();
+
+    if (target == null) {
       setState(() => _ended = true);
       return;
     }
-    final diff = parsed.difference(DateTime.now());
+
+    final diff = target.difference(DateTime.now());
     setState(() {
       if (diff.isNegative) {
         _ended = true;
         _remaining = Duration.zero;
-        _timer?.cancel();
       } else {
         _ended = false;
         _remaining = diff;
@@ -428,10 +450,14 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
   // ── Build ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    // Keep input field updated if a higher bid comes in while the user has the sheet open
+    // Listen for live poller / socket updates
     ref.listen(bidActivityNotifierProvider, (previous, next) {
       next.maybeWhen(
         data: (data) {
+          // 1. Recalculate remaining time immediately when extendedEndTime changes
+          _computeRemaining();
+
+          // 2. Adjust next min bid if current input is lower than the new highest bid
           final liveTop = data.highestBid?.toInt();
           if (liveTop != null) {
             final nextMin = liveTop + _minIncrement;
@@ -614,13 +640,16 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Timer chip ──────────────────────────────────────────────────
+  // ── Timer chip (highlights amber/red in final duration) ─────────
   Widget _timerChip() {
     final Color bg;
     final Color fg;
     if (_ended) {
       bg = const Color(0xFFFDE8E8);
       fg = const Color(0xFFD64545);
+    } else if (_remaining.inMinutes < 1) {
+      bg = const Color(0xFFFFECEC);
+      fg = const Color(0xFFDC2626); // Red in the final 60 seconds
     } else if (_remaining.inMinutes < 60) {
       bg = const Color(0xFFFFF4E5);
       fg = const Color(0xFFB45309);
@@ -628,6 +657,9 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       bg = const Color(0xFFF3F4F6);
       fg = const Color(0xFF111111);
     }
+
+    final isExtended = (_liveActivity?.auction?.extendedEndTime ?? 0) > 0;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -637,7 +669,8 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.timer_outlined, size: 15, color: fg),
+          Icon(isExtended ? Icons.update_rounded : Icons.timer_outlined,
+              size: 15, color: fg),
           const SizedBox(width: 4),
           Text(
             _ended ? 'Ended' : _fmtTimer(_remaining),

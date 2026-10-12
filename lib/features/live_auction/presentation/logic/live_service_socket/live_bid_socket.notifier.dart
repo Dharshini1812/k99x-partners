@@ -1,10 +1,6 @@
 import 'dart:convert';
 import 'dart:developer';
-
-import 'package:dealer/core/services/auction_socket_service.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
-import 'package:dealer/features/live_auction/domain/usecase/bid_activity_usecase.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 
 class LiveBidSocketState {

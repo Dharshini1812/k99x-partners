@@ -42,8 +42,9 @@ class BidActivityData {
     return BidActivityData(
       winningBidderId: json['winningBidderId'],
       isWinning: json['isWinning'],
-      autobid:
-          json['autobid'] != null ? AutobidInfo.fromJson(json['autobid']) : null,
+      autobid: json['autobid'] != null
+          ? AutobidInfo.fromJson(json['autobid'])
+          : null,
       highestBid: (json['highestBid'] as num?)?.toDouble(),
       bidsCount: json['bidsCount'],
       rank: json['rank'],
@@ -76,6 +77,11 @@ class AuctionDetails {
   final String? regno;
   final double? startingPrice;
   final double? currentPrice;
+  final double? basePrice;
+  final int? startTime;
+  final int? endTime;
+  final int? extendedEndTime;
+  final int? extensionCount;
   final String? status;
   final int? totalBids;
 
@@ -86,6 +92,11 @@ class AuctionDetails {
     this.regno,
     this.startingPrice,
     this.currentPrice,
+    this.basePrice,
+    this.startTime,
+    this.endTime,
+    this.extendedEndTime,
+    this.extensionCount,
     this.status,
     this.totalBids,
   });
@@ -98,6 +109,11 @@ class AuctionDetails {
       regno: json['regno'],
       startingPrice: (json['startingPrice'] as num?)?.toDouble(),
       currentPrice: (json['currentPrice'] as num?)?.toDouble(),
+      basePrice: (json['basePrice'] as num?)?.toDouble(),
+      startTime: json['startTime'] as int?,
+      endTime: json['endTime'] as int?,
+      extendedEndTime: json['extendedEndTime'] as int?,
+      extensionCount: json['extensionCount'] as int?,
       status: json['status'],
       totalBids: json['totalBids'],
     );
