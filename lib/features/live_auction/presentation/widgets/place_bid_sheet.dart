@@ -118,25 +118,17 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
   DateTime? _resolveTargetEndTime() {
     final auction = _liveActivity?.auction;
 
-    // 1. Check live extendedEndTime from activity
     final ext = auction?.extendedEndTime;
     if (ext != null && ext > 0) {
-      return DateTime.fromMillisecondsSinceEpoch(ext);
+      return AuctionDateHelper.parseAuctionDate(ext);
     }
 
-    // 2. Fallback to live endTime from activity
     final end = auction?.endTime;
     if (end != null && end > 0) {
-      return DateTime.fromMillisecondsSinceEpoch(end);
+      return AuctionDateHelper.parseAuctionDate(end);
     }
 
-    // 3. Fallback to initial vehicle model closeDt
-    final closeDt = widget.vehicle.auctionCloseDt;
-    if (closeDt != null && closeDt.isNotEmpty) {
-      return DateTime.tryParse(closeDt.replaceFirst(' ', 'T'));
-    }
-
-    return null;
+    return AuctionDateHelper.parseAuctionDate(widget.vehicle.auctionCloseDt);
   }
 
   void _computeRemaining() {
@@ -454,17 +446,21 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     ref.listen(bidActivityNotifierProvider, (previous, next) {
       next.maybeWhen(
         data: (data) {
-          // 1. Recalculate remaining time immediately when extendedEndTime changes
+          // 1. Recalculate remaining duration
           _computeRemaining();
 
-          // 2. Adjust next min bid if current input is lower than the new highest bid
+          // 2. Adjust next minimum bid without jumping the user's cursor to the start
           final liveTop = data.highestBid?.toInt();
           if (liveTop != null) {
             final nextMin = liveTop + _minIncrement;
             if (_amount <= liveTop && mounted) {
+              final newText = '$nextMin';
               setState(() {
                 _amount = nextMin;
-                _amountController.text = '$_amount';
+                _amountController.value = TextEditingValue(
+                  text: newText,
+                  selection: TextSelection.collapsed(offset: newText.length),
+                );
               });
             }
           }

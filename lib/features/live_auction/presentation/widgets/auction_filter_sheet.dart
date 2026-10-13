@@ -2,6 +2,7 @@ import 'package:dealer/core/common/data/model/city_model.dart';
 import 'package:dealer/core/common/data/model/lender_model.dart';
 import 'package:dealer/core/common/data/model/state_model.dart';
 import 'package:dealer/core/common/presentation/provider.dart';
+import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
@@ -60,11 +61,10 @@ class _AuctionFilterSheetState extends ConsumerState<AuctionFilterSheet> {
     final statusUpper = (vehicle.status ?? '').trim().toUpperCase();
     if (statusUpper == 'SOLD' || statusUpper == 'UNSOLD') return true;
 
-    final closeDt = vehicle.auctionCloseDt;
-    if (closeDt != null && closeDt.isNotEmpty) {
-      final parsed = DateTime.tryParse(closeDt.replaceFirst(' ', 'T'));
-      if (parsed != null && parsed.isBefore(DateTime.now())) return true;
-    }
+    final closeDt = vehicle.extendedEndTime ?? vehicle.auctionCloseDt;
+    final parsed = AuctionDateHelper.parseAuctionDate(closeDt);
+    if (parsed != null && parsed.isBefore(DateTime.now())) return true;
+
     return false;
   }
 

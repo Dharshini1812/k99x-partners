@@ -3,6 +3,8 @@
 import 'dart:async';
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/core/helper/feedback_helper.dart';
+import 'package:dealer/core/helper/other_helper.dart';
+import 'package:dealer/core/route/router.gr.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
@@ -11,9 +13,8 @@ import 'package:dealer/features/live_auction/presentation/widgets/auction_card.d
 import 'package:dealer/features/live_auction/presentation/widgets/auction_filter_bar.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/auction_skeleton.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/live_auction_voucher_card.dart';
-import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
-import 'package:dealer/core/route/router.gr.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
+import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -123,10 +124,9 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     if (statusUpper == 'SOLD' || statusUpper == 'UNSOLD') return true;
 
     final closeDt = vehicle.extendedEndTime ?? vehicle.auctionCloseDt;
-    if (closeDt != null && closeDt.isNotEmpty) {
-      final parsed = DateTime.tryParse(closeDt.replaceFirst(' ', 'T'));
-      if (parsed != null && parsed.isBefore(DateTime.now())) return true;
-    }
+    final parsed = AuctionDateHelper.parseAuctionDate(closeDt);
+    if (parsed != null && parsed.isBefore(DateTime.now())) return true;
+
     return false;
   }
 
@@ -218,9 +218,9 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildVehicleList(),
-                  _buildVehicleList(),
-                  _buildVehicleList(),
+                  _buildVehicleList(isUpcoming: false), // Tab 0: Auctions
+                  _buildVehicleList(isUpcoming: false), // Tab 1: Quote price
+                  _buildVehicleList(isUpcoming: true), // Tab 2: Upcoming
                 ],
               ),
             ),
@@ -269,7 +269,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     );
   }
 
-  Widget _buildVehicleList() {
+  Widget _buildVehicleList({bool isUpcoming = false}) {
     final state = ref.watch(liveAuctionNotifier);
     final logic = ref.watch(auctionLogic);
 
@@ -322,7 +322,16 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
           padding: const EdgeInsets.all(12),
           itemCount: filtered.length,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, i) => LiveAuctionCard(vehicle: filtered[i]),
+          itemBuilder: (context, i) {
+            final vehicle = filtered[i];
+            final bool itemIsUpcoming = isUpcoming ||
+                (vehicle.status ?? '').trim().toUpperCase() == 'UPCOMING';
+
+            return LiveAuctionCard(
+              vehicle: vehicle,
+              isUpcoming: itemIsUpcoming,
+            );
+          },
         );
       },
     );

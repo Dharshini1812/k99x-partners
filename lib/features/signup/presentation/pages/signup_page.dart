@@ -497,8 +497,9 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
           validator: (v) {
             if (v == null || v.trim().isEmpty) return 'Email is required';
             final emailRegExp = RegExp(r'^[\w\.\-]+@[\w\-]+\.[a-zA-Z]{2,}$');
-            if (!emailRegExp.hasMatch(v.trim()))
+            if (!emailRegExp.hasMatch(v.trim())) {
               return 'Enter a valid email address';
+            }
             return null;
           },
           onChanged: (_) => setState(() {}),
@@ -719,8 +720,9 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
           keyboardType: TextInputType.number,
           maxLength: 6,
           validator: (v) {
-            if (v == null || v.trim().length != 6)
+            if (v == null || v.trim().length != 6) {
               return 'Enter a valid 6-digit pincode';
+            }
             return null;
           },
           onChanged: (_) => setState(() {}),

@@ -38,12 +38,9 @@ class _AuctionFilterBarState extends ConsumerState<AuctionFilterBar> {
 
   int _activeFilterCount(AuctionLogic logic) {
     int count = 0;
-    // 1. Only count state as an active filter if user changed it away from their home state:
+    // Increment count if the user selected a state different from their home state
     if (logic.selectedState != null && !logic.isUserHomeState) {
-      _chip(
-        logic.selectedState!.stateName ?? '',
-        () => logic.updateState(null),
-      );
+      count++;
     }
     if (logic.selectedCity != null) count++;
     if (logic.selectedLender != null) count++;

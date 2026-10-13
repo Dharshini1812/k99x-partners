@@ -185,3 +185,35 @@ double? parseRating(String? value) {
   if (r == null) return null;
   return r.clamp(0, 5).toDouble();
 }
+
+String formatPrice(num? amount) {
+  if (amount == null) return '₹--';
+  if (amount < 0) return '₹0';
+  final formatter = NumberFormat.currency(
+    locale: 'en_IN',
+    symbol: '₹',
+    decimalDigits: 0,
+  );
+  return formatter.format(amount);
+}
+
+class AuctionDateHelper {
+  static DateTime? parseAuctionDate(dynamic dateValue) {
+    if (dateValue == null) return null;
+    if (dateValue is int) {
+      return DateTime.fromMillisecondsSinceEpoch(dateValue);
+    }
+    if (dateValue is String) {
+      final trimmed = dateValue.trim();
+      if (trimmed.isEmpty) return null;
+
+      final asInt = int.tryParse(trimmed);
+      if (asInt != null) {
+        return DateTime.fromMillisecondsSinceEpoch(asInt);
+      }
+
+      return DateTime.tryParse(trimmed.replaceFirst(' ', 'T'));
+    }
+    return null;
+  }
+}

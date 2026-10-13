@@ -29,7 +29,7 @@ class BottomNavBar extends StatelessWidget {
     Icons.history,
     Icons.person,
   ];
-  static const _labels = ['Home', 'Auction', 'Sell', 'Listings', 'Profile'];
+  static const _labels = ['Home', 'Auction', 'Sell', 'Stocks', 'Profile'];
 
   @override
   Widget build(BuildContext context) {

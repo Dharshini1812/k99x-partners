@@ -17,7 +17,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class LiveAuctionCard extends ConsumerStatefulWidget {
   final LiveAuctionModel vehicle;
-  const LiveAuctionCard({super.key, required this.vehicle});
+  final bool isUpcoming;
+
+  const LiveAuctionCard({
+    super.key,
+    required this.vehicle,
+    this.isUpcoming = false,
+  });
 
   @override
   ConsumerState<LiveAuctionCard> createState() => _LiveAuctionCardState();
@@ -47,11 +53,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
   void _computeRemaining() {
     final closeDt =
         widget.vehicle.extendedEndTime ?? widget.vehicle.auctionCloseDt;
-    if (closeDt == null || closeDt.isEmpty) {
-      if (mounted) setState(() => _ended = true);
-      return;
-    }
-    final parsed = DateTime.tryParse(closeDt.replaceFirst(' ', 'T'));
+    final parsed = AuctionDateHelper.parseAuctionDate(closeDt);
     if (parsed == null) {
       if (mounted) setState(() => _ended = true);
       return;
@@ -155,6 +157,9 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
           : null,
     ].where((e) => e != null).join(' • ');
     final currentBid = _currentBidAmount(v);
+
+    final bool isUpcoming = widget.isUpcoming ||
+        (v.status ?? '').trim().toUpperCase() == 'UPCOMING';
 
     // Dynamic resolution: check if current vehicle is in the user's watchlist
     final watchlistState = ref.watch(watchlistNotifierProvider);
@@ -305,17 +310,25 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                       Row(
                         children: [
                           Icon(
-                            Icons.timer_outlined,
+                            isUpcoming
+                                ? Icons.schedule_rounded
+                                : Icons.timer_outlined,
                             size: 18,
-                            color: _ended ? Colors.red : Colors.black87,
+                            color: isUpcoming
+                                ? const Color(0xFF6200EE)
+                                : (_ended ? Colors.red : Colors.black87),
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            _ended ? 'Ended' : _fmt(_remaining),
+                            isUpcoming
+                                ? 'Upcoming'
+                                : (_ended ? 'Ended' : _fmt(_remaining)),
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
-                              color: _ended ? Colors.red : Colors.black87,
+                              color: isUpcoming
+                                  ? const Color(0xFF6200EE)
+                                  : (_ended ? Colors.red : Colors.black87),
                             ),
                           ),
                         ],
@@ -344,50 +357,79 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _ended
-                              ? null
-                              : () => _openBidSheet(BidSheetMode.autobid),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFF3E5F5),
-                            foregroundColor: AppColors.primary,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                  if (isUpcoming)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: const Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.schedule_rounded,
+                                size: 16, color: Color(0xFF6B7280)),
+                            SizedBox(width: 6),
+                            Text(
+                              'Auction Starts Soon',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: Color(0xFF6B7280),
+                              ),
                             ),
-                          ),
-                          child: const Text(
-                            'Auto bid',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _ended
-                              ? null
-                              : () => _openBidSheet(BidSheetMode.bid),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _ended
+                                ? null
+                                : () => _openBidSheet(BidSheetMode.autobid),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFF3E5F5),
+                              foregroundColor: AppColors.primary,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Auto bid',
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
-                          child: const Text(
-                            'Bid',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _ended
+                                ? null
+                                : () => _openBidSheet(BidSheetMode.bid),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Bid',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                 ],
               ),
             ),
