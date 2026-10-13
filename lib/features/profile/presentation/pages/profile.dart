@@ -6,6 +6,7 @@ import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart'
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/pages/watch_list_page.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
+import 'package:dealer/features/profile/presentation/pages/help_page.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -106,7 +107,14 @@ class Profile extends ConsumerWidget {
                   label: 'Help & Support',
                   subtitle: 'FAQs, contact our team',
                   iconColor: const Color(0xFF3B82F6),
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const HelpSupportPage(),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 30),
                 const _LogoutButton(),

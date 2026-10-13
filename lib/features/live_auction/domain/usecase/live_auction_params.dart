@@ -20,6 +20,7 @@ class LiveAuctionParams {
   final String? status;
   final DateTime? fromDate;
   final DateTime? toDate;
+  final String? mode;
 
   // ── Previously dropped fields — now carried through ──────────────
   final String? make;
@@ -53,6 +54,7 @@ class LiveAuctionParams {
     this.condition,
     this.seller,
     this.ownership,
+    this.mode,
   });
 
   String _fmtDate(DateTime d) {
@@ -71,6 +73,7 @@ class LiveAuctionParams {
     if (status != null) params['status'] = status;
     if (fromDate != null) params['fromDate'] = _fmtDate(fromDate!);
     if (toDate != null) params['toDate'] = _fmtDate(toDate!);
+    if (mode != null && mode!.isNotEmpty) params['mode'] = mode;
 
     // ── Newly wired-in fields ───────────────────────────────────────
     // Param names here are placeholders — confirm actual names with

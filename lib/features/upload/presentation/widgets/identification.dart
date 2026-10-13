@@ -8,6 +8,7 @@ import 'package:dealer/core/common/presentation/logic/commonlogic.dart';
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/core/common/presentation/widgets/common_dropdown.dart';
 import 'package:dealer/core/common/presentation/widgets/common_textfield.dart';
+import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/upload/data/model/vehicle_model.dart';
 import 'package:dealer/features/upload/presentation/logic/upload_logic.dart';
@@ -314,7 +315,7 @@ class _IdentificationSpecsStepState
             label: 'Make',
             hint: 'Select Make',
             options: data
-                .map((m) => DropdownOption(value: m, label: m.name ?? ''))
+                .map((m) => DropdownOption(value: m, label: titleCase(m.name)))
                 .toList(),
             value: listing.make,
             onChanged: (v) {
@@ -361,7 +362,7 @@ class _IdentificationSpecsStepState
         label: 'Model',
         hint: 'Select Model',
         options: data
-            .map((m) => DropdownOption(value: m, label: m.name ?? ''))
+            .map((m) => DropdownOption(value: m, label: titleCase(m.name)))
             .toList(),
         value: listing.model,
         onChanged: (v) {
@@ -408,7 +409,7 @@ class _IdentificationSpecsStepState
         searchable: true,
         value: listing.variant,
         options: data
-            .map((m) => DropdownOption(value: m, label: m.name ?? ''))
+            .map((m) => DropdownOption(value: m, label: titleCase(m.name)))
             .toList(),
         onChanged: (v) {
           _unfocusAll();
@@ -429,7 +430,7 @@ class _IdentificationSpecsStepState
       searchable: false,
       value: listing.bodyStyle,
       options: logic.bodyStyleOptions
-          .map((b) => DropdownOption(value: b, label: b))
+          .map((b) => DropdownOption(value: b, label: titleCase(b)))
           .toList(),
       onChanged: (v) {
         _unfocusAll();
@@ -474,7 +475,7 @@ class _IdentificationSpecsStepState
         hint: 'Select State',
         value: listing.selectedState,
         options: data
-            .map((s) => DropdownOption(value: s, label: s.stateName ?? ''))
+            .map((s) => DropdownOption(value: s, label: titleCase(s.stateName)))
             .toList(),
         onChanged: (v) {
           _unfocusAll();
@@ -512,7 +513,7 @@ class _IdentificationSpecsStepState
         hint: 'Select City',
         value: listing.selectedCity,
         options: data
-            .map((e) => DropdownOption(value: e, label: e.cityName ?? ''))
+            .map((e) => DropdownOption(value: e, label: titleCase(e.cityName)))
             .toList(),
         onChanged: (v) {
           _unfocusAll();

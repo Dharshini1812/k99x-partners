@@ -1,3 +1,5 @@
+// lib/features/live_auction/presentation/pages/auction_homepage.dart
+
 import 'dart:async';
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/core/helper/feedback_helper.dart';
@@ -28,9 +30,9 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
   late final TabController _tabController;
 
   static const _tabs = [
-    (label: 'Auctions', status: 'LIVE'),
-    (label: 'Quote price', status: null),
-    (label: 'Upcoming', status: 'UPCOMING'),
+    (label: 'Auctions', status: 'LIVE', mode: null),
+    (label: 'Quote price', status: 'LIVE', mode: '3'),
+    (label: 'Upcoming', status: 'UPCOMING', mode: null),
   ];
 
   @override
@@ -49,9 +51,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
 
       final logic = ref.read(auctionLogic);
 
-      // Set initial tab status (tab 0 is 'LIVE')
-      logic.setActiveTabStatus(_tabs.first.status);
-
+      logic.setActiveTab(status: _tabs.first.status, mode: _tabs.first.mode);
       logic.setDefaultDateRange(twoMonthsAgo, twoMonthsAhead);
       logic.search();
 
@@ -96,10 +96,10 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
-    final status = _tabs[_tabController.index].status;
+    final currentTab = _tabs[_tabController.index];
     final logic = ref.read(auctionLogic);
-    logic.updateStatus(AuctionLogic.statusOptions.first);
-    logic.setActiveTabStatus(status);
+    logic.setActiveTab(status: currentTab.status, mode: currentTab.mode);
+    logic.search();
     setState(() {});
   }
 
@@ -122,7 +122,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     final statusUpper = (vehicle.status ?? '').trim().toUpperCase();
     if (statusUpper == 'SOLD' || statusUpper == 'UNSOLD') return true;
 
-    final closeDt = vehicle.auctionCloseDt;
+    final closeDt = vehicle.extendedEndTime ?? vehicle.auctionCloseDt;
     if (closeDt != null && closeDt.isNotEmpty) {
       final parsed = DateTime.tryParse(closeDt.replaceFirst(' ', 'T'));
       if (parsed != null && parsed.isBefore(DateTime.now())) return true;
@@ -147,17 +147,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     return haystack.any((field) => field.contains(q));
   }
 
-  int _countForStatus(
-      List<LiveAuctionModel> auctions, String? status, String query) {
-    if (status == null) return 0; // One click buy placeholder
-    return auctions
-        .where((a) => !_isEnded(a))
-        .where((a) =>
-            (a.status ?? '').trim().toUpperCase() == status.toUpperCase())
-        .where((a) => _matchesSearch(a, query))
-        .length;
-  }
-
   @override
   Widget build(BuildContext context) {
     ref.listen(getStateProvider, (previous, next) {
@@ -171,17 +160,14 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     final liveAuctionState = ref.watch(liveAuctionNotifier);
     final logic = ref.watch(auctionLogic);
 
-    final allAuctions = liveAuctionState.maybeWhen(
-      data: (list) => list,
-      orElse: () => const <LiveAuctionModel>[],
+    final currentCount = liveAuctionState.maybeWhen(
+      data: (items) => items
+          .where((a) => !_isEnded(a))
+          .where((a) => _matchesSearch(a, logic.searchQuery))
+          .length
+          .toString(),
+      orElse: () => '0',
     );
-
-    // Dynamic counts reflecting current search query and live API results
-    final tabCounts = [
-      _countForStatus(allAuctions, 'LIVE', logic.searchQuery).toString(),
-      '0', // One Click Buy count placeholder
-      _countForStatus(allAuctions, 'UPCOMING', logic.searchQuery).toString(),
-    ];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -217,13 +203,12 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
                     for (int i = 0; i < _tabs.length; i++)
                       _buildTab(
                         label: _tabs[i].label,
-                        count: tabCounts[i],
+                        count: _tabController.index == i ? currentCount : '-',
                         isActive: _tabController.index == i,
                       ),
                   ],
                   onTap: (_) {
                     FeedbackHelper.tap();
-                    setState(() {});
                   },
                 ),
               ),
@@ -233,9 +218,9 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildAuctionsList(status: 'LIVE'),
-                  _buildOneClickBuyList(),
-                  _buildAuctionsList(status: 'UPCOMING'),
+                  _buildVehicleList(),
+                  _buildVehicleList(),
+                  _buildVehicleList(),
                 ],
               ),
             ),
@@ -284,7 +269,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
     );
   }
 
-  Widget _buildAuctionsList({required String status}) {
+  Widget _buildVehicleList() {
     final state = ref.watch(liveAuctionNotifier);
     final logic = ref.watch(auctionLogic);
 
@@ -304,8 +289,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
       data: (auctions) {
         final filtered = auctions
             .where((a) => !_isEnded(a))
-            .where((a) =>
-                (a.status ?? '').trim().toUpperCase() == status.toUpperCase())
             .where((a) => _matchesSearch(a, logic.searchQuery))
             .toList();
 
@@ -318,9 +301,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
                 Icon(
                   isSearching
                       ? Icons.search_off_rounded
-                      : status == 'UPCOMING'
-                          ? Icons.schedule_rounded
-                          : Icons.directions_car_rounded,
+                      : Icons.directions_car_rounded,
                   size: 40,
                   color: Colors.black26,
                 ),
@@ -328,9 +309,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
                 Text(
                   isSearching
                       ? 'No results for "${logic.searchQuery}"'
-                      : status == 'UPCOMING'
-                          ? 'No upcoming auctions'
-                          : 'No live auctions found',
+                      : 'No vehicles found',
                   style: const TextStyle(color: Colors.black45, fontSize: 13),
                   textAlign: TextAlign.center,
                 ),
@@ -346,19 +325,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage>
           itemBuilder: (context, i) => LiveAuctionCard(vehicle: filtered[i]),
         );
       },
-    );
-  }
-
-  Widget _buildOneClickBuyList() {
-    return const Center(
-      child: Text(
-        'One Click Buy coming soon',
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          color: Colors.grey,
-        ),
-      ),
     );
   }
 }

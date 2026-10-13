@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dealer/core/theme/colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_svg/svg.dart';
@@ -621,7 +622,7 @@ class _KmRangeFilter extends StatelessWidget {
     this.onChangeEnd,
   });
 
-  static const _brandColor = Color(0xFF6B4EFF);
+  static const _brandColor = AppColors.primary;
 
   @override
   Widget build(BuildContext context) {

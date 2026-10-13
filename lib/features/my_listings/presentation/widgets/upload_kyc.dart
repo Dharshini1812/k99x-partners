@@ -5,6 +5,7 @@ import 'package:dealer/core/common/data/model/state_model.dart';
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/core/common/presentation/widgets/common_dropdown.dart';
 import 'package:dealer/core/common/presentation/widgets/common_textfield.dart';
+import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/features/my_listings/presentation/logic/Kyc_form_logic.dart';
 
 import 'package:flutter/material.dart';
@@ -202,7 +203,7 @@ class UploadKycPage extends ConsumerWidget {
         hint: 'Select State',
         value: logic.selectedState,
         options: data
-            .map((s) => DropdownOption(value: s, label: s.stateName ?? ''))
+            .map((s) => DropdownOption(value: s, label: titleCase(s.stateName)))
             .toList(),
         onChanged: (v) {
           logic.setSelectedState(v);
@@ -236,7 +237,7 @@ class UploadKycPage extends ConsumerWidget {
         hint: 'Select City',
         value: logic.selectedCity,
         options: data
-            .map((e) => DropdownOption(value: e, label: e.cityName ?? ''))
+            .map((e) => DropdownOption(value: e, label: titleCase(e.cityName)))
             .toList(),
         onChanged: logic.setSelectedCity,
       ),

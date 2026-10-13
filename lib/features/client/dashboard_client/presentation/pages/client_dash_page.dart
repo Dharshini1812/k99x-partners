@@ -1,6 +1,7 @@
 // lib/features/client/dashboard_client/presentation/pages/client_dashboard_page.dart
 
 import 'package:dealer/core/helper/other_helper.dart';
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/client/dashboard_client/data/model/c_dashboard_stats.dart';
 import 'package:dealer/features/client/dashboard_client/presentation/logic/provider.dart';
@@ -253,7 +254,7 @@ class _DashboardHeader extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.notifications_none_rounded,
-                color: _kAccentBlue,
+                color: AppColors.primary,
                 size: 24,
               ),
             ),

@@ -315,10 +315,10 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                         children: [
                           Text(
                             fullVehicleTitle.isNotEmpty
-                                ? fullVehicleTitle
+                                ? titleCase(fullVehicleTitle)
                                 : 'VEHICLE DETAILS',
                             style: const TextStyle(
-                              fontSize: 13.5,
+                              fontSize: 14,
                               fontWeight: FontWeight.w800,
                               color: Color(0xFF111111),
                               height: 1.25,
@@ -328,9 +328,9 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            '${data.fuelType ?? ''} · ${data.transmission ?? ''} · ${data.bodyStyle ?? ''}',
+                            '${titleCase(data.fuelType)} · ${titleCase(data.transmission)}· ${titleCase(data.bodyStyle)}',
                             style: const TextStyle(
-                              fontSize: 11.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w500,
                               color: Color(0xFF666666),
                             ),

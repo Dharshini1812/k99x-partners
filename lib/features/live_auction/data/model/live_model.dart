@@ -93,7 +93,8 @@ class LiveAuctionModel {
   String? cityName;
   List<BidsModel>? bids;
   VehicleImageModelF? imageUrl;
-  String? mode;
+  int? mode;
+  String? extendedEndTime;
 
   LiveAuctionModel({
     this.vehicleId,
@@ -123,6 +124,7 @@ class LiveAuctionModel {
     this.mode,
     this.bids,
     this.imageUrl,
+    this.extendedEndTime,
   });
 
   LiveAuctionModel.fromJson(Map<String, dynamic> json) {
@@ -160,6 +162,7 @@ class LiveAuctionModel {
         bids!.add(BidsModel.fromJson(v));
       });
     }
+    extendedEndTime = json['extended_end_time'];
   }
 
   Map<String, dynamic> toJson() {

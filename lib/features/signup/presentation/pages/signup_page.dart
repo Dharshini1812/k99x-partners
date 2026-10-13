@@ -494,6 +494,13 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
           controller: logic.emailCtrl,
           hint: 'Email',
           keyboardType: TextInputType.emailAddress,
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) return 'Email is required';
+            final emailRegExp = RegExp(r'^[\w\.\-]+@[\w\-]+\.[a-zA-Z]{2,}$');
+            if (!emailRegExp.hasMatch(v.trim()))
+              return 'Enter a valid email address';
+            return null;
+          },
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 14),
@@ -711,6 +718,11 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
           hint: 'Pincode',
           keyboardType: TextInputType.number,
           maxLength: 6,
+          validator: (v) {
+            if (v == null || v.trim().length != 6)
+              return 'Enter a valid 6-digit pincode';
+            return null;
+          },
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 18),
@@ -1316,6 +1328,7 @@ class _RoundedField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final bool obscureText;
   final Widget? suffixIcon;
+  final String? Function(String?)? validator;
 
   const _RoundedField({
     required this.controller,
@@ -1325,16 +1338,18 @@ class _RoundedField extends StatelessWidget {
     this.onChanged,
     this.obscureText = false,
     this.suffixIcon,
+    this.validator,
   });
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       maxLength: maxLength,
       obscureText: obscureText,
       onChanged: onChanged,
+      validator: validator,
       decoration: InputDecoration(
         hintText: hint,
         counterText: '',

@@ -1,6 +1,7 @@
 // lib/features/login/presentation/pages/login_page.dart
 
 import 'package:auto_route/auto_route.dart';
+import 'package:dealer/core/error/app_error_handler.dart';
 import 'package:dealer/core/route/router.gr.dart';
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/login/data/model/send_otp.dart';
@@ -56,6 +57,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     final sendNotifier = ref.read(sendOtpProvider.notifier);
 
+    // Inside _handleSendOtp():
     try {
       final response = await sendNotifier.sendOtp(SendOtpModel(
         phone: phone,
@@ -64,30 +66,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
       if (!mounted) return;
 
-      // A null response means sendOtp() itself couldn't produce a real
-      // result (network failure, unparseable body) — there's genuinely
-      // nothing to send them to an OTP screen for.
       if (response == null) {
         Fluttertoast.showToast(msg: 'Something went wrong. Please try again.');
         return;
       }
 
       final message = response.message ?? '';
-      // .contains(), not == — the previous exact-match check had an
-      // extra stray character baked into the literal, so it could never
-      // actually match a real backend message.
       final isInactive = message.toLowerCase().contains('inactive');
 
       if (isInactive) {
         Fluttertoast.showToast(
           msg: message.isNotEmpty
               ? message
-              : 'Your account is inactive. Please contact administrator',
+              : 'Your account is inactive. Please contact administrator.',
         );
         return;
       } else if (response.success == false) {
         Fluttertoast.showToast(
-            msg: message.isNotEmpty ? message : 'Failed to send OTP');
+          msg: message.isNotEmpty ? message : 'Failed to send OTP.',
+        );
+        return;
       }
 
       final bool isUserRegistered = response.success == true &&
@@ -96,32 +94,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       ref.read(loginPhoneProvider.notifier).state = phone;
       ref.read(loginIsRegisteredProvider.notifier).state = isUserRegistered;
 
-      // Reached for every case above except the null-response early
-      // return — including isInactive — so an inactive account still
-      // lands on the OTP page, just with the warning toast already shown.
       ref.read(routeService).push(const OtpRoute(), context);
     } catch (e) {
       if (!mounted) return;
-      final message = e.toString();
+      final userMessage = AppErrorHandler.parse(e);
 
-      if (message.toLowerCase().contains('inactive')) {
-        // Some deployments surface "account inactive" as a thrown error
-        // instead of a normal {success:false} response — same rule
-        // applies: still send them to the OTP page, don't strand them
-        // here just because this came back as an exception instead.
-        Fluttertoast.showToast(msg: message);
+      if (userMessage.toLowerCase().contains('inactive')) {
+        Fluttertoast.showToast(msg: userMessage);
         ref.read(loginPhoneProvider.notifier).state = phone;
-        // Assumes inactive implies a real, existing (just deactivated)
-        // account — flag this if that's not actually true server-side.
         ref.read(loginIsRegisteredProvider.notifier).state = true;
         ref.read(routeService).push(const OtpRoute(), context);
       } else {
-        Fluttertoast.showToast(msg: message, toastLength: Toast.LENGTH_SHORT);
+        Fluttertoast.showToast(
+            msg: userMessage, toastLength: Toast.LENGTH_SHORT);
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'package:dealer/core/helper/feedback_helper.dart';
 import 'package:dealer/core/helper/other_helper.dart';
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
@@ -44,7 +45,8 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
   }
 
   void _computeRemaining() {
-    final closeDt = widget.vehicle.auctionCloseDt;
+    final closeDt =
+        widget.vehicle.extendedEndTime ?? widget.vehicle.auctionCloseDt;
     if (closeDt == null || closeDt.isEmpty) {
       if (mounted) setState(() => _ended = true);
       return;
@@ -351,7 +353,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                               : () => _openBidSheet(BidSheetMode.autobid),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFF3E5F5),
-                            foregroundColor: const Color(0xFF6200EE),
+                            foregroundColor: AppColors.primary,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
@@ -370,7 +372,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                               ? null
                               : () => _openBidSheet(BidSheetMode.bid),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF3F00E6),
+                            backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(

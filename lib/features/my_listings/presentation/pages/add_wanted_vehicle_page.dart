@@ -4,6 +4,7 @@ import 'package:dealer/core/common/data/model/make_model_variant.dart';
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/core/common/presentation/widgets/common_dropdown.dart';
 import 'package:dealer/core/common/presentation/widgets/common_textfield.dart';
+import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/my_listings/data/model/add_wanted_list_model.dart';
 import 'package:dealer/features/my_listings/data/model/wanted_list_model.dart';
@@ -220,7 +221,7 @@ class _AddWantedVehiclePageState extends ConsumerState<AddWantedVehiclePage> {
         label: 'Make',
         hint: 'Select Make',
         options: data
-            .map((m) => DropdownOption(value: m, label: m.name ?? ''))
+            .map((m) => DropdownOption(value: m, label: titleCase(m.name)))
             .toList(),
         value: wanted.make,
         onChanged: (v) {
@@ -262,7 +263,7 @@ class _AddWantedVehiclePageState extends ConsumerState<AddWantedVehiclePage> {
         label: 'Model',
         hint: 'Select Model',
         options: data
-            .map((m) => DropdownOption(value: m, label: m.name ?? ''))
+            .map((m) => DropdownOption(value: m, label: titleCase(m.name)))
             .toList(),
         value: wanted.model,
         onChanged: (v) {
@@ -304,7 +305,7 @@ class _AddWantedVehiclePageState extends ConsumerState<AddWantedVehiclePage> {
         hint: 'Select Variant',
         value: wanted.variant,
         options: data
-            .map((m) => DropdownOption(value: m, label: m.name ?? ''))
+            .map((m) => DropdownOption(value: m, label: titleCase(m.name)))
             .toList(),
         onChanged: (v) {
           _unfocus();

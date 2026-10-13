@@ -138,15 +138,14 @@ class _PeekTabBar extends StatelessWidget {
   static const double _peekHeight = 0;
   static const double _notchRadius = 8;
   static const double _cardTopRadius = 15;
-  static const double _railRadius = 0;
 
   static const Color _railBg = Color(0xFFE4E4FF);
 
-  static const Color _activeColor = Color(0xFF6161FF);
+  static const Color _activeColor = Color(0xFF8000FF);
 
-  static const Color _inactiveBorder = Color(0xFFBDBDFF);
+  static const Color _inactiveBorder = Color(0xFFCC99FF);
 
-  static const Color _textInactive = Color(0xFF6666CC);
+  static const Color _textInactive = Color(0xFF9933FF);
 
   static const Color _textActive = Colors.white;
   @override
@@ -166,7 +165,7 @@ class _PeekTabBar extends StatelessWidget {
               height: _baseHeight,
               decoration: BoxDecoration(
                 color: _railBg,
-                borderRadius: BorderRadius.circular(_railRadius),
+                borderRadius: BorderRadius.circular(16),
               ),
             ),
           ),
@@ -501,11 +500,19 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
         ),
         Expanded(
           child: myListingAsync.maybeWhen(
-            initial: () => const VehicleCardSkeletonList(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
+            initial: () => ListView(
+              children: const [
+                VehicleCardSkeletonList(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
+                ),
+              ],
             ),
-            loading: () => const VehicleCardSkeletonList(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
+            loading: () => ListView(
+              children: const [
+                VehicleCardSkeletonList(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
+                ),
+              ],
             ),
             error: (msg) => Center(child: Text(msg)),
             orElse: () => const SizedBox.shrink(),

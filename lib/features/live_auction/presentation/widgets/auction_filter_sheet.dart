@@ -2,6 +2,7 @@ import 'package:dealer/core/common/data/model/city_model.dart';
 import 'package:dealer/core/common/data/model/lender_model.dart';
 import 'package:dealer/core/common/data/model/state_model.dart';
 import 'package:dealer/core/common/presentation/provider.dart';
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
@@ -181,7 +182,7 @@ class _AuctionFilterSheetState extends ConsumerState<AuctionFilterSheet> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
-                                  color: Color(0xFF2563EB),
+                                  color: AppColors.primary,
                                 ),
                               ),
                             ),
@@ -291,7 +292,7 @@ class _AuctionFilterSheetState extends ConsumerState<AuctionFilterSheet> {
                       value: logic.maxMileage,
                       min: 0,
                       max: AuctionLogic.maxMileageCap,
-                      activeColor: const Color(0xFF2563EB),
+                      activeColor: AppColors.primary,
                       onChanged: logic.updateMaxMileage,
                     ),
                     Padding(
@@ -403,7 +404,7 @@ class _AuctionFilterSheetState extends ConsumerState<AuctionFilterSheet> {
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6200EE),
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(

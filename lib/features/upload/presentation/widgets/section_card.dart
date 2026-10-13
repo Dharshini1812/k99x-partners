@@ -1,3 +1,4 @@
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/upload/presentation/widgets/upload_colors.dart';
 import 'package:flutter/material.dart';
 
@@ -37,7 +38,8 @@ class SectionCard extends StatelessWidget {
                   height: 25,
                   child: ElevatedButton(
                     style: const ButtonStyle(
-                        backgroundColor: WidgetStatePropertyAll(Colors.blue)),
+                        backgroundColor:
+                            WidgetStatePropertyAll(AppColors.primary)),
                     onPressed: onTap,
                     child: const Text(
                       "Apply",

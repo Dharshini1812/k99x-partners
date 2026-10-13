@@ -1,5 +1,6 @@
 import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/core/location/location_provider.dart';
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/dashboard/data/model/d_stats_model.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
@@ -144,7 +145,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.6,
-                          color: _kAccentBlue,
+                          color: AppColors.primary,
                         ),
                       ),
                     ),

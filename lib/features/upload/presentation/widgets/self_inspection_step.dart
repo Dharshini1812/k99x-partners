@@ -2,6 +2,7 @@
 
 import 'package:dealer/core/common/presentation/widgets/common_dropdown.dart';
 import 'package:dealer/core/common/presentation/widgets/common_textfield.dart';
+import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/features/upload/presentation/logic/upload_logic.dart';
 import 'package:dealer/features/upload/presentation/pages/vehicle_details_page.dart';
 import 'package:dealer/features/upload/presentation/widgets/identification.dart';
@@ -103,7 +104,7 @@ class _SelfInspectionStepState extends ConsumerState<SelfInspectionStep> {
               hint: 'Select Accident History',
               value: listing.accidentHistory,
               options: logic.kAccidentOptions
-                  .map((a) => DropdownOption(value: a, label: a))
+                  .map((a) => DropdownOption(value: a, label: titleCase(a)))
                   .toList(),
               onChanged: (v) {
                 _unfocus();

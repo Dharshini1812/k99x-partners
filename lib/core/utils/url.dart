@@ -40,8 +40,8 @@ class Url {
   static const addWantedVehicle = '${baseUrl}dealer/wanted-listing/save';
   static const lenderListUrl = '${base2url}vehicle/getLenderList';
   static const logoutUrl = '${baseUrl}auth/logout';
-  static const auctionUrl = '${base2url}admin/live-auction/';
-  static const liveAuctionUrl = '${auctionUrl}auction-live/json';
+  // static const auctionUrl = '${base2url}a/admin/live/auction/json;
+  static const liveAuctionUrl = '${base2url}admin/live/auction/json';
   static const placeBidUrl = '${base2url}api/dealer/bid/placeBid/';
   static const autoBidUrl = '${base2url}api/dealer/bid/autobid/';
   static const activityUrl = '${base2url}api/dealer/bid/activity/';

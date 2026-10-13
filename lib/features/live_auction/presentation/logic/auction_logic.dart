@@ -22,6 +22,7 @@ class AuctionLogic extends ChangeNotifier {
   DateTime? fromDate;
   DateTime? toDate;
   String? activeTabStatus;
+  String? activeTabMode; // Holds '3' for Quote price
 
   bool _userStateApplied = false;
 
@@ -236,11 +237,6 @@ class AuctionLogic extends ChangeNotifier {
   /// opened — the default "last one month" date range and the dealer's
   /// own state (if one matches) — rather than to a blank slate. This is
   /// what "Clear all" should call.
-  ///
-  /// [userStateName] and [states] are the same inputs
-  /// applyUserDefaultState() takes; pass them from wherever the caller
-  /// already has them (AuctionFilterBar has both via dLogic and
-  /// getStateProvider).
   void resetToDefaults({
     required String? userStateName,
     required List<StateModel> states,
@@ -276,15 +272,10 @@ class AuctionLogic extends ChangeNotifier {
     notifyListeners();
 
     if (!_applyMatchingState(userStateName, states)) {
-      // No matching state to restore (e.g. profile/list unavailable) —
-      // still refresh the list with the restored date range.
       search();
     }
   }
 
-  /// Shared by [applyUserDefaultState] and [resetToDefaults]: finds and
-  /// applies the StateModel matching [userStateName], if any. Returns
-  /// whether a match was found and applied (and search() called).
   bool _applyMatchingState(String? userStateName, List<StateModel> states) {
     if (userStateName == null || userStateName.trim().isEmpty) return false;
 
@@ -294,16 +285,11 @@ class AuctionLogic extends ChangeNotifier {
     if (match.isEmpty) return false;
 
     _userStateApplied = true;
-    updateState(match.first); // also triggers city fetch + notifyListeners
+    updateState(match.first);
     search();
     return true;
   }
 
-  /// Called once, as soon as both the user's profile and the states list
-  /// are available, to default the auction list to the dealer's own state.
-  /// Does nothing if already applied once, or if the dealer has no
-  /// stateName on their profile, or if no matching StateModel is found.
-// Inside AuctionLogic:
   String? _userDefaultStateName;
 
   void applyUserDefaultState(String? stateName, List<StateModel> states) {
@@ -322,7 +308,6 @@ class AuctionLogic extends ChangeNotifier {
     }
   }
 
-  /// Returns true when the active state filter is just the user's home state
   bool get isUserHomeState {
     if (selectedState == null || _userDefaultStateName == null) return false;
     return (selectedState!.stateName ?? '').trim().toLowerCase() ==
@@ -330,8 +315,16 @@ class AuctionLogic extends ChangeNotifier {
   }
 
   /// Called by AuctionHomePage on tab switch.
+  void setActiveTab({String? status, String? mode}) {
+    activeTabStatus = status;
+    activeTabMode = mode;
+    notifyListeners();
+    search();
+  }
+
   void setActiveTabStatus(String? status) {
     activeTabStatus = status;
+    activeTabMode = null;
     notifyListeners();
     search();
   }
@@ -358,14 +351,12 @@ class AuctionLogic extends ChangeNotifier {
     final params = LiveAuctionParams(
       stateId: selectedState?.stateId,
       cityId: selectedCity?.cityId,
-      lenderId: selectedLender?.sno, // adjust field name to your lender model
+      lenderId: selectedLender?.sno,
       categoryId: _categoryId(selectedCategory),
       status: explicitStatus ?? activeTabStatus,
+      mode: activeTabMode, // Passes '3' for Quote price tab
       fromDate: fromDate,
       toDate: toDate,
-      // ── Previously dropped — now passed through to the API. See the
-      // NOTE in LiveAuctionParams.toQueryParams() re: confirming the
-      // actual backend query-param names for each of these.
       make: make,
       registrationNumber: registrationNumber,
       model: model,
