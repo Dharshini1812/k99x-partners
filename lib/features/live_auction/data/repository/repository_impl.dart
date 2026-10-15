@@ -4,6 +4,7 @@ import 'package:dealer/features/live_auction/data/datasource/datasource.dart';
 import 'package:dealer/features/live_auction/data/model/a_vehicle_detail.dart';
 import 'package:dealer/features/live_auction/data/model/auto_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
+import 'package:dealer/features/live_auction/data/model/event_model.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/data/model/place_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/watch_request_model.dart';
@@ -73,6 +74,7 @@ class AuctionRepositoryImpl implements AuctionRepository {
     return datasource.getLiveAuctionVehicles(params);
   }
 
+  @override
   Future<WatchlistFetchResponseModel> getWatchlist() {
     return datasource.getWatchlist();
   }
@@ -81,5 +83,25 @@ class AuctionRepositoryImpl implements AuctionRepository {
   Future<WatchlistUpdateResponseModel> updateWatchlist(
       WatchlistUpdateRequestModel request) {
     return datasource.updateWatchlist(request);
+  }
+
+  @override
+  Future<EventResponseModel> getEvents() async {
+    try {
+      final response = await datasource.fetchEvents();
+      return response;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Future<EventResponseModel> getUpcomingEvents() async {
+    try {
+      final response = await datasource.fetchUpcomingEvents();
+      return response;
+    } catch (e) {
+      rethrow;
+    }
   }
 }

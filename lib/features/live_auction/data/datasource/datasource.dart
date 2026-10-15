@@ -4,7 +4,7 @@ import 'dart:developer';
 import 'package:dealer/core/utils/url.dart';
 import 'package:dealer/features/live_auction/data/model/a_vehicle_detail.dart';
 import 'package:dealer/features/live_auction/data/model/auto_bid_model.dart';
-
+import 'package:dealer/features/live_auction/data/model/event_model.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/data/model/place_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/watch_request_model.dart';
@@ -16,29 +16,17 @@ import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Static placeholder user ID sent on trial/guest requests, since the
-/// backend expects X-USER-ID on these endpoints even without Basic-Auth.
-/// This is a fixed ID standing in for "no real dealer account yet" —
-/// confirm with the backend that 193 is the intended guest/trial
-/// account id and not just a value that happened not to error.
 const String kTrialUserId = '193';
 
 abstract class AuctionDatasource {
   Future<List<LiveAuctionModel>> getLiveAuctions(LiveAuctionParams params);
-
-  /// `GET admin/live-auction/vehicles?status=...` — fetched on entry
-  /// to the auctions screen and whenever the filter sheet's status
-  /// changes, as a separate call from [getLiveAuctions] (which drives
-  /// the existing date-ranged `auction-live/json` fetch).
   Future<List<LiveAuctionModel>> getLiveAuctionVehicles(
       LiveAuctionVehiclesParams params);
-
   Future<PlaceBidResponseModel> placeBid({
     required String vehicleId,
     required double bidAmount,
   });
   Future<VehicleDetailResponse> getVehicleDetail(String vehicleId);
-
   Future<AutoBidResponseModel> enableAutoBid({
     required String vehicleId,
     required double maxBidAmount,
@@ -48,6 +36,8 @@ abstract class AuctionDatasource {
 
   Future<WatchlistUpdateResponseModel> updateWatchlist(
       WatchlistUpdateRequestModel request);
+  Future<EventResponseModel> fetchEvents();
+  Future<EventResponseModel> fetchUpcomingEvents();
 }
 
 class AuctionDatasourceImpl implements AuctionDatasource {
@@ -100,14 +90,6 @@ class AuctionDatasourceImpl implements AuctionDatasource {
 
       final uri = Uri.parse(Url.liveAuctionVehiclesUrl)
           .replace(queryParameters: params.toQueryParams());
-
-      // NOT verified the same way as getLiveAuctions above — only
-      // Url.liveAuctionUrl (auction-live/json) was confirmed to work
-      // with X-API-KEY alone. If this /vehicles endpoint also needs no
-      // Basic-Auth, switch this to api.get(...) too; until then it
-      // stays authenticated, meaning a trial guest hitting whichever
-      // screen calls getLiveAuctionVehicles will still fail here even
-      // though getLiveAuctions above now succeeds for them.
       final response = await api.get1(uri.toString());
       final data = response.data as Map<String, dynamic>;
       final List<dynamic> list = (data['vehicles'] as List<dynamic>?) ?? [];
@@ -168,15 +150,6 @@ class AuctionDatasourceImpl implements AuctionDatasource {
   Future<VehicleDetailResponse> getVehicleDetail(String vehicleId) async {
     final api = ref.read(apiService);
     const url = Url.vehicleDetailView;
-
-    // Same reasoning as getLiveAuctions above: a trial/guest session has
-    // no stored credentials, so get1() throws "not authenticated" before
-    // the request even leaves the device. Unlike getLiveAuctions, this
-    // specific endpoint has NOT been independently confirmed to accept
-    // X-API-KEY alone (no Basic-Auth) — branching it the same way is the
-    // fix for the screenshot error, but confirm against the backend (or
-    // via a direct API-tool call) that vehicleDetailView actually
-    // returns data for a guest before relying on this in production.
     final isTrial = ref.read(trialLogic).isTrialSession;
     final response = isTrial
         ? await api.get('$url$vehicleId', headers: {'X-USER-ID': kTrialUserId})
@@ -219,18 +192,24 @@ class AuctionDatasourceImpl implements AuctionDatasource {
 
     return WatchlistUpdateResponseModel.fromJson(map);
   }
+
+  @override
+  Future<EventResponseModel> fetchEvents() async {
+    final api = ref.read(apiService);
+    final response =
+        await api.get1(Url.allEventsUrl); // Replace with your endpoint
+    return EventResponseModel.fromJson(response.data);
+  }
+
+  @override
+  Future<EventResponseModel> fetchUpcomingEvents() async {
+    final api = ref.read(apiService);
+    final response =
+        await api.get1(Url.upcomingUrl); // Replace with your endpoint
+    return EventResponseModel.fromJson(response.data);
+  }
 }
 
-// lib/features/live_auction/domain/usecase/live_auction_vehicles_params.dart
-
-/// Params for `GET admin/live-auction/vehicles`. Only `status` is
-/// confirmed working against the backend right now (from the sample
-/// curl: `?status=LIVE`) — if the filter sheet needs to also narrow by
-/// state/city/lender/category the way `LiveAuctionParams` does for the
-/// existing `auction-live/json` endpoint, confirm with the backend
-/// that this endpoint actually accepts those query params before
-/// wiring them in here; they're not included yet since that isn't
-/// confirmed.
 class LiveAuctionVehiclesParams {
   final String status;
 

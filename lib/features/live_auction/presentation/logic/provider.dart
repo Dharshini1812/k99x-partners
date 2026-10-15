@@ -7,7 +7,9 @@ import 'package:dealer/features/live_auction/domain/usecase/auction_usecase.dart
 import 'package:dealer/features/live_auction/domain/usecase/auto_bid_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/bid_activity_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/get_detail_vehcile_usecase.dart';
+import 'package:dealer/features/live_auction/domain/usecase/get_events_usecae.dart';
 import 'package:dealer/features/live_auction/domain/usecase/get_live_uzecase.dart';
+import 'package:dealer/features/live_auction/domain/usecase/get_upcoming_events_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/place_bid_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/watch_add_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/watch_fetch_usecase.dart';
@@ -17,8 +19,12 @@ import 'package:dealer/features/live_auction/presentation/logic/auto_bid/auto_bi
 import 'package:dealer/features/live_auction/presentation/logic/auto_bid/auto_bid_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/bid_activity/bid_activity_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/bid_activity/bid_activity_state.dart';
+import 'package:dealer/features/live_auction/presentation/logic/get_events/get_events_notifier.dart';
+import 'package:dealer/features/live_auction/presentation/logic/get_events/get_events_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/get_live/get_live_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/get_live/get_live_state.dart';
+import 'package:dealer/features/live_auction/presentation/logic/get_upcoming_events/get_up_notifier.dart';
+import 'package:dealer/features/live_auction/presentation/logic/get_upcoming_events/get_up_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/live_service_socket/live_bid_socket.notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/place_bid/place_bid_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/place_bid/place_bid_state.dart';
@@ -135,3 +141,31 @@ final watchlistUpdateNotifierProvider =
     ref: ref,
   );
 });
+
+//events-live
+
+final _eventUsecase = Provider<GetEventsUseCase>(
+  (ref) => GetEventsUseCase(
+    repository: ref.read(_auctionRepository),
+  ),
+);
+
+final eventProvider = StateNotifierProvider<LiveEventsNotifier, LiveEventState>(
+  (ref) => LiveEventsNotifier(
+    getEventsUseCase: ref.read(_eventUsecase),
+  ),
+);
+
+//upcoming-event
+final _upeventUsecase = Provider<GetUpcomingEventUseCase>(
+  (ref) => GetUpcomingEventUseCase(
+    repository: ref.read(_auctionRepository),
+  ),
+);
+
+final eventUpProvider =
+    StateNotifierProvider<UpcomingEventsNotifier, UpcomingEventState>(
+  (ref) => UpcomingEventsNotifier(
+    getEventsUseCase: ref.read(_upeventUsecase),
+  ),
+);

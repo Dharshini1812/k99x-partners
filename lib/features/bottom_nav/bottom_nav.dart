@@ -3,6 +3,7 @@ import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/dashboard/presentation/d.page.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/presentation/pages/auction_homepage.dart';
+import 'package:dealer/features/live_auction/presentation/pages/event_landing_page.dart';
 import 'package:dealer/features/my_listings/presentation/pages/my_list_page.dart';
 import 'package:dealer/features/profile/presentation/pages/profile.dart';
 import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
@@ -35,7 +36,7 @@ class _BottomNavPageState extends ConsumerState<BottomNavPage> {
 
     final pages = [
       const DashboardPage(),
-      const AuctionHomePage(),
+      const EventsLandingPage(),
       const VehicleListingPage(),
       const MyListPage(),
       const Profile(),

@@ -10,6 +10,7 @@ import 'package:dealer/features/live_auction/presentation/logic/auction_logic.da
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/pages/vehicle_detail_page.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/place_bid_sheet.dart';
+import 'package:dealer/features/live_auction/presentation/widgets/quote_price_sheet.dart';
 import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
 import 'package:dealer/features/trial/presentation/widgets/trial_blocked_dialog.dart';
 import 'package:flutter/material.dart';
@@ -18,11 +19,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class LiveAuctionCard extends ConsumerStatefulWidget {
   final LiveAuctionModel vehicle;
   final bool isUpcoming;
+  final bool isQuotePrice;
 
   const LiveAuctionCard({
     super.key,
     required this.vehicle,
     this.isUpcoming = false,
+    this.isQuotePrice = false,
   });
 
   @override
@@ -140,6 +143,23 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     }
   }
 
+  Future<void> _openQuotePriceSheet() async {
+    final user = ref.read(dLogic).user;
+    final trial = ref.read(trialLogic);
+
+    if (user == null && trial.isTrialSession) {
+      showTrialBlockedDialog(context, ref, expired: trial.isTrialExpired);
+      return;
+    }
+
+    await showModalBottomSheet<num>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => QuotePriceSheet(vehicle: widget.vehicle),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final v = widget.vehicle;
@@ -161,7 +181,9 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     final bool isUpcoming = widget.isUpcoming ||
         (v.status ?? '').trim().toUpperCase() == 'UPCOMING';
 
-    // Dynamic resolution: check if current vehicle is in the user's watchlist
+    final bool isQuote =
+        widget.isQuotePrice || (v.status ?? '').trim().toUpperCase() == 'QUOTE';
+
     final watchlistState = ref.watch(watchlistNotifierProvider);
     final isWatchlisted = watchlistState.maybeWhen(
       data: (items) =>
@@ -181,19 +203,21 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
           ),
         );
       },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
+      child: Card(
+        elevation: 2,
+        color: Colors.white,
+        // decoration: BoxDecoration(
+        //   color: Colors.white,
+        //   borderRadius: BorderRadius.circular(12),
+        //   border: Border.all(color: Colors.grey.shade200),
+        //   boxShadow: const [
+        //     BoxShadow(
+        //       color: Colors.black12,
+        //       blurRadius: 6,
+        //       offset: Offset(2, 2),
+        //     ),
+        //   ],
+        // ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -286,13 +310,12 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                       RichText(
                         text: TextSpan(
                           style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.black,
-                          ),
+                              fontSize: 14, color: Colors.black),
                           children: [
-                            const TextSpan(
-                              text: 'Base price: ',
-                              style: TextStyle(fontWeight: FontWeight.normal),
+                            TextSpan(
+                              text: isQuote ? 'OCB price: ' : 'Base price: ',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.normal),
                             ),
                             TextSpan(
                               text: _formatPrice(v.basePrice?.toInt()),
@@ -333,31 +356,39 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                           ),
                         ],
                       ),
-                      RichText(
-                        text: TextSpan(
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.black,
+                      if (!isQuote)
+                        RichText(
+                          text: TextSpan(
+                            style: const TextStyle(
+                                fontSize: 14, color: Colors.black),
+                            children: [
+                              const TextSpan(
+                                text: 'Current Bid: ',
+                                style: TextStyle(fontWeight: FontWeight.normal),
+                              ),
+                              TextSpan(
+                                text: currentBid != null
+                                    ? _formatPrice(currentBid.toInt())
+                                    : 'No bids yet',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
+                              ),
+                            ],
                           ),
-                          children: [
-                            const TextSpan(
-                              text: 'Current Bid: ',
-                              style: TextStyle(fontWeight: FontWeight.normal),
-                            ),
-                            TextSpan(
-                              text: currentBid != null
-                                  ? _formatPrice(currentBid.toInt())
-                                  : 'No bids yet',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ],
+                        )
+                      else
+                        Text(
+                          'Starting ${_formatPrice(((v.basePrice ?? 0) * 0.75).round())}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF64748B),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  if (isUpcoming)
+                  if (isUpcoming) ...[
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 11),
@@ -384,8 +415,29 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                           ],
                         ),
                       ),
-                    )
-                  else
+                    ),
+                  ] else if (isQuote) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 42,
+                      child: ElevatedButton(
+                        onPressed: _ended ? null : _openQuotePriceSheet,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Quote price',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ),
+                    ),
+                  ] else ...[
                     Row(
                       children: [
                         Expanded(
@@ -430,6 +482,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                         ),
                       ],
                     ),
+                  ],
                 ],
               ),
             ),

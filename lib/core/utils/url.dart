@@ -52,6 +52,11 @@ class Url {
   static const String watchAddUrl = '${baseUrl}dealer/watchlist/update';
   static const String watchListUrl = '${baseUrl}dealer/watchlist';
 
+  // events
+
+  static const String allEventsUrl = '${baseUrl}dealer/events/live';
+  static const String upcomingUrl = '${baseUrl}dealer/events/upcoming';
+
   //clent
 
   static const dashboardStatsUrl = '${baseUrl}client/dashboard';
