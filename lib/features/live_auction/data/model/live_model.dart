@@ -95,6 +95,7 @@ class LiveAuctionModel {
   VehicleImageModelF? imageUrl;
   int? mode;
   String? extendedEndTime;
+  double? startingprice;
 
   LiveAuctionModel({
     this.vehicleId,
@@ -163,6 +164,7 @@ class LiveAuctionModel {
       });
     }
     extendedEndTime = json['extended_end_time'];
+    startingprice = json['starting_price'];
   }
 
   Map<String, dynamic> toJson() {

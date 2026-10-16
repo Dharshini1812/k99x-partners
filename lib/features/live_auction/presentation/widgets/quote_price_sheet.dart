@@ -30,6 +30,7 @@ class _QuotePriceSheetState extends ConsumerState<QuotePriceSheet> {
   Duration _remaining = Duration.zero;
   bool _ended = false;
 
+  // "FROM" is strictly the double Starting Price; "TO" is the double Base Price
   late final double _fromStartPrice;
   late final double _toBasePrice;
   late double _currentSliderValue;
@@ -44,18 +45,15 @@ class _QuotePriceSheetState extends ConsumerState<QuotePriceSheet> {
   void initState() {
     super.initState();
 
-    // 1. Resolve TO (Base Price / OCB Price)
+    // 1. Resolve TO (Base Price / Ceiling)
     final num rawBase = widget.vehicle.basePrice ?? 0;
     _toBasePrice = rawBase > 0 ? rawBase.toDouble() : 0.0;
 
-    // 2. Resolve FROM (Start Price)
-    final num? rawStart =
-        (widget.vehicle.bids != null && widget.vehicle.bids!.isNotEmpty)
-            ? widget.vehicle.bids!.first.amount
-            : null;
+    // 2. Resolve FROM (Starting Price directly as double)
+    final double? rawStart = widget.vehicle.startingprice;
 
     if (rawStart != null && rawStart > 0) {
-      _fromStartPrice = rawStart.toDouble();
+      _fromStartPrice = rawStart;
     } else if (_toBasePrice > 0) {
       _fromStartPrice = (_toBasePrice * 0.75).roundToDouble();
     } else {
@@ -71,7 +69,7 @@ class _QuotePriceSheetState extends ConsumerState<QuotePriceSheet> {
     _timer =
         Timer.periodic(const Duration(seconds: 1), (_) => _computeRemaining());
 
-    // 3. Connect WebSocket and subscribe to real-time events identically to PlaceBidSheet
+    // 3. Subscribe to real-time WebSocket bid activity
     final vehicleId = widget.vehicle.vehicleId;
     if (vehicleId != null && vehicleId.isNotEmpty) {
       Future.microtask(() {
@@ -170,7 +168,6 @@ class _QuotePriceSheetState extends ConsumerState<QuotePriceSheet> {
     final vehicleId = widget.vehicle.vehicleId;
     if (vehicleId == null || vehicleId.isEmpty) return;
 
-    // Send the sanitized integer without decimal places and without passing mode
     await ref.read(placeBidNotifier.notifier).placeBid(
           vehicleId: vehicleId,
           bidAmount: amount.toDouble(),
@@ -205,12 +202,9 @@ class _QuotePriceSheetState extends ConsumerState<QuotePriceSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // Listen for live socket / poller activity updates identically to bidding
     ref.listen(bidActivityNotifierProvider, (previous, next) {
       next.maybeWhen(
-        data: (data) {
-          _computeRemaining();
-        },
+        data: (data) => _computeRemaining(),
         orElse: () {},
       );
     });
@@ -281,7 +275,7 @@ class _QuotePriceSheetState extends ConsumerState<QuotePriceSheet> {
               ),
               const Divider(height: 1, color: Color(0xFFF1F5F9)),
 
-              // Mini Vehicle Header
+              // Vehicle details summary
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -426,7 +420,7 @@ class _QuotePriceSheetState extends ConsumerState<QuotePriceSheet> {
                 ),
               ),
 
-              // Interactive Slider from Start Price to Base Price
+              // Interactive Slider
               if (canSlide)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -560,10 +554,7 @@ class _QuotePriceSheetState extends ConsumerState<QuotePriceSheet> {
                         : const Text(
                             'Confirm Quote',
                             style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.white,
-                            ),
+                                fontSize: 15, fontWeight: FontWeight.w800),
                           ),
                   ),
                 ),

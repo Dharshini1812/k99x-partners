@@ -104,6 +104,7 @@ class AuctionDatasourceImpl implements AuctionDatasource {
   }
 
   @override
+  @override
   Future<PlaceBidResponseModel> placeBid({
     required String vehicleId,
     required double bidAmount,
@@ -112,9 +113,16 @@ class AuctionDatasourceImpl implements AuctionDatasource {
       final api = ref.read(apiService);
       final response = await api.post1(
         '${Url.placeBidUrl}$vehicleId',
-        {'bidAmount': bidAmount},
+        {
+          'bidAmount': bidAmount.toInt()
+        }, // Convert to integer to avoid float representation
       );
       return PlaceBidResponseModel.fromJson(response.data);
+    } on DioException catch (e) {
+      // This logs the exact JSON or string reason returned by the server
+      log("Place Bid Server Response Body: ${e.response?.data}");
+      log("Place Bid Status Code: ${e.response?.statusCode}");
+      rethrow;
     } catch (e) {
       log("Place Bid Error : $e");
       rethrow;

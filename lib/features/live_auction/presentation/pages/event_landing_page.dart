@@ -175,7 +175,7 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
           initialFromDate: fromDate,
           initialToDate: toDate,
           initialMode: resolvedMode,
-          lenderId: _selectedLenderId,
+          lenderId: event.lenderId,
           isUpcoming: isUpcoming,
         ),
       ),

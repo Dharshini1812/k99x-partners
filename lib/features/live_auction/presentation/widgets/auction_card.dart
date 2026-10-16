@@ -191,6 +191,9 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
       orElse: () => false,
     );
 
+    // Starting price resolution as double
+    final double? startingPriceDouble = v.startingprice;
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -203,21 +206,19 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
           ),
         );
       },
-      child: Card(
-        elevation: 2,
-        color: Colors.white,
-        // decoration: BoxDecoration(
-        //   color: Colors.white,
-        //   borderRadius: BorderRadius.circular(12),
-        //   border: Border.all(color: Colors.grey.shade200),
-        //   boxShadow: const [
-        //     BoxShadow(
-        //       color: Colors.black12,
-        //       blurRadius: 6,
-        //       offset: Offset(2, 2),
-        //     ),
-        //   ],
-        // ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -313,7 +314,9 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                               fontSize: 14, color: Colors.black),
                           children: [
                             TextSpan(
-                              text: isQuote ? 'OCB price: ' : 'Base price: ',
+                              text: isQuote
+                                  ? 'Base price (To): '
+                                  : 'Base price: ',
                               style: const TextStyle(
                                   fontWeight: FontWeight.normal),
                             ),
@@ -378,7 +381,9 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                         )
                       else
                         Text(
-                          'Starting ${_formatPrice(((v.basePrice ?? 0) * 0.75).round())}',
+                          startingPriceDouble != null
+                              ? 'Start price: ${_formatPrice(startingPriceDouble.toInt())}'
+                              : 'Start price: ${_formatPrice(((v.basePrice ?? 0) * 0.75).round())}',
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -388,6 +393,8 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                     ],
                   ),
                   const SizedBox(height: 10),
+
+                  // Actions
                   if (isUpcoming) ...[
                     Container(
                       width: double.infinity,
@@ -423,7 +430,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                       child: ElevatedButton(
                         onPressed: _ended ? null : _openQuotePriceSheet,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
+                          backgroundColor: const Color(0xFF4335DE),
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
