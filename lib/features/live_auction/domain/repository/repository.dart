@@ -4,10 +4,13 @@ import 'package:dartz/dartz.dart';
 import 'package:dealer/core/error/failure.dart';
 import 'package:dealer/features/live_auction/data/datasource/datasource.dart';
 import 'package:dealer/features/live_auction/data/model/a_vehicle_detail.dart';
+import 'package:dealer/features/live_auction/data/model/active_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/auto_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
+import 'package:dealer/features/live_auction/data/model/bid_history_model.dart';
 import 'package:dealer/features/live_auction/data/model/event_model.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
+import 'package:dealer/features/live_auction/data/model/new_auction_detail_model.dart';
 import 'package:dealer/features/live_auction/data/model/place_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/watch_request_model.dart';
 import 'package:dealer/features/live_auction/data/model/watch_response_model.dart';
@@ -33,4 +36,7 @@ abstract class AuctionRepository {
       WatchlistUpdateRequestModel request);
   Future<EventResponseModel> getEvents();
   Future<EventResponseModel> getUpcomingEvents();
+  Future<EventVehiclesResponse> getEventVehicles({required String eventId});
+  Future<ActiveBidsResponse> getActiveBids();
+  Future<BidHistoryResponse> getBidHistory();
 }

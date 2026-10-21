@@ -44,12 +44,14 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
     _mainTabController.addListener(_handleTabChange);
     _subTabController.addListener(_handleTabChange);
 
-    Future.microtask(() {
-      ref.read(dLogic).loadUser();
-      ref.read(getLenderProvider.notifier).getLender();
-      ref.read(eventProvider.notifier).fetchEvents();
-      ref.read(eventUpProvider.notifier).fetchUpEvents();
-    });
+    Future.microtask(() => _fetchData());
+  }
+
+  Future<void> _fetchData() async {
+    await ref.read(dLogic).loadUser();
+    await ref.read(getLenderProvider.notifier).getLender();
+    await ref.read(eventProvider.notifier).fetchEvents();
+    await ref.read(eventUpProvider.notifier).fetchUpEvents();
   }
 
   void _handleTabChange() {
@@ -72,9 +74,17 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
         .format(DateTime.fromMillisecondsSinceEpoch(ms));
   }
 
-  bool _isQuoteMode(String mode) {
-    final m = mode.trim().toUpperCase();
-    return m == 'QUOTE' || m == '3';
+  String _formatTime(int ms) {
+    if (ms <= 0) return '-';
+    return DateFormat('hh:mm a')
+        .format(DateTime.fromMillisecondsSinceEpoch(ms));
+  }
+
+  /// Strictly mode == 3 is Quote Price. All other modes belong to Bank Auction.
+  bool _isQuoteMode(dynamic mode) {
+    if (mode == null) return false;
+    final m = mode.toString().trim().toUpperCase();
+    return m == '3' || m == 'QUOTE';
   }
 
   String _normalizeState(String? state) {
@@ -88,7 +98,6 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
     return eventCategoryName == selectedCategory.trim().toUpperCase();
   }
 
-  /// Maps category names to their respective icons
   IconData _getCategoryIcon(String categoryName) {
     final normalized = categoryName.trim().toUpperCase();
     if (normalized == 'ALL') return Icons.grid_view_rounded;
@@ -127,12 +136,13 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
     );
 
     return events.where((e) {
-      if (isQuoteTab && !_isQuoteMode(e.mode)) return false;
+      final bool isQuote = _isQuoteMode(e.mode);
 
-      // Filter by dynamic event category name
+      if (isQuoteTab && !isQuote) return false;
+      if (!isQuoteTab && isQuote) return false;
+
       if (!_matchesCategory(e, _selectedCategoryName)) return false;
 
-      // Filter by lender if selected
       if (_selectedLenderId != null && e.lenderId != _selectedLenderId) {
         return false;
       }
@@ -165,7 +175,7 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
         ? DateTime.fromMillisecondsSinceEpoch(event.auctionEndDate)
         : null;
 
-    final String? resolvedMode = _isQuoteMode(event.mode) ? '3' : null;
+    final bool isQuote = _isQuoteMode(event.mode);
 
     Navigator.push(
       context,
@@ -174,7 +184,7 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
           eventId: event.id,
           initialFromDate: fromDate,
           initialToDate: toDate,
-          initialMode: resolvedMode,
+          initialMode: isQuote ? '3' : (event.mode ?? '0').toString(),
           lenderId: event.lenderId,
           isUpcoming: isUpcoming,
         ),
@@ -208,7 +218,7 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
       orElse: () => 0,
     );
 
-    final auctionsCount = liveList.length;
+    final auctionsCount = liveList.where((e) => !_isQuoteMode(e.mode)).length;
     final quoteCount = liveList.where((e) => _isQuoteMode(e.mode)).length;
 
     final forYouCount = _getFilteredEvents(
@@ -299,26 +309,26 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildStatTag(
-                            count: '$auctionsCount',
-                            label: 'Events',
-                            icon: Icons.flash_on_rounded,
-                            color: AppColors.primary,
-                            bg: AppColors.primary.withOpacity(0.08),
-                          ),
-                          const SizedBox(width: 6),
-                          _buildStatTag(
-                            count: '$totalVehicles',
-                            label: 'Vehicles',
-                            icon: Icons.directions_car_rounded,
-                            color: const Color(0xFF0F172A),
-                            bg: const Color(0xFFF1F5F9),
-                          ),
-                        ],
-                      ),
+                      // Row(
+                      //   mainAxisSize: MainAxisSize.min,
+                      //   children: [
+                      //     _buildStatTag(
+                      //       count: '$auctionsCount',
+                      //       label: 'Events',
+                      //       icon: Icons.flash_on_rounded,
+                      //       color: AppColors.primary,
+                      //       bg: AppColors.primary.withOpacity(0.08),
+                      //     ),
+                      //     const SizedBox(width: 6),
+                      //     _buildStatTag(
+                      //       count: '$totalVehicles',
+                      //       label: 'Vehicles',
+                      //       icon: Icons.directions_car_rounded,
+                      //       color: const Color(0xFF0F172A),
+                      //       bg: const Color(0xFFF1F5F9),
+                      //     ),
+                      //   ],
+                      // ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -563,7 +573,6 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
 
   // ── Dynamic Category (Icon Tabs) and Lender Drawer ─────────────
   Widget _buildLenderDrawer(List<EventModel> allEvents) {
-    // 1. Extract dynamic categories from the actual EventModel.category
     final Set<String> categoriesSet = {'ALL'};
     for (final e in allEvents) {
       final name = e.category?.name.trim();
@@ -573,12 +582,10 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
     }
     final List<String> availableCategories = categoriesSet.toList();
 
-    // 2. Filter events by selected category name
     final categoryEvents = allEvents.where((e) {
       return _matchesCategory(e, _selectedCategoryName);
     }).toList();
 
-    // 3. Aggregate lenders present in the category with their vehicle counts
     final Map<int, (String name, int count)> lenderMap = {};
     for (final event in categoryEvents) {
       final id = event.lenderId;
@@ -606,7 +613,6 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Drawer Header
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 16, 12, 6),
               child: Row(
@@ -627,8 +633,6 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
                 ],
               ),
             ),
-
-            // Horizontal Category Selector using Icons with Tooltips
             SizedBox(
               height: 52,
               child: ListView.separated(
@@ -679,10 +683,7 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
                 },
               ),
             ),
-
             const Divider(height: 1, color: Color(0xFFE2E8F0)),
-
-            // Lender List with counts
             Expanded(
               child: lenderMap.isEmpty
                   ? Center(
@@ -763,8 +764,6 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
                       ],
                     ),
             ),
-
-            // Reset Button
             if (_selectedLenderId != null || _selectedCategoryName != 'ALL')
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -902,31 +901,40 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
         );
 
         if (filtered.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+          return RefreshIndicator(
+            onRefresh: _fetchData,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                Container(
-                  width: 54,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: const Icon(
-                    Icons.directions_car_filled_outlined,
-                    size: 26,
-                    color: Color(0xFF94A3B8),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  emptyMessage,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.4,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: const Icon(
+                          Icons.directions_car_filled_outlined,
+                          size: 26,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        emptyMessage,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -934,17 +942,22 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
           );
         }
 
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
-          itemCount: filtered.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            return _buildModernEventCard(
-              event: filtered[index],
-              lotIndex: index + 1,
-              isUpcoming: isUpcoming,
-            );
-          },
+        return RefreshIndicator(
+          onRefresh: _fetchData,
+          color: AppColors.primary,
+          child: ListView.separated(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+            itemCount: filtered.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              return _buildModernEventCard(
+                event: filtered[index],
+                lotIndex: index + 1,
+                isUpcoming: isUpcoming,
+              );
+            },
+          ),
         );
       },
     );
@@ -997,7 +1010,7 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
-                          'ID: $lotIndex',
+                          'ID: AUX${event.sno}',
                           style: const TextStyle(
                             fontSize: 10.5,
                             fontWeight: FontWeight.w900,
@@ -1098,6 +1111,7 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
                         child: _dateBox(
                           label: 'Start Date',
                           date: _formatDate(event.auctionStartDate),
+                          time: _formatTime(event.auctionStartDate),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1105,6 +1119,7 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
                         child: _dateBox(
                           label: 'End Date',
                           date: _formatDate(event.auctionEndDate),
+                          time: _formatTime(event.auctionEndDate),
                         ),
                       ),
                     ],
@@ -1118,7 +1133,7 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
                           _openAuctionHomePage(event, isUpcoming: isUpcoming),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isUpcoming
-                            ? const Color(0xFF475569)
+                            ? AppColors.primary.withOpacity(.2)
                             : AppColors.primary.withOpacity(0.12),
                         foregroundColor: AppColors.primary,
                         elevation: 0,
@@ -1152,7 +1167,12 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
     );
   }
 
-  Widget _dateBox({required String label, required String date}) {
+  // ── Date & Time Display ──
+  Widget _dateBox({
+    required String label,
+    required String date,
+    required String time,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1190,17 +1210,17 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
                       date,
                       style: const TextStyle(
                         fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                         color: Color(0xFF1E293B),
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      date,
+                      time,
                       style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w400,
-                        color: Color(0xFF94A3B8),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF4C3BCF),
                       ),
                     ),
                   ],

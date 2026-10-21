@@ -7,6 +7,7 @@ import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/pages/watch_list_page.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
 import 'package:dealer/features/profile/presentation/pages/help_page.dart';
+import 'package:dealer/features/profile/presentation/pages/my_bids_page.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -58,6 +59,21 @@ class Profile extends ConsumerWidget {
                 _HeroCard(isLandscape: isLandscape),
                 const SizedBox(height: 18),
                 const _SectionLabel('ACCOUNT'),
+                const SizedBox(height: 10),
+                _ModernTile(
+                  icon: Icons.gavel_rounded,
+                  label: 'My Bids',
+                  subtitle: 'Active auction bids & past bid history',
+                  iconColor: AppColors.primary,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MyBidsPage(),
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 10),
                 _ModernTile(
                   icon: Icons.favorite_rounded,

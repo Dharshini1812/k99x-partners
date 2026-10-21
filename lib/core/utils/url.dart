@@ -56,6 +56,12 @@ class Url {
 
   static const String allEventsUrl = '${baseUrl}dealer/events/live';
   static const String upcomingUrl = '${baseUrl}dealer/events/upcoming';
+  static const String vehicleDetailUrl = '${baseUrl}dealer/events/live/';
+
+  //History
+
+  static const String activeBidsUrl = '${baseUrl}dealer/bid/my-bids/active';
+  static const String historyUrl = '${baseUrl}dealer/bid/my-bids/history';
 
   //clent
 

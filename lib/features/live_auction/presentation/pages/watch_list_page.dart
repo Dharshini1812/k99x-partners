@@ -1,6 +1,7 @@
 // lib/features/watchlist/presentation/pages/watchlist_page.dart
 
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
+import 'package:dealer/features/live_auction/data/model/new_auction_detail_model.dart';
 import 'package:dealer/features/live_auction/data/model/watch_response_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/auction_card.dart';

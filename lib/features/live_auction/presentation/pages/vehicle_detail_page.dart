@@ -1,6 +1,7 @@
 // lib/features/live_auction/presentation/pages/vehicle_detail_page.dart
 
 import 'dart:async';
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/a_vehicle_detail.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
@@ -1458,10 +1459,10 @@ class _VehicleDetailPageState extends ConsumerState<VehicleDetailPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isTrialLocked
                           ? Colors.grey.shade400
-                          : const Color(0xFF4335DE),
+                          : AppColors.primary,
                       disabledBackgroundColor: isTrialLocked
                           ? Colors.grey.shade400.withOpacity(0.6)
-                          : const Color(0xFF4335DE).withOpacity(0.6),
+                          : AppColors.primary.withOpacity(0.6),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(vertical: 8),

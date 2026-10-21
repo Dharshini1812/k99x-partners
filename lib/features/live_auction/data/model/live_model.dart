@@ -1,3 +1,5 @@
+import 'package:dealer/features/live_auction/data/model/new_auction_detail_model.dart';
+
 /// The current dealer's own autobid record for a vehicle — returned as
 /// the `"autobid"` field on the bid/view, bid/activity, and
 /// live-vehicles-list endpoints. `null` when this dealer has never set
@@ -69,6 +71,7 @@ class AutobidInfo {
 class LiveAuctionModel {
   String? vehicleId;
   String? loanNo;
+  String? lotNo;
   String? mfgYear;
   String? make;
   String? model;
@@ -96,6 +99,7 @@ class LiveAuctionModel {
   int? mode;
   String? extendedEndTime;
   double? startingprice;
+  List<String>? imageUrls;
 
   LiveAuctionModel({
     this.vehicleId,
@@ -126,6 +130,9 @@ class LiveAuctionModel {
     this.bids,
     this.imageUrl,
     this.extendedEndTime,
+    this.startingprice,
+    this.imageUrls,
+    this.lotNo,
   });
 
   LiveAuctionModel.fromJson(Map<String, dynamic> json) {
@@ -165,6 +172,7 @@ class LiveAuctionModel {
     }
     extendedEndTime = json['extended_end_time'];
     startingprice = json['starting_price'];
+    lotNo = json['lotNo'];
   }
 
   Map<String, dynamic> toJson() {
@@ -194,6 +202,7 @@ class LiveAuctionModel {
     data['state_name'] = stateName;
     data['city_name'] = cityName;
     data['front_view'] = imageUrl;
+
     // if (this.bids != null) {
     //   data['bids'] = this.bids!.map((v) => v.toJson()).toList();
     // }
@@ -301,41 +310,5 @@ class BidsModel {
     data['vehicle_id'] = vehicleId;
     data['bidder_name'] = bidderName;
     return data;
-  }
-}
-
-class VehicleImageModelF {
-  String? fileName;
-  String? label;
-  String? type;
-  String? url;
-  String? publicId;
-
-  VehicleImageModelF({
-    this.fileName,
-    this.label,
-    this.type,
-    this.url,
-    this.publicId,
-  });
-
-  factory VehicleImageModelF.fromJson(Map<String, dynamic> json) {
-    return VehicleImageModelF(
-      fileName: json['fileName']?.toString(),
-      label: json['label']?.toString(),
-      type: json['type']?.toString(),
-      url: json['url']?.toString(),
-      publicId: json['public_id']?.toString(),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'fileName': fileName,
-      'label': label,
-      'type': type,
-      'url': url,
-      'public_id': publicId,
-    };
   }
 }

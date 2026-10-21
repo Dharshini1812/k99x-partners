@@ -1,7 +1,8 @@
 // lib/features/live_auction/presentation/pages/auction_homepage.dart
 
-import 'package:dealer/core/common/presentation/provider.dart';
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
+import 'package:dealer/features/live_auction/data/model/vehicle_item_mapper.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/auction_card.dart';
@@ -37,47 +38,15 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
   @override
   void initState() {
     super.initState();
+    Future.microtask(() => _fetchVehicles());
+  }
 
-    Future.microtask(() {
-      ref.read(watchlistNotifierProvider.notifier).fetchWatchlist();
-      final logic = ref.read(auctionLogic);
-
-      // 1. Reset geographic filters
-      logic.updateState(null);
-      logic.updateCity(null);
-
-      // 2. Set target status and preserve mode (mode='3' for Quote Price)
-      final targetStatus = widget.isUpcoming ? 'UPCOMING' : 'LIVE';
-      logic.setActiveTab(
-        status: targetStatus,
-        mode: widget.initialMode,
-      );
-
-      // 3. Set exact event date range
-      if (widget.initialFromDate != null) {
-        logic.updateFromDate(widget.initialFromDate);
-      }
-      if (widget.initialToDate != null) {
-        logic.updateToDate(widget.initialToDate);
-      }
-
-      // 4. Lender filter: only assigned if explicitly requested
-      if (widget.lenderId != null && widget.lenderId! > 0) {
-        final lenders =
-            ref.read(getLenderProvider).whenOrNull(data: (l) => l) ?? [];
-        try {
-          logic.selectedLender =
-              lenders.firstWhere((l) => l.sno == widget.lenderId);
-        } catch (_) {
-          logic.selectedLender = null;
-        }
-      } else {
-        logic.selectedLender = null;
-      }
-
-      // 5. Fire search API: ?mode=3&fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD
-      logic.search();
-    });
+  Future<void> _fetchVehicles() async {
+    if (widget.eventId != null && widget.eventId!.isNotEmpty) {
+      await ref
+          .read(eventVehiclesNotifierProvider.notifier)
+          .fetchEventVehicles(widget.eventId!);
+    }
   }
 
   @override
@@ -105,10 +74,11 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final liveAuctionState = ref.watch(liveAuctionNotifier);
+    final eventVehiclesState = ref.watch(eventVehiclesNotifierProvider);
     final logic = ref.watch(auctionLogic);
-    final bool isQuoteMode =
-        widget.initialMode == '3' || widget.initialMode == 'QUOTE';
+
+    final bool isQuoteMode = widget.initialMode == '3' ||
+        widget.initialMode?.toUpperCase() == 'QUOTE';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -135,6 +105,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
       body: SafeArea(
         child: Column(
           children: [
+            // Search Input
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
               child: Container(
@@ -153,7 +124,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
                       child: TextField(
                         controller: _searchController,
                         onChanged: logic.updateSearchQuery,
-                        onSubmitted: (_) => logic.search(),
                         style: const TextStyle(fontSize: 13.5),
                         decoration: const InputDecoration(
                           hintText: 'Search reg no, vehicle, lender...',
@@ -177,67 +147,102 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
                 ),
               ),
             ),
-            Expanded(
-              child: liveAuctionState.when(
-                initial: () => const LiveAuctionListSkeleton(),
-                loading: () => const LiveAuctionListSkeleton(),
-                error: (msg) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      msg,
-                      style: const TextStyle(color: Colors.red, fontSize: 13),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-                data: (auctions) {
-                  final filtered = auctions
-                      .where((a) => _matchesSearch(a, logic.searchQuery))
-                      .toList();
 
-                  if (filtered.isEmpty) {
-                    final isSearching = logic.searchQuery.trim().isNotEmpty;
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+            // Vehicle List View with Pull-To-Refresh
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _fetchVehicles,
+                color: AppColors.primary,
+                child: eventVehiclesState.when(
+                  initial: () => const LiveAuctionListSkeleton(),
+                  loading: () => const LiveAuctionListSkeleton(),
+                  error: (msg) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.5,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline_rounded,
+                                size: 40, color: Colors.redAccent),
+                            const SizedBox(height: 8),
+                            Text(
+                              msg,
+                              style: const TextStyle(
+                                  color: Colors.red, fontSize: 13),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton(
+                              onPressed: _fetchVehicles,
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  data: (response) {
+                    final rawVehicles = widget.isUpcoming
+                        ? (response.data?.closedVehicles ?? [])
+                        : (response.data?.liveVehicles ?? []);
+
+                    final auctions = rawVehicles
+                        .map((item) => item.toLiveAuctionModel())
+                        .where((a) => _matchesSearch(a, logic.searchQuery))
+                        .toList();
+
+                    if (auctions.isEmpty) {
+                      final isSearching = logic.searchQuery.trim().isNotEmpty;
+                      return ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
                         children: [
-                          Icon(
-                            isSearching
-                                ? Icons.search_off_rounded
-                                : Icons.directions_car_rounded,
-                            size: 42,
-                            color: Colors.black26,
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            isSearching
-                                ? 'No results for "${logic.searchQuery}"'
-                                : 'No vehicles found in this event',
-                            style: const TextStyle(
-                                color: Colors.black45, fontSize: 13),
-                            textAlign: TextAlign.center,
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.5,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  isSearching
+                                      ? Icons.search_off_rounded
+                                      : Icons.directions_car_rounded,
+                                  size: 42,
+                                  color: Colors.black26,
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  isSearching
+                                      ? 'No results for "${logic.searchQuery}"'
+                                      : 'No vehicles found in this event',
+                                  style: const TextStyle(
+                                      color: Colors.black45, fontSize: 13),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           ),
                         ],
-                      ),
-                    );
-                  }
-
-                  return ListView.separated(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, i) {
-                      final vehicle = filtered[i];
-                      return LiveAuctionCard(
-                        vehicle: vehicle,
-                        isUpcoming: widget.isUpcoming,
-                        isQuotePrice: isQuoteMode,
                       );
-                    },
-                  );
-                },
+                    }
+
+                    return ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      itemCount: auctions.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, i) {
+                        final vehicle = auctions[i];
+                        return LiveAuctionCard(
+                          vehicle: vehicle,
+                          isUpcoming: widget.isUpcoming,
+                          isQuotePrice: isQuoteMode,
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ),
           ],

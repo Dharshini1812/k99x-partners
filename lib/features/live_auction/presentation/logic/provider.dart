@@ -1,12 +1,17 @@
 // lib/features/auction/presentation/logic/live_auction/live_auction_provider.dart
 
 import 'package:dealer/features/live_auction/data/datasource/datasource.dart';
+import 'package:dealer/features/live_auction/data/model/active_bid_model.dart';
+import 'package:dealer/features/live_auction/data/model/bid_history_model.dart';
 import 'package:dealer/features/live_auction/data/repository/repository_impl.dart';
 import 'package:dealer/features/live_auction/domain/repository/repository.dart';
 import 'package:dealer/features/live_auction/domain/usecase/auction_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/auto_bid_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/bid_activity_usecase.dart';
+import 'package:dealer/features/live_auction/domain/usecase/get_active_bids_usecase.dart';
+import 'package:dealer/features/live_auction/domain/usecase/get_bid_history_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/get_detail_vehcile_usecase.dart';
+import 'package:dealer/features/live_auction/domain/usecase/get_event_vehicles_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/get_events_usecae.dart';
 import 'package:dealer/features/live_auction/domain/usecase/get_live_uzecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/get_upcoming_events_usecase.dart';
@@ -19,6 +24,11 @@ import 'package:dealer/features/live_auction/presentation/logic/auto_bid/auto_bi
 import 'package:dealer/features/live_auction/presentation/logic/auto_bid/auto_bid_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/bid_activity/bid_activity_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/bid_activity/bid_activity_state.dart';
+import 'package:dealer/features/live_auction/presentation/logic/get_active_bids/active_bids_notifier.dart';
+import 'package:dealer/features/live_auction/presentation/logic/get_active_bids/bid_history_notifier.dart';
+import 'package:dealer/features/live_auction/presentation/logic/get_active_bids/my_bids_state.dart';
+import 'package:dealer/features/live_auction/presentation/logic/get_event_vehicles/event_vehicle_notifier.dart';
+import 'package:dealer/features/live_auction/presentation/logic/get_event_vehicles/event_vehicles_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/get_events/get_events_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/get_events/get_events_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/get_live/get_live_notifier.dart';
@@ -169,3 +179,42 @@ final eventUpProvider =
     getEventsUseCase: ref.read(_upeventUsecase),
   ),
 );
+
+//event-vehicles provider
+
+final _getEventVehiclesUseCaseProvider =
+    Provider<GetEventVehiclesUseCase>((ref) {
+  final repository = ref.watch(_auctionRepository);
+  return GetEventVehiclesUseCase(repository);
+});
+
+final eventVehiclesNotifierProvider =
+    StateNotifierProvider<EventVehiclesNotifier, EventVehiclesState>((ref) {
+  final useCase = ref.watch(_getEventVehiclesUseCaseProvider);
+  return EventVehiclesNotifier(useCase);
+});
+
+//history
+
+final _getActiveBidsUseCaseProvider = Provider<GetActiveBidsUseCase>((ref) {
+  final repo = ref.read(_auctionRepository);
+  return GetActiveBidsUseCase(repo);
+});
+
+final _getBidHistoryUseCaseProvider = Provider<GetBidHistoryUseCase>((ref) {
+  final repo = ref.read(_auctionRepository);
+  return GetBidHistoryUseCase(repo);
+});
+final activeBidsNotifierProvider =
+    StateNotifierProvider<ActiveBidsNotifier, MyBidsState<ActiveBidsResponse>>(
+        (ref) {
+  final useCase = ref.read(_getActiveBidsUseCaseProvider);
+  return ActiveBidsNotifier(useCase);
+});
+
+final bidHistoryNotifierProvider =
+    StateNotifierProvider<BidHistoryNotifier, MyBidsState<BidHistoryResponse>>(
+        (ref) {
+  final useCase = ref.read(_getBidHistoryUseCaseProvider);
+  return BidHistoryNotifier(useCase);
+});

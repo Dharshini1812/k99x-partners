@@ -2,10 +2,13 @@ import 'package:dartz/dartz.dart';
 import 'package:dealer/core/error/failure.dart';
 import 'package:dealer/features/live_auction/data/datasource/datasource.dart';
 import 'package:dealer/features/live_auction/data/model/a_vehicle_detail.dart';
+import 'package:dealer/features/live_auction/data/model/active_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/auto_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
+import 'package:dealer/features/live_auction/data/model/bid_history_model.dart';
 import 'package:dealer/features/live_auction/data/model/event_model.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
+import 'package:dealer/features/live_auction/data/model/new_auction_detail_model.dart';
 import 'package:dealer/features/live_auction/data/model/place_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/watch_request_model.dart';
 import 'package:dealer/features/live_auction/data/model/watch_response_model.dart';
@@ -100,6 +103,34 @@ class AuctionRepositoryImpl implements AuctionRepository {
     try {
       final response = await datasource.fetchUpcomingEvents();
       return response;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Future<EventVehiclesResponse> getEventVehicles(
+      {required String eventId}) async {
+    try {
+      return await datasource.fetchEventVehicles(eventId);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Future<ActiveBidsResponse> getActiveBids() async {
+    try {
+      return await datasource.getActiveBids();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Future<BidHistoryResponse> getBidHistory() async {
+    try {
+      return await datasource.getBidHistory();
     } catch (e) {
       rethrow;
     }

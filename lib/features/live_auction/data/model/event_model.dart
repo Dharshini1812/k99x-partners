@@ -40,6 +40,7 @@ class EventDataModel {
 
 class EventModel {
   final String id;
+  final int? sno;
   final String? eventId;
   final int? lenderId;
   final String lenderName;
@@ -79,6 +80,7 @@ class EventModel {
     this.displayFlag,
     this.updatedAt,
     this.createdAt,
+    this.sno,
   });
 
   factory EventModel.fromJson(Map<String, dynamic> json) {
@@ -106,6 +108,7 @@ class EventModel {
       displayFlag: json['displayFlag'],
       updatedAt: json['updatedAt'],
       createdAt: json['createdAt'],
+      sno: json['sno'],
     );
   }
 }

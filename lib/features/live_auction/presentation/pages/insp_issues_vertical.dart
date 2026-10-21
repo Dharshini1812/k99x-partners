@@ -1,3 +1,4 @@
+import 'package:dealer/core/theme/colors.dart';
 import 'package:flutter/material.dart';
 import 'inspection_full_image_viewer_page.dart';
 
@@ -313,7 +314,7 @@ class _InspIssuesVerticalPageState extends State<InspIssuesVerticalPage> {
                   child: ElevatedButton(
                     onPressed: () {},
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4335DE),
+                      backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(vertical: 8),

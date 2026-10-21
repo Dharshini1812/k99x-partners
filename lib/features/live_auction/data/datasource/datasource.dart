@@ -3,9 +3,12 @@ import 'dart:convert';
 import 'dart:developer';
 import 'package:dealer/core/utils/url.dart';
 import 'package:dealer/features/live_auction/data/model/a_vehicle_detail.dart';
+import 'package:dealer/features/live_auction/data/model/active_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/auto_bid_model.dart';
+import 'package:dealer/features/live_auction/data/model/bid_history_model.dart';
 import 'package:dealer/features/live_auction/data/model/event_model.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
+import 'package:dealer/features/live_auction/data/model/new_auction_detail_model.dart';
 import 'package:dealer/features/live_auction/data/model/place_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/watch_request_model.dart';
 import 'package:dealer/features/live_auction/data/model/watch_response_model.dart';
@@ -38,6 +41,9 @@ abstract class AuctionDatasource {
       WatchlistUpdateRequestModel request);
   Future<EventResponseModel> fetchEvents();
   Future<EventResponseModel> fetchUpcomingEvents();
+  Future<EventVehiclesResponse> fetchEventVehicles(String eventId);
+  Future<ActiveBidsResponse> getActiveBids();
+  Future<BidHistoryResponse> getBidHistory();
 }
 
 class AuctionDatasourceImpl implements AuctionDatasource {
@@ -215,6 +221,38 @@ class AuctionDatasourceImpl implements AuctionDatasource {
     final response =
         await api.get1(Url.upcomingUrl); // Replace with your endpoint
     return EventResponseModel.fromJson(response.data);
+  }
+
+  @override
+  Future<EventVehiclesResponse> fetchEventVehicles(String eventId) async {
+    try {
+      final api = ref.read(apiService);
+      const url = Url.vehicleDetailUrl;
+      // Construct endpoint: /servlet/api/dealer/events/live/{eventId}/vehicles
+      final endpoint = '$url$eventId/vehicles';
+
+      final response = await api.get1(endpoint);
+      log('Event Vehicles API Response: ${response.data}');
+
+      return EventVehiclesResponse.fromJson(response.data);
+    } catch (e) {
+      log('Error fetching event vehicles for event $eventId: $e');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<ActiveBidsResponse> getActiveBids() async {
+    final api = ref.read(apiService);
+    final response = await api.get1(Url.activeBidsUrl);
+    return ActiveBidsResponse.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<BidHistoryResponse> getBidHistory() async {
+    final api = ref.read(apiService);
+    final response = await api.get1(Url.historyUrl);
+    return BidHistoryResponse.fromJson(response.data as Map<String, dynamic>);
   }
 }
 
