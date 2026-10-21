@@ -1,17 +1,6 @@
 // lib/features/live_auction/domain/usecase/live_auction_params.dart
 
-/// Params for `GET auction-live/json`. Sent as query params to the
-/// existing search endpoint that AuctionLogic.search() calls whenever
-/// any Refine Results filter is active.
-///
-/// ⚠️ CONFIRM WITH BACKEND before relying on this: the query-param
-/// *names* below for make/regNo/model/fuel/transmission/maxMileage/
-/// condition/seller/ownership/yearFrom/yearTo are best guesses based on
-/// the field names already in AuctionLogic — they are NOT confirmed
-/// against the actual API contract the way `status`, `stateId`, `cityId`,
-/// `fromDate`, `toDate` are (those match existing working calls). Update
-/// the string literals in toQueryParams() to match whatever your backend
-/// actually expects; nothing else needs to change once you do.
+/// Params for `GET admin/live/auction/json`[cite: 18].
 class LiveAuctionParams {
   final int? stateId;
   final int? cityId;
@@ -22,7 +11,7 @@ class LiveAuctionParams {
   final DateTime? toDate;
   final String? mode;
 
-  // ── Previously dropped fields — now carried through ──────────────
+  // ── Vehicle Filter Fields ───────────────────────────────────────
   final String? make;
   final String? registrationNumber;
   final String? model;
@@ -70,14 +59,11 @@ class LiveAuctionParams {
     if (cityId != null) params['cityId'] = cityId.toString();
     if (lenderId != null) params['lenderId'] = lenderId.toString();
     if (categoryId != null) params['categoryId'] = categoryId.toString();
-    if (status != null) params['status'] = status;
+    if (status != null && status!.isNotEmpty) params['status'] = status;
     if (fromDate != null) params['fromDate'] = _fmtDate(fromDate!);
     if (toDate != null) params['toDate'] = _fmtDate(toDate!);
     if (mode != null && mode!.isNotEmpty) params['mode'] = mode;
 
-    // ── Newly wired-in fields ───────────────────────────────────────
-    // Param names here are placeholders — confirm actual names with
-    // backend and update the string literal on the left of each line.
     if (make != null && make!.trim().isNotEmpty) {
       params['make'] = make!.trim();
     }
@@ -94,8 +80,6 @@ class LiveAuctionParams {
       params['yearTo'] = yearTo!.trim();
     }
     if (fuelTypes.isNotEmpty) {
-      // Comma-separated, e.g. "Petrol,Diesel" — confirm backend expects
-      // a single joined string vs. repeated ?fuel=Petrol&fuel=Diesel.
       params['fuel'] = fuelTypes.join(',');
     }
     if (transmissions.isNotEmpty) {

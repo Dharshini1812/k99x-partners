@@ -124,17 +124,48 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     super.dispose();
   }
 
+// lib/features/live_auction/presentation/widgets/auction_card.dart
+
   Future<void> _handleWatchlistToggle(bool isCurrentlyWatchlisted) async {
     final targetId = widget.vehicle.vehicleId ?? '';
     if (targetId.isEmpty) return;
 
+    final willAdd = !isCurrentlyWatchlisted;
     final success = await ref
         .read(watchlistUpdateNotifierProvider.notifier)
-        .updateWatchlist(vehicleId: targetId, add: !isCurrentlyWatchlisted);
+        .updateWatchlist(vehicleId: targetId, add: willAdd);
 
-    if (!success && mounted) {
+    if (!mounted) return;
+
+    if (success) {
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update watchlist')),
+        SnackBar(
+          content: Text(
+            willAdd
+                ? 'Vehicle added to your watchlist'
+                : 'Vehicle removed from your watchlist',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          backgroundColor:
+              willAdd ? const Color(0xFF10B981) : const Color(0xFF334155),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to update watchlist'),
+          backgroundColor: Colors.redAccent,
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }

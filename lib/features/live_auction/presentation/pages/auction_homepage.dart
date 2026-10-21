@@ -3,28 +3,29 @@
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/data/model/vehicle_item_mapper.dart';
-import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
+import 'package:dealer/features/live_auction/domain/usecase/live_auction_params.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/auction_card.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/auction_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 class AuctionHomePage extends ConsumerStatefulWidget {
-  final String? eventId;
+  final String eventId;
   final DateTime? initialFromDate;
   final DateTime? initialToDate;
-  final int? lenderId;
   final String? initialMode;
+  final int? lenderId;
   final bool isUpcoming;
 
   const AuctionHomePage({
     super.key,
-    this.eventId,
+    required this.eventId,
     this.initialFromDate,
     this.initialToDate,
-    this.lenderId,
     this.initialMode,
+    this.lenderId,
     this.isUpcoming = false,
   });
 
@@ -34,6 +35,7 @@ class AuctionHomePage extends ConsumerStatefulWidget {
 
 class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
   final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -42,10 +44,29 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
   }
 
   Future<void> _fetchVehicles() async {
-    if (widget.eventId != null && widget.eventId!.isNotEmpty) {
+    if (widget.isUpcoming) {
+      // ── UPCOMING ALONE: Hits https://dev.k99x.com/servlet/admin/live/auction/json ──
+      // final fromStr = widget.initialFromDate != null
+      //     ? DateFormat('yyyy-MM-dd').format(widget.initialFromDate!)
+      //     : null;
+      // final toStr = widget.initialToDate != null
+      //     ? DateFormat('yyyy-MM-dd').format(widget.initialToDate!)
+      //     : null;
+
+      final params = LiveAuctionParams(
+        status: 'UPCOMING',
+        lenderId: widget.lenderId,
+        fromDate: widget.initialFromDate,
+        toDate: widget.initialToDate,
+        // mode: widget.initialMode,
+      );
+
+      await ref.read(liveAuctionNotifier.notifier).getLiveAuctions(params);
+    } else {
+      // ── NORMAL / LIVE LOTS: Hits /servlet/api/dealer/events/live/{eventId}/vehicles ──
       await ref
           .read(eventVehiclesNotifierProvider.notifier)
-          .fetchEventVehicles(widget.eventId!);
+          .fetchEventVehicles(widget.eventId);
     }
   }
 
@@ -55,49 +76,45 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
     super.dispose();
   }
 
-  static bool _matchesSearch(LiveAuctionModel vehicle, String query) {
+  bool _matchesSearch(LiveAuctionModel v, String query) {
     if (query.trim().isEmpty) return true;
     final q = query.trim().toLowerCase();
-    final haystack = [
-      vehicle.make,
-      vehicle.model,
-      vehicle.variant,
-      vehicle.regno,
-      vehicle.vehicleId,
-      vehicle.categoryName,
-      vehicle.lenderName,
-      vehicle.cityName,
-      vehicle.stateName,
-    ].where((e) => e != null).map((e) => e.toString().toLowerCase());
-    return haystack.any((field) => field.contains(q));
+
+    final make = (v.make ?? '').toLowerCase();
+    final model = (v.model ?? '').toLowerCase();
+    final variant = (v.variant ?? '').toLowerCase();
+    final regno = (v.regno ?? '').toLowerCase();
+    final lotNo = (v.lotNo ?? '').toLowerCase();
+
+    return make.contains(q) ||
+        model.contains(q) ||
+        variant.contains(q) ||
+        regno.contains(q) ||
+        lotNo.contains(q);
   }
 
   @override
   Widget build(BuildContext context) {
-    final eventVehiclesState = ref.watch(eventVehiclesNotifierProvider);
-    final logic = ref.watch(auctionLogic);
-
-    final bool isQuoteMode = widget.initialMode == '3' ||
-        widget.initialMode?.toUpperCase() == 'QUOTE';
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Color(0xFF0F172A), size: 18),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Color(0xFF0F172A),
+            size: 18,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.isUpcoming
-              ? 'Upcoming Vehicles'
-              : (isQuoteMode ? 'Quote Price Vehicles' : 'Available Vehicles'),
+          widget.isUpcoming ? 'Upcoming Vehicles' : 'Auction Vehicles',
           style: const TextStyle(
-            color: Color(0xFF0F172A),
             fontWeight: FontWeight.w800,
-            fontSize: 17,
+            color: Color(0xFF0F172A),
+            fontSize: 18,
           ),
         ),
         centerTitle: false,
@@ -105,30 +122,39 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Search Input
+            // Search Bar
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Container(
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                height: 42,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
                   children: [
-                    const Icon(Icons.search, color: Colors.black45, size: 20),
+                    const Icon(
+                      Icons.search_rounded,
+                      color: Color(0xFF94A3B8),
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         controller: _searchController,
-                        onChanged: logic.updateSearchQuery,
-                        style: const TextStyle(fontSize: 13.5),
+                        onChanged: (val) => setState(() => _searchQuery = val),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
                         decoration: const InputDecoration(
-                          hintText: 'Search reg no, vehicle, lender...',
-                          hintStyle:
-                              TextStyle(color: Colors.black45, fontSize: 13),
+                          hintText: 'Search make, model, variant, lot no...',
+                          hintStyle: TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 12.5,
+                          ),
                           border: InputBorder.none,
                           isDense: true,
                         ),
@@ -138,116 +164,218 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
                       GestureDetector(
                         onTap: () {
                           _searchController.clear();
-                          logic.updateSearchQuery('');
+                          setState(() => _searchQuery = '');
                         },
-                        child: const Icon(Icons.cancel_rounded,
-                            size: 16, color: Colors.black38),
+                        child: const Icon(
+                          Icons.cancel_rounded,
+                          size: 16,
+                          color: Color(0xFF94A3B8),
+                        ),
                       ),
                   ],
                 ),
               ),
             ),
 
-            // Vehicle List View with Pull-To-Refresh
+            // Vehicle Listing
             Expanded(
               child: RefreshIndicator(
-                onRefresh: _fetchVehicles,
                 color: AppColors.primary,
-                child: eventVehiclesState.when(
-                  initial: () => const LiveAuctionListSkeleton(),
-                  loading: () => const LiveAuctionListSkeleton(),
-                  error: (msg) => ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.5,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.error_outline_rounded,
-                                size: 40, color: Colors.redAccent),
-                            const SizedBox(height: 8),
-                            Text(
-                              msg,
-                              style: const TextStyle(
-                                  color: Colors.red, fontSize: 13),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 12),
-                            ElevatedButton(
-                              onPressed: _fetchVehicles,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  data: (response) {
-                    final rawVehicles = widget.isUpcoming
-                        ? (response.data?.closedVehicles ?? [])
-                        : (response.data?.liveVehicles ?? []);
-
-                    final auctions = rawVehicles
-                        .map((item) => item.toLiveAuctionModel())
-                        .where((a) => _matchesSearch(a, logic.searchQuery))
-                        .toList();
-
-                    if (auctions.isEmpty) {
-                      final isSearching = logic.searchQuery.trim().isNotEmpty;
-                      return ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.5,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  isSearching
-                                      ? Icons.search_off_rounded
-                                      : Icons.directions_car_rounded,
-                                  size: 42,
-                                  color: Colors.black26,
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  isSearching
-                                      ? 'No results for "${logic.searchQuery}"'
-                                      : 'No vehicles found in this event',
-                                  style: const TextStyle(
-                                      color: Colors.black45, fontSize: 13),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-
-                    return ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      itemCount: auctions.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, i) {
-                        final vehicle = auctions[i];
-                        return LiveAuctionCard(
-                          vehicle: vehicle,
-                          isUpcoming: widget.isUpcoming,
-                          isQuotePrice: isQuoteMode,
-                        );
-                      },
-                    );
-                  },
-                ),
+                onRefresh: _fetchVehicles,
+                child: widget.isUpcoming
+                    ? _buildUpcomingList()
+                    : _buildLiveEventVehiclesList(),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  // ── Render Upcoming API results (List<LiveAuctionModel>) ──────────
+  Widget _buildUpcomingList() {
+    final state = ref.watch(liveAuctionNotifier);
+
+    return state.when(
+      initial: () => const LiveAuctionListSkeleton(),
+      loading: () => const LiveAuctionListSkeleton(),
+      error: (msg) => _ErrorView(message: msg, onRetry: _fetchVehicles),
+      data: (vehicles) {
+        final filtered =
+            vehicles.where((v) => _matchesSearch(v, _searchQuery)).toList();
+
+        if (filtered.isEmpty) {
+          return _EmptyStateView(
+            icon: Icons.directions_car_filled_outlined,
+            title: 'No Upcoming Vehicles',
+            subtitle: _searchQuery.isNotEmpty
+                ? 'No upcoming vehicles matching "$_searchQuery".'
+                : 'No upcoming vehicles scheduled for this lender and date range.',
+          );
+        }
+
+        return ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          itemCount: filtered.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, i) {
+            return LiveAuctionCard(
+              vehicle: filtered[i],
+              isUpcoming: true,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ── Render Normal Event Vehicles (EventVehiclesResponse) ──────────
+  Widget _buildLiveEventVehiclesList() {
+    final state = ref.watch(eventVehiclesNotifierProvider);
+
+    return state.when(
+      initial: () => const LiveAuctionListSkeleton(),
+      loading: () => const LiveAuctionListSkeleton(),
+      error: (msg) => _ErrorView(message: msg, onRetry: _fetchVehicles),
+      data: (response) {
+        final items = response.data?.liveVehicles ?? [];
+        final models = items.map((item) => item.toLiveAuctionModel()).toList();
+        final filtered =
+            models.where((v) => _matchesSearch(v, _searchQuery)).toList();
+
+        if (filtered.isEmpty) {
+          return _EmptyStateView(
+            icon: Icons.directions_car_filled_outlined,
+            title: 'No Vehicles Found',
+            subtitle: _searchQuery.isNotEmpty
+                ? 'No vehicles matching "$_searchQuery".'
+                : 'No vehicles available in this auction event.',
+          );
+        }
+
+        return ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          itemCount: filtered.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, i) {
+            return LiveAuctionCard(
+              vehicle: filtered[i],
+              isUpcoming: false,
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _EmptyStateView extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _EmptyStateView({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(
+          height: MediaQuery.of(context).size.height * 0.45,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 30, color: AppColors.primary),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ErrorView extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorView({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(
+          height: MediaQuery.of(context).size.height * 0.45,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline_rounded,
+                size: 44,
+                color: Colors.redAccent,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                message.isNotEmpty ? message : 'Failed to load vehicles',
+                style: const TextStyle(color: Colors.red, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 14),
+              ElevatedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
