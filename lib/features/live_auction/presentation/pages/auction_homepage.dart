@@ -37,6 +37,11 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  bool get _isQuoteMode {
+    final m = widget.initialMode?.toString().trim().toUpperCase();
+    return m == '3' || m == 'QUOTE';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -45,25 +50,24 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
 
   Future<void> _fetchVehicles() async {
     if (widget.isUpcoming) {
-      // ── UPCOMING ALONE: Hits https://dev.k99x.com/servlet/admin/live/auction/json ──
-      // final fromStr = widget.initialFromDate != null
-      //     ? DateFormat('yyyy-MM-dd').format(widget.initialFromDate!)
-      //     : null;
-      // final toStr = widget.initialToDate != null
-      //     ? DateFormat('yyyy-MM-dd').format(widget.initialToDate!)
-      //     : null;
+      // ── UPCOMING ALONE: Hits admin/live/auction/json strictly without mode ──
+      final fromStr = widget.initialFromDate != null
+          ? DateFormat('yyyy-MM-dd').format(widget.initialFromDate!)
+          : null;
+      final toStr = widget.initialToDate != null
+          ? DateFormat('yyyy-MM-dd').format(widget.initialToDate!)
+          : null;
 
       final params = LiveAuctionParams(
         status: 'UPCOMING',
         lenderId: widget.lenderId,
         fromDate: widget.initialFromDate,
         toDate: widget.initialToDate,
-        // mode: widget.initialMode,
       );
 
       await ref.read(liveAuctionNotifier.notifier).getLiveAuctions(params);
     } else {
-      // ── NORMAL / LIVE LOTS: Hits /servlet/api/dealer/events/live/{eventId}/vehicles ──
+      // ── LIVE / QUOTE EVENTS: Hits /servlet/api/dealer/events/live/{eventId}/vehicles ──
       await ref
           .read(eventVehiclesNotifierProvider.notifier)
           .fetchEventVehicles(widget.eventId);
@@ -95,6 +99,10 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final title = widget.isUpcoming
+        ? 'Upcoming Vehicles'
+        : (_isQuoteMode ? 'Quote Price Vehicles' : 'Auction Vehicles');
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
@@ -110,7 +118,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.isUpcoming ? 'Upcoming Vehicles' : 'Auction Vehicles',
+          title,
           style: const TextStyle(
             fontWeight: FontWeight.w800,
             color: Color(0xFF0F172A),
@@ -224,6 +232,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
             return LiveAuctionCard(
               vehicle: filtered[i],
               isUpcoming: true,
+              isQuotePrice: false,
             );
           },
         );
@@ -231,7 +240,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
     );
   }
 
-  // ── Render Normal Event Vehicles (EventVehiclesResponse) ──────────
+  // ── Render Normal Live / Quote Event Vehicles ─────────────────────
   Widget _buildLiveEventVehiclesList() {
     final state = ref.watch(eventVehiclesNotifierProvider);
 
@@ -251,7 +260,7 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
             title: 'No Vehicles Found',
             subtitle: _searchQuery.isNotEmpty
                 ? 'No vehicles matching "$_searchQuery".'
-                : 'No vehicles available in this auction event.',
+                : 'No vehicles available in this event.',
           );
         }
 
@@ -264,6 +273,8 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
             return LiveAuctionCard(
               vehicle: filtered[i],
               isUpcoming: false,
+              isQuotePrice:
+                  _isQuoteMode, // Enables "Quote price" & "Start price (From)"[cite: 1]
             );
           },
         );

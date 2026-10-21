@@ -1,12 +1,12 @@
 // lib/features/live_auction/presentation/widgets/place_bid_sheet.dart
 
 import 'dart:async';
-
 import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
+import 'package:dealer/features/live_auction/presentation/widgets/glitter_shimmer_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -446,10 +446,8 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     ref.listen(bidActivityNotifierProvider, (previous, next) {
       next.maybeWhen(
         data: (data) {
-          // 1. Recalculate remaining duration
           _computeRemaining();
 
-          // 2. Adjust next minimum bid without jumping the user's cursor to the start
           final liveTop = data.highestBid?.toInt();
           if (liveTop != null) {
             final nextMin = liveTop + _minIncrement;
@@ -476,8 +474,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
 
     final placeBidState = ref.watch(placeBidNotifier);
     final autoBidState = ref.watch(autoBidNotifier);
-    ref.watch(
-        bidActivityNotifierProvider); // Rebuilds on activity state changes
+    ref.watch(bidActivityNotifierProvider);
 
     final isPlacingBid =
         placeBidState.maybeWhen(loading: () => true, orElse: () => false);
@@ -645,7 +642,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       fg = const Color(0xFFD64545);
     } else if (_remaining.inMinutes < 1) {
       bg = const Color(0xFFFFECEC);
-      fg = const Color(0xFFDC2626); // Red in the final 60 seconds
+      fg = const Color(0xFFDC2626);
     } else if (_remaining.inMinutes < 60) {
       bg = const Color(0xFFFFF4E5);
       fg = const Color(0xFFB45309);
@@ -936,7 +933,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
             ],
             const SizedBox(height: 12),
             SizedBox(
-              height: 50,
+              height: 48,
               width: double.infinity,
               child: _isAutobidMode
                   ? _autobidButton(isPlacingBid, isEnablingAutobid)
@@ -948,80 +945,57 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Buttons ──────────────────────────────────────────────────────
+  // ── Buttons with Single-Pass Glitter Shimmer ──────────────────────
   Widget _bidButton(bool isPlacingBid, bool isEnablingAutobid) {
-    return ElevatedButton.icon(
-      onPressed:
-          (_ended || isPlacingBid || isEnablingAutobid || _isAutobidRunning)
-              ? null
-              : _submitBid,
-      icon: isPlacingBid
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation(Colors.white),
-              ),
-            )
-          : const Icon(Icons.gavel_rounded, size: 18),
-      label: Text(
-        _ended
-            ? 'Auction ended'
-            : isPlacingBid
-                ? 'Placing...'
-                : _isAutobidRunning
-                    ? 'Auto bidding'
-                    : 'Bid now',
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF3F51E8),
-        foregroundColor: Colors.white,
-        disabledBackgroundColor: const Color(0xFF3F51E8).withOpacity(0.6),
-        disabledForegroundColor: Colors.white,
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+    final bool isDisabled =
+        _ended || isPlacingBid || isEnablingAutobid || _isAutobidRunning;
+
+    final label = _ended
+        ? 'Auction ended'
+        : isPlacingBid
+            ? 'Placing...'
+            : _isAutobidRunning
+                ? 'Auto bidding'
+                : 'Bid now';
+
+    return GlitterShimmerButton(
+      onPressed: isDisabled ? null : _submitBid,
+      text: label,
+      icon: isPlacingBid ? null : Icons.gavel_rounded,
+      gradientColors: const [
+        Color(0xFF4F46E5), // Indigo
+        Color(0xFF7C3AED), // Violet
+        Color(0xFFDB2777), // Pink
+      ],
+      sweepDuration: const Duration(milliseconds: 1400),
     );
   }
 
   Widget _autobidButton(bool isPlacingBid, bool isEnablingAutobid) {
-    return ElevatedButton.icon(
-      onPressed:
-          (_ended || isPlacingBid || isEnablingAutobid) ? null : _submitAutobid,
+    final bool isDisabled = _ended || isPlacingBid || isEnablingAutobid;
+
+    final label = _ended
+        ? 'Auction ended'
+        : isEnablingAutobid
+            ? 'Enabling...'
+            : _isAutobidRunning
+                ? 'Raise autobid'
+                : 'Set autobid';
+
+    return GlitterShimmerButton(
+      onPressed: isDisabled ? null : _submitAutobid,
+      text: label,
       icon: isEnablingAutobid
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation(Colors.white),
-              ),
-            )
-          : Icon(
-              _isAutobidRunning
-                  ? Icons.trending_up_rounded
-                  : Icons.bolt_rounded,
-              size: 18),
-      label: Text(
-        _ended
-            ? 'Auction ended'
-            : isEnablingAutobid
-                ? 'Enabling...'
-                : _isAutobidRunning
-                    ? 'Raise autobid'
-                    : 'Set autobid',
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF2E9E5B),
-        foregroundColor: Colors.white,
-        disabledBackgroundColor: const Color(0xFF2E9E5B).withOpacity(0.6),
-        disabledForegroundColor: Colors.white,
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+          ? null
+          : (_isAutobidRunning
+              ? Icons.trending_up_rounded
+              : Icons.bolt_rounded),
+      gradientColors: const [
+        Color(0xFF16A34A), // Green
+        Color(0xFF10B981), // Emerald
+        Color(0xFF0D9488), // Teal
+      ],
+      sweepDuration: const Duration(milliseconds: 1400),
     );
   }
 

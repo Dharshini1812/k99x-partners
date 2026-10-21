@@ -8,6 +8,7 @@ import 'package:dealer/features/live_auction/data/model/event_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/pages/auction_homepage.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/auction_skeleton.dart';
+import 'package:dealer/features/live_auction/presentation/widgets/glitter_shimmer_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -1125,39 +1126,62 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
                     ],
                   ),
                   const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 40,
-                    child: ElevatedButton(
-                      onPressed: () =>
-                          _openAuctionHomePage(event, isUpcoming: isUpcoming),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isUpcoming
-                            ? AppColors.primary.withOpacity(.2)
-                            : AppColors.primary.withOpacity(0.12),
-                        foregroundColor: AppColors.primary,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                  // lib/features/live_auction/presentation/pages/events_landing_page.dart
+
+// Replace the old ElevatedButton at the bottom with:
+                  if (isUpcoming) ...[
+                    // Upcoming subtle action button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 42,
+                      child: ElevatedButton(
+                        onPressed: () =>
+                            _openAuctionHomePage(event, isUpcoming: isUpcoming),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary.withOpacity(0.12),
+                          foregroundColor: AppColors.primary,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'VIEW UPCOMING',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            isUpcoming
-                                ? 'VIEW UPCOMING'
-                                : (isQuote ? 'QUOTE PRICE' : 'BID NOW'),
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
-                  ),
+                  ] else if (isQuote) ...[
+                    // Amber / Golden gradient glitter for Quote Price
+                    GlitterShimmerButton(
+                      onPressed: () =>
+                          _openAuctionHomePage(event, isUpcoming: isUpcoming),
+                      text: 'QUOTE PRICE',
+                      icon: Icons.request_quote_rounded,
+                      gradientColors: const [
+                        Color(0xFFD97706), // Amber
+                        Color(0xFFF59E0B), // Warm Gold
+                        Color(0xFFB45309), // Bronze
+                      ],
+                    ),
+                  ] else ...[
+                    // Multi-tone primary gradient with glass glitter sweep for BID NOW
+                    GlitterShimmerButton(
+                      onPressed: () =>
+                          _openAuctionHomePage(event, isUpcoming: isUpcoming),
+                      text: 'BID NOW',
+                      icon: Icons.gavel_rounded,
+                      gradientColors: const [
+                        Color(0xFF4F46E5), // Electric Indigo
+                        Color(0xFF7C3AED), // Vivid Purple
+                        Color(0xFFDB2777), // Shimmer Pink
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
