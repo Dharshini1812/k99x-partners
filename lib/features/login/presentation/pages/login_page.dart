@@ -47,6 +47,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   /// surface it — a normal {success:false, message:"..."} response, or a
   /// thrown error — since which one actually happens isn't visible from
   /// this file alone (that's inside sendOtpProvider's notifier/datasource).
+  // lib/features/login/presentation/pages/login_page.dart
+
   Future<void> _handleSendOtp() async {
     final logic = ref.read(loginLogicProvider);
     final phone = logic.phoneCtrl.text.trim();
@@ -57,9 +59,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     final sendNotifier = ref.read(sendOtpProvider.notifier);
 
-    // Inside _handleSendOtp():
     try {
-      final response = await sendNotifier.sendOtp(SendOtpModel(
+      // 1. Try sending as an existing registered user first
+      var response = await sendNotifier.sendOtp(SendOtpModel(
         phone: phone,
         isRegistered: true,
       ));
@@ -71,33 +73,71 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         return;
       }
 
-      final message = response.message ?? '';
-      final isInactive = message.toLowerCase().contains('inactive');
+      final message = (response.message ?? '').toLowerCase();
 
-      if (isInactive) {
+      // Handle inactive accounts
+      if (message.contains('inactive')) {
         Fluttertoast.showToast(
-          msg: message.isNotEmpty
-              ? message
-              : 'Your account is inactive. Please contact administrator.',
-        );
-        return;
-      } else if (response.success == false) {
-        Fluttertoast.showToast(
-          msg: message.isNotEmpty ? message : 'Failed to send OTP.',
+          msg: response.message ??
+              'Your account is inactive. Please contact administrator.',
         );
         return;
       }
 
-      final bool isUserRegistered = response.success == true &&
-          !message.toLowerCase().contains('user not found');
+      bool isUserRegistered = true;
 
+      // 2. If User Not Found, fallback automatically with isRegistered: false
+      if (response.success == false && message.contains('user not found')) {
+        response = await sendNotifier.sendOtp(SendOtpModel(
+          phone: phone,
+          isRegistered: false,
+        ));
+
+        if (!mounted) return;
+
+        if (response == null || response.success == false) {
+          Fluttertoast.showToast(
+            msg: response?.message ?? 'Failed to send OTP for registration.',
+          );
+          return;
+        }
+
+        isUserRegistered = false;
+      } else if (response.success == false) {
+        Fluttertoast.showToast(
+          msg: response.message ?? 'Failed to send OTP.',
+        );
+        return;
+      }
+
+      // 3. Save phone & registration state, then push to OTP page
       ref.read(loginPhoneProvider.notifier).state = phone;
       ref.read(loginIsRegisteredProvider.notifier).state = isUserRegistered;
 
+      Fluttertoast.showToast(msg: 'OTP sent successfully');
       ref.read(routeService).push(const OtpRoute(), context);
     } catch (e) {
       if (!mounted) return;
       final userMessage = AppErrorHandler.parse(e);
+
+      // Fallback if backend throws an HTTP 404/400 exception for "user not found"
+      if (userMessage.toLowerCase().contains('user not found')) {
+        try {
+          final fallbackRes = await sendNotifier.sendOtp(SendOtpModel(
+            phone: phone,
+            isRegistered: false,
+          ));
+
+          if (!mounted) return;
+          if (fallbackRes != null && fallbackRes.success == true) {
+            ref.read(loginPhoneProvider.notifier).state = phone;
+            ref.read(loginIsRegisteredProvider.notifier).state = false;
+            Fluttertoast.showToast(msg: 'OTP sent successfully');
+            ref.read(routeService).push(const OtpRoute(), context);
+            return;
+          }
+        } catch (_) {}
+      }
 
       if (userMessage.toLowerCase().contains('inactive')) {
         Fluttertoast.showToast(msg: userMessage);
@@ -106,7 +146,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ref.read(routeService).push(const OtpRoute(), context);
       } else {
         Fluttertoast.showToast(
-            msg: userMessage, toastLength: Toast.LENGTH_SHORT);
+          msg: userMessage,
+          toastLength: Toast.LENGTH_SHORT,
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

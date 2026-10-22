@@ -8,7 +8,6 @@ import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart'
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
 import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
-import 'package:dealer/features/live_auction/presentation/widgets/glitter_shimmer_button.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/place_bid_sheet.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/quote_price_sheet.dart';
 import 'package:dealer/features/trial/presentation/logic/trial_logic.dart';
@@ -45,13 +44,10 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
   @override
   void initState() {
     super.initState();
-    // Do not compute countdown timer for history cards
     if (!widget.isBidHistory) {
       _computeRemaining();
       _timer = Timer.periodic(
-        const Duration(seconds: 1),
-        (_) => _computeRemaining(),
-      );
+          const Duration(seconds: 1), (_) => _computeRemaining());
     }
   }
 
@@ -116,10 +112,29 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     return dtStr;
   }
 
+  /// Resolves the current bid:
+  /// 1. Prioritizes the live `highestBid` from BidActivityData (if matching vehicleId)
+  /// 2. Falls back to the latest amount in vehicle.bids
   double? _currentBidAmount(LiveAuctionModel v) {
+    // Check if the bid activity API has loaded/polled data for this vehicle
+    final liveActivity = ref.watch(bidActivityNotifierProvider).maybeWhen(
+          data: (data) =>
+              (data.auction?.vehicleId == v.vehicleId) ? data : null,
+          orElse: () => null,
+        );
+
+    // If the Bid Activity API returned a highest bid, bind it first
+    if (liveActivity?.highestBid != null && liveActivity!.highestBid! > 0) {
+      return liveActivity.highestBid!.toDouble();
+    }
+
+    // Fallback: vehicle list static bids (sorted by amount descending)
     final bids = v.bids;
     if (bids == null || bids.isEmpty) return null;
-    return bids.first.amount;
+
+    final sorted = List<BidsModel>.from(bids)
+      ..sort((a, b) => (b.amount ?? 0).compareTo(a.amount ?? 0));
+    return sorted.first.amount;
   }
 
   @override
@@ -127,6 +142,8 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     _timer?.cancel();
     super.dispose();
   }
+
+// lib/features/live_auction/presentation/widgets/auction_card.dart
 
   Future<void> _handleWatchlistToggle(bool isCurrentlyWatchlisted) async {
     final targetId = widget.vehicle.vehicleId ?? '';
@@ -173,12 +190,12 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
   }
 
   Future<void> _openBidSheet(BidSheetMode mode) async {
-    final user = ref.read(dLogic).user;
-    final trial = ref.read(trialLogic);
-
-    if (user == null && trial.isTrialSession) {
-      showTrialBlockedDialog(context, ref, expired: trial.isTrialExpired);
-      return;
+    final vehicleId = widget.vehicle.vehicleId;
+    if (vehicleId != null && vehicleId.isNotEmpty) {
+      // Pre-fetch/sync the bid activity API for this vehicle
+      ref
+          .read(bidActivityNotifierProvider.notifier)
+          .fetchBidActivity(vehicleId);
     }
 
     final result = await showModalBottomSheet<int>(
@@ -188,9 +205,14 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
       builder: (_) => PlaceBidSheet(vehicle: widget.vehicle, mode: mode),
     );
 
+    // When the user places a bid or returns, silent refresh ensures LiveAuctionCard updates
     if (result != null && mounted) {
       await FeedbackHelper.success();
-      ref.read(auctionLogic).search();
+      if (vehicleId != null && vehicleId.isNotEmpty) {
+        ref
+            .read(bidActivityNotifierProvider.notifier)
+            .fetchBidActivity(vehicleId, silent: true);
+      }
     }
   }
 
@@ -356,9 +378,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                   left: 10,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4.5,
-                    ),
+                        horizontal: 10, vertical: 4.5),
                     decoration: BoxDecoration(
                       color: isWinning
                           ? const Color(0xFF10B981)
@@ -468,11 +488,8 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.photo_library_outlined,
-                          size: 12,
-                          color: Colors.white,
-                        ),
+                        const Icon(Icons.photo_library_outlined,
+                            size: 12, color: Colors.white),
                         const SizedBox(width: 4),
                         Text(
                           '${v.imageUrls!.length}',
@@ -536,13 +553,11 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                     ),
                     RichText(
                       text: TextSpan(
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black,
-                        ),
+                        style:
+                            const TextStyle(fontSize: 14, color: Colors.black),
                         children: [
                           if (widget.isBidHistory) ...[
-                            // ── History: Displays Bid Amount instead of Base Price ──
+                            // ── History: Displays Bid Amount in place of Base Price ──
                             const TextSpan(
                               text: 'Bid Amount: ',
                               style: TextStyle(
@@ -570,14 +585,12 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                                   ? 'Base price (To): '
                                   : 'Base price: ',
                               style: const TextStyle(
-                                fontWeight: FontWeight.normal,
-                              ),
+                                  fontWeight: FontWeight.normal),
                             ),
                             TextSpan(
                               text: _formatPrice(v.basePrice?.toInt()),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ],
                         ],
@@ -599,9 +612,9 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        _formatBidDate(
-                          v.auctionCloseDt ?? v.auctionStartDt ?? v.createdDt,
-                        ),
+                        _formatBidDate(v.auctionCloseDt ??
+                            v.auctionStartDt ??
+                            v.createdDt),
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
@@ -645,23 +658,18 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                         RichText(
                           text: TextSpan(
                             style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.black,
-                            ),
+                                fontSize: 14, color: Colors.black),
                             children: [
                               const TextSpan(
                                 text: 'Current Bid: ',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.normal,
-                                ),
+                                style: TextStyle(fontWeight: FontWeight.normal),
                               ),
                               TextSpan(
                                 text: currentBid != null
                                     ? _formatPrice(currentBid.toInt())
                                     : 'No bids yet',
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                    fontWeight: FontWeight.bold),
                               ),
                             ],
                           ),
@@ -682,7 +690,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
 
                   const SizedBox(height: 10),
 
-                  // Action Buttons (Hidden on History)
+                  // Action Buttons (Only for active auctions)
                   if (isUpcoming) ...[
                     Container(
                       width: double.infinity,
@@ -696,11 +704,8 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.schedule_rounded,
-                              size: 16,
-                              color: Color(0xFF6B7280),
-                            ),
+                            Icon(Icons.schedule_rounded,
+                                size: 16, color: Color(0xFF6B7280)),
                             SizedBox(width: 6),
                             Text(
                               'Auction Starts Soon',
@@ -715,15 +720,25 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                       ),
                     ),
                   ] else if (isQuote) ...[
-                    GlitterShimmerButton(
-                      onPressed: _ended ? null : _openQuotePriceSheet,
-                      text: 'Quote price',
-                      icon: Icons.request_quote_rounded,
-                      gradientColors: const [
-                        Color(0xFFD97706),
-                        Color(0xFFF59E0B),
-                        Color(0xFFB45309),
-                      ],
+                    SizedBox(
+                      width: double.infinity,
+                      height: 42,
+                      child: ElevatedButton(
+                        onPressed: _ended ? null : _openQuotePriceSheet,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Quote price',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ),
                     ),
                   ] else ...[
                     Row(
@@ -749,17 +764,23 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: GlitterShimmerButton(
+                          child: ElevatedButton(
                             onPressed: _ended
                                 ? null
                                 : () => _openBidSheet(BidSheetMode.bid),
-                            text: 'Bid',
-                            icon: Icons.gavel_rounded,
-                            gradientColors: const [
-                              Color(0xFF4F46E5),
-                              Color(0xFF7C3AED),
-                              Color(0xFFDB2777),
-                            ],
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Bid',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
                           ),
                         ),
                       ],
@@ -947,11 +968,8 @@ class _ImageGallerySliderDialogState extends State<_ImageGallerySliderDialog> {
                             backgroundColor: Colors.black54,
                             radius: 18,
                             child: IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back_ios_new_rounded,
-                                color: Colors.white,
-                                size: 16,
-                              ),
+                              icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                                  color: Colors.white, size: 16),
                               onPressed: _prevPage,
                               padding: EdgeInsets.zero,
                             ),
@@ -964,11 +982,8 @@ class _ImageGallerySliderDialogState extends State<_ImageGallerySliderDialog> {
                             backgroundColor: Colors.black54,
                             radius: 18,
                             child: IconButton(
-                              icon: const Icon(
-                                Icons.arrow_forward_ios_rounded,
-                                color: Colors.white,
-                                size: 16,
-                              ),
+                              icon: const Icon(Icons.arrow_forward_ios_rounded,
+                                  color: Colors.white, size: 16),
                               onPressed: _nextPage,
                               padding: EdgeInsets.zero,
                             ),
@@ -980,10 +995,8 @@ class _ImageGallerySliderDialogState extends State<_ImageGallerySliderDialog> {
               ),
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 5,
-                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                 decoration: BoxDecoration(
                   color: Colors.black87,
                   borderRadius: BorderRadius.circular(20),
@@ -1008,11 +1021,8 @@ class _ImageGallerySliderDialogState extends State<_ImageGallerySliderDialog> {
               backgroundColor: Colors.black87,
               radius: 22,
               child: IconButton(
-                icon: const Icon(
-                  Icons.close_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
+                icon: const Icon(Icons.close_rounded,
+                    color: Colors.white, size: 22),
                 onPressed: () => Navigator.of(context).pop(),
                 padding: EdgeInsets.zero,
               ),

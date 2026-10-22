@@ -204,18 +204,80 @@ class _AddWantedVehiclePageState extends ConsumerState<AddWantedVehiclePage> {
     );
   }
 
+// lib/features/my_listings/presentation/pages/add_wanted_vehicle_page.dart
+
   Widget _make(WantedVehicleNotifier notifier) {
     final wanted = ref.watch(wantedVehicleProvider);
     final makeState = ref.watch(getMakeProvider);
 
-    return makeState.maybeWhen(
-      orElse: () => const Center(
-        child: Padding(
-          padding: EdgeInsets.all(8.0),
-          child: CircularProgressIndicator(),
+    return makeState.when(
+      initial: () => const CommonDropdown<MakeModel>(
+        searchable: true,
+        label: 'Make',
+        hint: 'Loading Make...',
+        enabled: false,
+        options: [],
+        onChanged: null,
+      ),
+      loading: () => Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE0E0E0)),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Loading Make...',
+              style: TextStyle(fontSize: 13, color: Color(0xFF9AA0A6)),
+            ),
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ],
         ),
       ),
-      error: (message) => Text(message),
+      error: (message) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CommonDropdown<MakeModel>(
+            searchable: true,
+            label: 'Make',
+            hint: 'Failed to load make',
+            enabled: false,
+            options: const [],
+            onChanged: null,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text(
+                message.toString().isNotEmpty
+                    ? message.toString()
+                    : 'Failed to load options',
+                style: const TextStyle(fontSize: 11, color: Colors.redAccent),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => ref.read(getMakeProvider.notifier).getMake(),
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
       data: (data) => CommonDropdown<MakeModel>(
         searchable: true,
         label: 'Make',
@@ -428,11 +490,29 @@ class _AddWantedVehiclePageState extends ConsumerState<AddWantedVehiclePage> {
     ref.read(wantedSaveProvider.notifier).save(request);
   }
 
+  // lib/features/my_listings/presentation/pages/add_wanted_vehicle_page.dart
+
+// Update _wantedListSection:
   Widget _wantedListSection(WantedListState state) {
     return state.maybeWhen(
       loading: () => const Padding(
         padding: EdgeInsets.only(top: 20),
-        child: Center(child: CircularProgressIndicator()),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your Wanted Listings',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1A1A1A),
+              ),
+            ),
+            SizedBox(height: 12),
+            WantedCardSkeletonList(
+                itemCount: 3), // Replaces CircularProgressIndicator
+          ],
+        ),
       ),
       error: (msg) => Padding(
         padding: const EdgeInsets.only(top: 20),
@@ -441,7 +521,6 @@ class _AddWantedVehiclePageState extends ConsumerState<AddWantedVehiclePage> {
           style: const TextStyle(color: Color(0xFF6B7280)),
         ),
       ),
-      orElse: () => const SizedBox.shrink(),
       data: (response) {
         final items = response.data?.wantedList ?? const [];
         final openCount = response.data?.stats.open ?? items.length;
@@ -500,6 +579,7 @@ class _AddWantedVehiclePageState extends ConsumerState<AddWantedVehiclePage> {
           ],
         );
       },
+      orElse: () => const SizedBox.shrink(),
     );
   }
 
@@ -680,3 +760,156 @@ final wantedVehicleProvider =
     StateNotifierProvider<WantedVehicleNotifier, WantedVehicleState>(
   (_) => WantedVehicleNotifier(),
 );
+
+// lib/features/my_listings/presentation/widgets/wanted_card_skeleton.dart
+
+class WantedCardSkeletonList extends StatefulWidget {
+  final int itemCount;
+  const WantedCardSkeletonList({super.key, this.itemCount = 3});
+
+  @override
+  State<WantedCardSkeletonList> createState() => _WantedCardSkeletonListState();
+}
+
+class _WantedCardSkeletonListState extends State<WantedCardSkeletonList>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+
+    _animation = Tween<double>(begin: 0.35, end: 0.85).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, _) {
+        final color = Colors.grey.shade300.withOpacity(_animation.value);
+
+        return ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: widget.itemCount,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (_, __) => _WantedCardSkeletonItem(shimmerColor: color),
+        );
+      },
+    );
+  }
+}
+
+class _WantedCardSkeletonItem extends StatelessWidget {
+  final Color shimmerColor;
+  const _WantedCardSkeletonItem({required this.shimmerColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Title shimmer (Make + Model + Variant)
+              Container(
+                width: MediaQuery.of(context).size.width * 0.45,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: shimmerColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              // Status badge shimmer
+              Container(
+                width: 65,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: shimmerColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              // Budget column shimmer
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 11,
+                      decoration: BoxDecoration(
+                        color: shimmerColor,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: 90,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: shimmerColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Needed by column shimmer
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 11,
+                      decoration: BoxDecoration(
+                        color: shimmerColor,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: 80,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: shimmerColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

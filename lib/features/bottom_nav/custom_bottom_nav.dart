@@ -126,7 +126,7 @@ class _NavItem extends StatelessWidget {
                         size: 14, color: iconColor)
                     : Icon(
                         icon,
-                        size: 18,
+                        size: 20,
                         color: active ? Colors.white : iconColor,
                       ),
               ),

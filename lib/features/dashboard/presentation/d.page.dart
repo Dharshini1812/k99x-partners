@@ -119,6 +119,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 const SizedBox(height: 28),
 
                 // ── Stock by Age Header ──────────────────────────────────
+                // lib/features/dashboard/presentation/d.page.dart
+
+// ── Stock by Age Header ──────────────────────────────────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -132,6 +135,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     ),
                     TextButton(
                       onPressed: () {
+                        // 1. Select the "My Stock" tab (index 1) inside MyListPage
+                        ref.read(listingsMainTabProvider.notifier).state = 1;
+
+                        // 2. Open "My LiveStock" (sub-tab index 0)
+                        ref.read(myStockSubTabProvider.notifier).state = 0;
+
+                        // 3. Switch bottom navigation bar to Stocks tab (index 3)[cite: 7]
                         ref.read(bottomNavIndexProvider.notifier).state = 3;
                       },
                       style: TextButton.styleFrom(
@@ -275,21 +285,30 @@ class _DashboardHeader extends StatelessWidget {
 // STAT GRID & SKELETON
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _StatGrid extends StatelessWidget {
+// Inside _StatGrid in lib/features/dashboard/presentation/d.page.dart
+
+class _StatGrid extends ConsumerWidget {
   final DashboardStats stats;
   final int wantedVehicleCount;
   final int preApprovedLoanCount;
   final int pendingApprovalCount;
 
   const _StatGrid({
+    super.key,
     required this.stats,
     required this.wantedVehicleCount,
     required this.preApprovedLoanCount,
     required this.pendingApprovalCount,
   });
 
+  void _navigateToStock(WidgetRef ref, {required int mainTab, int subTab = 0}) {
+    ref.read(listingsMainTabProvider.notifier).state = mainTab;
+    ref.read(myStockSubTabProvider.notifier).state = subTab;
+    ref.read(bottomNavIndexProvider.notifier).state = 3; // Switch to Stocks Tab
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       children: [
         Row(
@@ -302,6 +321,7 @@ class _StatGrid extends StatelessWidget {
                 icon: Icons.directions_car_filled_rounded,
                 value: stats.totalLiveVehicles ?? 0,
                 label: 'LIVE STOCK',
+                onTap: () => _navigateToStock(ref, mainTab: 0),
               ),
             ),
             const SizedBox(width: 14),
@@ -313,6 +333,8 @@ class _StatGrid extends StatelessWidget {
                 icon: Icons.layers_rounded,
                 value: stats.totalVehicles ?? 0,
                 label: 'MY STOCK',
+                onTap: () => _navigateToStock(ref,
+                    mainTab: 1, subTab: 0), // "My LiveStock"
               ),
             ),
           ],
@@ -328,6 +350,8 @@ class _StatGrid extends StatelessWidget {
                 icon: Icons.verified_user_rounded,
                 value: preApprovedLoanCount,
                 label: 'PRE-APPROVED LOANS',
+                onTap: () => _navigateToStock(ref,
+                    mainTab: 1, subTab: 1), // "Pre-Approved"
               ),
             ),
             const SizedBox(width: 14),
@@ -339,6 +363,8 @@ class _StatGrid extends StatelessWidget {
                 icon: Icons.search_rounded,
                 value: wantedVehicleCount,
                 label: 'WANTED VEHICLES',
+                onTap: () =>
+                    _navigateToStock(ref, mainTab: 2), // Wanted Listings
               ),
             ),
           ],
@@ -354,6 +380,8 @@ class _StatGrid extends StatelessWidget {
                 icon: Icons.hourglass_bottom_rounded,
                 value: pendingApprovalCount,
                 label: 'PENDING APPROVAL',
+                onTap: () => _navigateToStock(ref,
+                    mainTab: 1, subTab: 2), // "Pending Stock"
               ),
             ),
             const SizedBox(width: 14),
@@ -365,6 +393,7 @@ class _StatGrid extends StatelessWidget {
                 icon: Icons.check_circle_rounded,
                 value: preApprovedLoanCount,
                 label: 'APPROVED',
+                onTap: () => _navigateToStock(ref, mainTab: 1, subTab: 0),
               ),
             ),
           ],
@@ -445,6 +474,7 @@ class _StatTile extends StatelessWidget {
   final IconData icon;
   final int value;
   final String label;
+  final VoidCallback? onTap;
 
   const _StatTile({
     required this.bg,
@@ -453,59 +483,66 @@ class _StatTile extends StatelessWidget {
     required this.icon,
     required this.value,
     required this.label,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bg,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(icon, size: 20, color: iconColor),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: iconBg,
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(icon, size: 20, color: iconColor),
+                  ),
+                  Text(
+                    '$value',
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: _kDark,
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 10),
               Text(
-                '$value',
+                label,
                 style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: _kDark,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.6,
+                  color: AppColors.textDark,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.6,
-              color: Color(0xFF6B7280),
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+        ),
       ),
     );
   }
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 // STOCK BY AGE & SKELETON
 // ─────────────────────────────────────────────────────────────────────────────

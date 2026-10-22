@@ -1,6 +1,7 @@
 // lib/features/my_listings/presentation/pages/my_list_page.dart
 
 import 'package:dealer/core/theme/colors.dart';
+import 'package:dealer/features/bottom_nav/provider.dart';
 import 'package:dealer/features/my_listings/data/model/filter_model.dart';
 import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
 import 'package:dealer/features/my_listings/presentation/logic/provider.dart';
@@ -32,7 +33,12 @@ class _MyListPageState extends ConsumerState<MyListPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
+    final initialIndex = ref.read(listingsMainTabProvider);
+    _tabController = TabController(
+      length: _tabs.length,
+      vsync: this,
+      initialIndex: initialIndex.clamp(0, _tabs.length - 1),
+    );
     Future.microtask(
         () => ref.read(wantedListProvider.notifier).getWantedList());
   }
@@ -45,6 +51,11 @@ class _MyListPageState extends ConsumerState<MyListPage>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(listingsMainTabProvider, (prev, next) {
+      if (next != _tabController.index) {
+        _tabController.animateTo(next);
+      }
+    });
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
@@ -429,6 +440,8 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
 
 // ── MY STOCK TAB ─────────────────────────────────────────────────────────────
 
+// ── MY STOCK TAB ─────────────────────────────────────────────────────────────
+
 class MyStockTab extends ConsumerStatefulWidget {
   const MyStockTab({super.key});
 
@@ -440,12 +453,22 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
     with SingleTickerProviderStateMixin {
   late final TabController _subTabController;
 
-  static const List<String> _subTabs = ['Pending Stock', 'Approved Stock'];
+  static const List<String> _subTabs = [
+    'My LiveStock',
+    'Pre-Approved',
+    'Pending Stock',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _subTabController = TabController(length: _subTabs.length, vsync: this);
+    final initialSub = ref.read(myStockSubTabProvider);
+    _subTabController = TabController(
+      length: _subTabs.length,
+      vsync: this,
+      initialIndex: initialSub.clamp(0, _subTabs.length - 1),
+    );
+
     Future.microtask(() {
       ref
           .read(myStockNotifierProvider.notifier)
@@ -481,6 +504,13 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
   Widget build(BuildContext context) {
     final myListingAsync = ref.watch(myStockNotifierProvider);
     final liveListingAsync = ref.watch(liveStockNotifier);
+
+    // Sync sub-tab animation when triggered from Dashboard
+    ref.listen<int>(myStockSubTabProvider, (prev, next) {
+      if (next != _subTabController.index) {
+        _subTabController.animateTo(next);
+      }
+    });
 
     return Column(
       children: [
@@ -530,6 +560,7 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
               }
               final combinedList = mergedMap.values.toList();
 
+              // 1. My LiveStock (Approved & Live vehicles)
               final approvedList = combinedList.where((v) {
                 final status = (v.status ?? '').trim().toUpperCase();
                 return status == 'LIVE' || status == 'APPROVED';
@@ -537,6 +568,15 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
                 ..sort(
                     (a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
 
+              // 2. Pre-Approved Loans
+              final preApprovedList = combinedList.where((v) {
+                return v.approvedLoanDetails != null &&
+                    v.approvedLoanDetails!.trim().isNotEmpty;
+              }).toList()
+                ..sort(
+                    (a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
+
+              // 3. Pending Stock (Draft & Pending)
               final pendingList = vehicleResponse.data.where((v) {
                 final status = (v.status ?? '').trim().toUpperCase();
                 return status == 'DRAFT' || status == 'PENDING';
@@ -547,8 +587,9 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
               return TabBarView(
                 controller: _subTabController,
                 children: [
-                  _StockList(items: pendingList, expandFirstItem: false),
                   _StockList(items: approvedList, expandFirstItem: true),
+                  _StockList(items: preApprovedList, expandFirstItem: false),
+                  _StockList(items: pendingList, expandFirstItem: false),
                 ],
               );
             },

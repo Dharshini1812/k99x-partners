@@ -118,9 +118,15 @@ class _SignupPageState extends ConsumerState<SignupPage> {
       Fluttertoast.showToast(msg: 'Please complete this section first');
       return;
     }
+
+    // Mark current section complete
     final completed = [...ref.read(sectionCompleteProvider)];
-    completed[currentIndex] = true;
-    ref.read(sectionCompleteProvider.notifier).state = completed;
+    if (currentIndex < completed.length) {
+      completed[currentIndex] = true;
+      ref.read(sectionCompleteProvider.notifier).state = completed;
+    }
+
+    // Force open next step (0 -> 1 for Personal Documents)
     final next = currentIndex + 1;
     ref.read(expandedSectionProvider.notifier).state = next < 3 ? next : -1;
   }
@@ -410,17 +416,17 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
     }
   }
 
-  void _maybeAutoAdvance() {
-    final isValid = widget.logic.isBusinessInfoValid && _isPhoneVerified;
-    if (isValid && _pending) {
-      _pending = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) widget.onNext();
-      });
-    } else if (!isValid) {
-      _pending = true;
-    }
-  }
+  // void _maybeAutoAdvance() {
+  //   final isValid = widget.logic.isBusinessInfoValid && _isPhoneVerified;
+  //   if (isValid && _pending) {
+  //     _pending = false;
+  //     WidgetsBinding.instance.addPostFrameCallback((_) {
+  //       if (mounted) widget.onNext();
+  //     });
+  //   } else if (!isValid) {
+  //     _pending = true;
+  //   }
+  // }
 
   Future<void> _handleSendOtp() async {
     final phone = widget.logic.phoneCtrl.text.trim();
@@ -468,7 +474,7 @@ class _BusinessInfoFormState extends ConsumerState<_BusinessInfoForm> {
   @override
   Widget build(BuildContext context) {
     final logic = widget.logic;
-    _maybeAutoAdvance();
+    // _maybeAutoAdvance();
 
     final isPhoneComplete = logic.phoneCtrl.text.trim().length == 10;
     final isSendingOtp = ref.watch(sendOtpProvider).maybeWhen(

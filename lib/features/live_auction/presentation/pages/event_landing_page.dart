@@ -1,7 +1,10 @@
 // lib/features/live_auction/presentation/pages/events_landing_page.dart
 
+import 'dart:async';
+
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/core/helper/feedback_helper.dart';
+import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/event_model.dart';
@@ -31,10 +34,25 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
   int? _selectedLenderId;
   String _selectedCategoryName = 'ALL';
 
+  /// Re-evaluates the "ended" filter while the screen is open.
+  Timer? _expiryTimer;
+
   static const _mainTabs = [
     (label: 'Bank Auctions', mode: null),
     (label: 'Quote Price', mode: 'QUOTE'),
   ];
+
+  /// Returns true if the event has not ended yet.
+  /// Uses `auctionEndDate` (epoch ms), the same value shown on the card.
+  bool _isEventActive(EventModel event) {
+    final endMs = event.auctionEndDate;
+
+    // No valid end date -> keep the event (change to `false` to hide it)
+    if (endMs <= 0) return true;
+
+    final endTime = DateTime.fromMillisecondsSinceEpoch(endMs);
+    return endTime.isAfter(DateTime.now());
+  }
 
   @override
   void initState() {
@@ -44,6 +62,11 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
 
     _mainTabController.addListener(_handleTabChange);
     _subTabController.addListener(_handleTabChange);
+
+    // Rebuild every 30s so events that end while the page is open disappear.
+    _expiryTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
 
     Future.microtask(() => _fetchData());
   }
@@ -61,6 +84,7 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
 
   @override
   void dispose() {
+    _expiryTimer?.cancel();
     _mainTabController.removeListener(_handleTabChange);
     _subTabController.removeListener(_handleTabChange);
     _mainTabController.dispose();
@@ -137,6 +161,9 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
     );
 
     return events.where((e) {
+      // Hide ended events
+      if (!_isEventActive(e)) return false;
+
       final bool isQuote = _isQuoteMode(e.mode);
 
       if (isQuoteTab && !isQuote) return false;
@@ -214,13 +241,12 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
       orElse: () => [],
     );
 
-    final totalVehicles = liveState.maybeWhen(
-      data: (res) => res.data?.totalVehiclesCount ?? 0,
-      orElse: () => 0,
-    );
-
-    final auctionsCount = liveList.where((e) => !_isQuoteMode(e.mode)).length;
-    final quoteCount = liveList.where((e) => _isQuoteMode(e.mode)).length;
+    // Badge counts ignore ended events
+    final auctionsCount = liveList
+        .where((e) => _isEventActive(e) && !_isQuoteMode(e.mode))
+        .length;
+    final quoteCount =
+        liveList.where((e) => _isEventActive(e) && _isQuoteMode(e.mode)).length;
 
     final forYouCount = _getFilteredEvents(
       events: liveList,
@@ -240,7 +266,9 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
       isQuoteTab: false,
     ).length;
 
-    final allEvents = [...liveList, ...upcomingList];
+    // Drawer (lender / category) only sees events that haven't ended
+    final allEvents =
+        [...liveList, ...upcomingList].where(_isEventActive).toList();
 
     return Scaffold(
       key: _scaffoldKey,
@@ -310,26 +338,6 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // Row(
-                      //   mainAxisSize: MainAxisSize.min,
-                      //   children: [
-                      //     _buildStatTag(
-                      //       count: '$auctionsCount',
-                      //       label: 'Events',
-                      //       icon: Icons.flash_on_rounded,
-                      //       color: AppColors.primary,
-                      //       bg: AppColors.primary.withOpacity(0.08),
-                      //     ),
-                      //     const SizedBox(width: 6),
-                      //     _buildStatTag(
-                      //       count: '$totalVehicles',
-                      //       label: 'Vehicles',
-                      //       icon: Icons.directions_car_rounded,
-                      //       color: const Color(0xFF0F172A),
-                      //       bg: const Color(0xFFF1F5F9),
-                      //     ),
-                      //   ],
-                      // ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -1126,9 +1134,6 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
                     ],
                   ),
                   const SizedBox(height: 14),
-                  // lib/features/live_auction/presentation/pages/events_landing_page.dart
-
-// Replace the old ElevatedButton at the bottom with:
                   if (isUpcoming) ...[
                     // Upcoming subtle action button
                     SizedBox(

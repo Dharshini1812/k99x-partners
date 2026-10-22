@@ -44,9 +44,7 @@ class VehicleMediaGalleryPage extends StatelessWidget {
     addIfPresent(insp.frontVehicleImageUrl, 'Front View', video: false);
     addIfPresent(insp.odometerImageUrl, 'Odometer', video: false);
 
-    // Then videos. mergedVideoUrl can come back as {"status": "ERROR"}
-    // instead of a real media object — addIfPresent already skips it
-    // safely since its `.url` will be null in that case.
+    // Then videos.
     addIfPresent(insp.exteriorVideoUrl, 'Exterior', video: true);
     addIfPresent(insp.interiorVideoUrl, 'Interior', video: true);
     addIfPresent(insp.engineBayVideoUrl, 'Engine Bay', video: true);
@@ -94,18 +92,34 @@ class VehicleMediaGalleryPage extends StatelessWidget {
     final youtubeUrl = inspection?.youtubeVideoUrl?.youtubeUrl;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF11142A),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: Text(vehicleTitle, style: const TextStyle(fontSize: 15)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          vehicleTitle,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF11142A),
+          ),
+        ),
       ),
       body: (items.isEmpty && youtubeUrl == null)
           ? const Center(
               child: Text(
                 'No photos or videos available for this vehicle',
-                style: TextStyle(color: Colors.white54),
+                style: TextStyle(
+                  color: Color(0xFF8B8FA3),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             )
           : ListView(
@@ -121,34 +135,50 @@ class VehicleMediaGalleryPage extends StatelessWidget {
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
                       childAspectRatio: 1,
                     ),
                     itemBuilder: (_, i) {
                       final p = photos[i];
                       return GestureDetector(
                         onTap: () => _openPhoto(context, photos, i),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              Image.network(
-                                p.url,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  color: const Color(0xFF1C1C1E),
-                                  child: const Icon(Icons.broken_image_rounded,
-                                      color: Colors.white38),
-                                ),
-                              ),
-                              Positioned(
-                                left: 6,
-                                bottom: 6,
-                                child: _CaptionChip(text: p.label),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE5E7EB)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.04),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
                               ),
                             ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(11),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Image.network(
+                                  p.url,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    color: const Color(0xFFF3F4F6),
+                                    child: const Icon(
+                                      Icons.broken_image_rounded,
+                                      color: Color(0xFF9CA3AF),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  left: 8,
+                                  bottom: 8,
+                                  child: _CaptionChip(text: p.label),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       );
@@ -168,33 +198,48 @@ class VehicleMediaGalleryPage extends StatelessWidget {
                           height: 64,
                           padding: const EdgeInsets.symmetric(horizontal: 14),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1C1C1E),
-                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFE5E7EB)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.04),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child: Row(
                             children: [
                               Container(
                                 width: 40,
                                 height: 40,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF3F51E8),
+                                decoration: BoxDecoration(
+                                  color:
+                                      const Color(0xFF3B4EF5).withOpacity(0.12),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.play_arrow_rounded,
-                                    color: Colors.white),
+                                child: const Icon(
+                                  Icons.play_arrow_rounded,
+                                  color: Color(0xFF3B4EF5),
+                                  size: 24,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
                                   v.label,
                                   style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14),
+                                    color: Color(0xFF11142A),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ),
-                              const Icon(Icons.chevron_right_rounded,
-                                  color: Colors.white38),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: Color(0xFF9AA0A6),
+                              ),
                             ],
                           ),
                         ),
@@ -212,33 +257,48 @@ class VehicleMediaGalleryPage extends StatelessWidget {
                       height: 64,
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1C1C1E),
-                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Row(
                         children: [
                           Container(
                             width: 40,
                             height: 40,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFFF0000),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF0000).withOpacity(0.1),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.smart_display_rounded,
-                                color: Colors.white),
+                            child: const Icon(
+                              Icons.smart_display_rounded,
+                              color: Color(0xFFFF0000),
+                              size: 22,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           const Expanded(
                             child: Text(
                               'Watch on YouTube',
                               style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14),
+                                color: Color(0xFF11142A),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
-                          const Icon(Icons.open_in_new_rounded,
-                              color: Colors.white38, size: 18),
+                          const Icon(
+                            Icons.open_in_new_rounded,
+                            color: Color(0xFF9AA0A6),
+                            size: 18,
+                          ),
                         ],
                       ),
                     ),
@@ -259,7 +319,7 @@ class _SectionLabel extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-        color: Colors.white70,
+        color: Color(0xFF6B7280),
         fontSize: 12.5,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.8,
@@ -275,21 +335,24 @@ class _CaptionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
+        color: Colors.black.withOpacity(0.65),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         text,
         style: const TextStyle(
-            color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w600),
+          color: Colors.white,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
 }
 
-// ── Full-screen photo viewer (swipe between photos, pinch to zoom) ──
+// ── Full-screen photo viewer ────────────────────────────────────────
 
 class _PhotoViewerPage extends StatefulWidget {
   final List<_MediaItem> photos;
@@ -321,14 +384,23 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF11142A),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           '${widget.photos[_index].label} (${_index + 1}/${widget.photos.length})',
-          style: const TextStyle(fontSize: 14),
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF11142A),
+          ),
         ),
       ),
       body: PageView.builder(
@@ -344,9 +416,10 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
                 widget.photos[i].url,
                 fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) => const Icon(
-                    Icons.broken_image_rounded,
-                    color: Colors.white38,
-                    size: 48),
+                  Icons.broken_image_rounded,
+                  color: Color(0xFF9CA3AF),
+                  size: 48,
+                ),
               ),
             ),
           );
@@ -386,8 +459,8 @@ class _VideoPlayerPageState extends State<_VideoPlayerPage> {
           looping: false,
           allowFullScreen: true,
           materialProgressColors: ChewieProgressColors(
-            playedColor: const Color(0xFF3F51E8),
-            handleColor: const Color(0xFF3F51E8),
+            playedColor: const Color(0xFF3B4EF5),
+            handleColor: const Color(0xFF3B4EF5),
             bufferedColor: Colors.white24,
             backgroundColor: Colors.white10,
           ),
@@ -413,12 +486,27 @@ class _VideoPlayerPageState extends State<_VideoPlayerPage> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: Text(widget.title, style: const TextStyle(fontSize: 15)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          widget.title,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+        ),
       ),
       body: Center(
         child: _error != null
-            ? Text(_error!, style: const TextStyle(color: Colors.white70))
+            ? Text(
+                _error!,
+                style: const TextStyle(color: Colors.white70),
+              )
             : (_chewieController == null
                 ? const CircularProgressIndicator(color: Colors.white)
                 : AspectRatio(

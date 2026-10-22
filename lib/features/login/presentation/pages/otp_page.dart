@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'package:auto_route/auto_route.dart';
+import 'package:dealer/core/error/app_error_handler.dart';
 import 'package:dealer/core/route/router.gr.dart';
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/login/presentation/logic/login_logic.dart';
@@ -30,10 +31,15 @@ class OtpPage extends ConsumerStatefulWidget {
 }
 
 class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
+  bool _isSubmitting = false;
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(loginLogicProvider).initOtp());
+    Future.microtask(() {
+      final logic = ref.read(loginLogicProvider);
+      logic.initOtp();
+    });
     listenForCode();
   }
 
@@ -46,9 +52,7 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
         logic.otpCtrlList[i].text = otp[i];
       }
       logic.setAutoOtp(otp);
-
-      final isRegistered = ref.read(loginIsRegisteredProvider);
-      logic.verifyOtp(isRegistered: isRegistered);
+      _handleVerify();
     }
   }
 
@@ -56,6 +60,40 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
   void dispose() {
     cancel();
     super.dispose();
+  }
+
+  void _clearOtpInputs() {
+    final logic = ref.read(loginLogicProvider);
+    for (var ctrl in logic.otpCtrlList) {
+      ctrl.clear();
+    }
+    logic.setAutoOtp('');
+    if (logic.otpFocusList.isNotEmpty) {
+      logic.otpFocusList[0].requestFocus();
+    }
+  }
+
+  Future<void> _handleVerify() async {
+    final logic = ref.read(loginLogicProvider);
+    if (!logic.isOtpValid || _isSubmitting) return;
+
+    setState(() => _isSubmitting = true);
+    final isRegistered = ref.read(loginIsRegisteredProvider);
+
+    try {
+      await logic.verifyOtp(isRegistered: isRegistered);
+    } catch (e) {
+      final parsed = AppErrorHandler.parse(e);
+      Fluttertoast.showToast(
+        msg: parsed.toLowerCase().contains('otp')
+            ? parsed
+            : 'Incorrect OTP. Please try again.',
+        toastLength: Toast.LENGTH_SHORT,
+      );
+      _clearOtpInputs();
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   void _handleOtpInput(int index, String value, LoginLogic logic) {
@@ -72,9 +110,7 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
       if (digits.length >= 4) {
         logic.otpFocusList[3].unfocus();
         logic.setAutoOtp(digits.substring(0, 4));
-
-        final isRegistered = ref.read(loginIsRegisteredProvider);
-        logic.verifyOtp(isRegistered: isRegistered);
+        _handleVerify();
       } else {
         logic.otpFocusList[digits.length].requestFocus();
       }
@@ -101,15 +137,33 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
     final phone = ref.watch(loginPhoneProvider);
     final isRegistered = ref.watch(loginIsRegisteredProvider);
 
+    final isLoadingNotifier = state.maybeWhen(
+      loading: () => true,
+      orElse: () => false,
+    );
+    final isProcessing = _isSubmitting || isLoadingNotifier;
+
     ref.listen(verifyOtpProvider, (previous, next) {
       next.whenOrNull(
         data: (data) {
+          setState(() => _isSubmitting = false);
           ref.read(trialLogic).endTrialSession();
+
+          final isSuccess = data.success == true ||
+              (data.message ?? '').toLowerCase().contains('success');
+
+          if (!isSuccess) {
+            Fluttertoast.showToast(
+              msg: data.message ?? 'Incorrect OTP. Please try again.',
+            );
+            _clearOtpInputs();
+            return;
+          }
 
           // If new user (isRegistered was false or response has no userId), route to Signup
           if (!isRegistered || data.data == null || data.data?.userId == null) {
             Fluttertoast.showToast(
-              msg: data.message ?? "OTP Verified successfully",
+              msg: data.message ?? 'OTP Verified successfully',
             );
             ref.read(routeService).push(
                   SignupRoute(prefilledMobile: phone),
@@ -120,17 +174,24 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
 
           // Existing registered user flow
           if (data.data?.userType == 'CLIENT') {
-            ref
-                .read(routeService)
-                .pushAndRemoveUntil(const ClientBottomNavRoute(), context);
+            ref.read(routeService).pushAndRemoveUntil(
+                  const ClientBottomNavRoute(),
+                  context,
+                );
           } else {
-            ref
-                .read(routeService)
-                .pushAndRemoveUntil(const BottomNavRoute(), context);
+            ref.read(routeService).pushAndRemoveUntil(
+                  const BottomNavRoute(),
+                  context,
+                );
           }
         },
         error: (msg) {
-          Fluttertoast.showToast(msg: msg, toastLength: Toast.LENGTH_SHORT);
+          setState(() => _isSubmitting = false);
+          final display = msg.toLowerCase().contains('otp')
+              ? msg
+              : 'Incorrect OTP. Please try again.';
+          Fluttertoast.showToast(msg: display, toastLength: Toast.LENGTH_SHORT);
+          _clearOtpInputs();
         },
       );
     });
@@ -156,8 +217,11 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
                         color: _kFaintBg,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.chevron_left_rounded,
-                          size: 26, color: _kAccentBlue),
+                      child: const Icon(
+                        Icons.chevron_left_rounded,
+                        size: 26,
+                        color: _kAccentBlue,
+                      ),
                     ),
                   ),
                   Container(
@@ -262,12 +326,9 @@ class _OtpPageState extends ConsumerState<OtpPage> with CodeAutoFill {
               ),
               const SizedBox(height: 28),
               _VerifyButton(
-                isLoading: state.maybeWhen(
-                  loading: () => true,
-                  orElse: () => false,
-                ),
-                isEnabled: logic.isOtpValid,
-                onTap: () => logic.verifyOtp(isRegistered: isRegistered),
+                isLoading: isProcessing,
+                isEnabled: logic.isOtpValid && !isProcessing,
+                onTap: _handleVerify,
               ),
               const SizedBox(height: 32),
             ],
@@ -366,7 +427,7 @@ class _VerifyButton extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
-          color: isEnabled ? _kAccentBlue : _kDisabledBg,
+          color: isEnabled ? _kAccentBlue : Colors.grey.shade300,
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             if (isEnabled)

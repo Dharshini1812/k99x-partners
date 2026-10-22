@@ -5,6 +5,7 @@ import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
+import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/glitter_shimmer_button.dart';
 import 'package:flutter/material.dart';
@@ -40,7 +41,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
   late int _amount;
 
   Timer? _timer;
-  Duration _remaining = Duration.zero;
+  Duration? _remaining;
   bool _ended = false;
 
   static const int _minIncrement = 1000;
@@ -69,7 +70,6 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     final staticFloor =
         (staticTop != null && staticTop > 0) ? staticTop : staticBase;
 
-    // Minimum valid next bid is the auction's top/base price + increment
     _amount = staticFloor + _minIncrement;
     _amountController = TextEditingController(text: '$_amount');
 
@@ -80,17 +80,14 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     final vehicleId = widget.vehicle.vehicleId;
     if (vehicleId != null && vehicleId.isNotEmpty) {
       Future.microtask(() {
-        // 1. Snapshot fetch via HTTP
         ref
             .read(bidActivityNotifierProvider.notifier)
             .fetchBidActivity(vehicleId);
 
-        // 2. Connect WebSocket and subscribe to real-time events
         final socket = ref.read(liveBidSocketProvider);
         socket.connect(
           onMessage: (data) {
             if (!mounted) return;
-            // Silent refresh when an auction update message arrives
             ref
                 .read(bidActivityNotifierProvider.notifier)
                 .fetchBidActivity(vehicleId, silent: true);
@@ -128,6 +125,12 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       return AuctionDateHelper.parseAuctionDate(end);
     }
 
+    final vExt = widget.vehicle.extendedEndTime;
+    if (vExt != null && vExt.trim().isNotEmpty) {
+      final parsed = AuctionDateHelper.parseAuctionDate(vExt);
+      if (parsed != null) return parsed;
+    }
+
     return AuctionDateHelper.parseAuctionDate(widget.vehicle.auctionCloseDt);
   }
 
@@ -136,7 +139,9 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     final target = _resolveTargetEndTime();
 
     if (target == null) {
-      setState(() => _ended = true);
+      if (_liveActivity != null) {
+        setState(() => _ended = true);
+      }
       return;
     }
 
@@ -216,7 +221,6 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     return best;
   }
 
-  /// Dense rank among every dealer's BEST bid only.
   int _liveRankForDealer(int? dealerId) {
     final myBest = _bestAmountForDealer(dealerId) ?? 0;
     final bestPerDealer = <int, double>{};
@@ -237,7 +241,6 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
 
   bool get _hasMyBid => _bestAmountForDealer(_currentDealerId) != null;
 
-  /// The logged-in user's personal highest bid amount
   num? get _myHighestBid => _bestAmountForDealer(_currentDealerId);
 
   bool get _isCurrentUserWinning {
@@ -251,8 +254,12 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
 
   num? get _currentHighestBid => _liveActivity?.highestBid ?? _topBid?.amount;
 
-  bool get _isAutobidExhausted =>
-      _myAutobid?.isExhausted(_currentHighestBid) ?? false;
+  bool get _isAutobidExhausted {
+    final currentHigh = _currentHighestBid ?? 0;
+    final maxBid = _myAutobid?.maxBidAmount ?? 0;
+    if (maxBid <= 0) return false;
+    return (currentHigh + _minIncrement) > maxBid && !_isCurrentUserWinning;
+  }
 
   bool get _isAutobidRunning =>
       _myAutobid != null && !_isAutobidExhausted && _myAutobid!.active == true;
@@ -280,7 +287,6 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     return '₹$buf';
   }
 
-  // ── Result dialog ────────────────────────────────────────────────
   Future<void> _showResultDialog({
     required bool success,
     required String title,
@@ -313,6 +319,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
               onPressed: () {
                 Navigator.of(context).pop();
                 if (success) {
+                  ref.read(auctionLogic).search();
                   Navigator.of(context).pop(_amount);
                 }
               },
@@ -333,7 +340,6 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Place bid ────────────────────────────────────────────────────
   Future<void> _submitBid() async {
     if (_isAutobidRunning || _ended) return;
 
@@ -380,15 +386,14 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Autobid ──────────────────────────────────────────────────────
   Future<void> _submitAutobid() async {
     if (_ended) return;
 
-    if (_amount < _suggestedStartAmount()) {
+    final minStart = _suggestedStartAmount();
+    if (_amount < minStart) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-              'Max bid must be at least ${_formatAmount(_suggestedStartAmount())}'),
+          content: Text('Max bid must be at least ${_formatAmount(minStart)}'),
         ),
       );
       return;
@@ -439,10 +444,8 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Build ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    // Listen for live poller / socket updates
     ref.listen(bidActivityNotifierProvider, (previous, next) {
       next.maybeWhen(
         data: (data) {
@@ -451,7 +454,19 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
           final liveTop = data.highestBid?.toInt();
           if (liveTop != null) {
             final nextMin = liveTop + _minIncrement;
-            if (_amount <= liveTop && mounted) {
+
+            // Only auto-bump the field if in manual BID mode or if current autobid input is below next minimum
+            if (!_isAutobidMode && _amount <= liveTop && mounted) {
+              final newText = '$nextMin';
+              setState(() {
+                _amount = nextMin;
+                _amountController.value = TextEditingValue(
+                  text: newText,
+                  selection: TextSelection.collapsed(offset: newText.length),
+                );
+              });
+            } else if (_isAutobidMode && _amount < nextMin && mounted) {
+              // Ensure autobid ceiling doesn't fall below next valid min
               final newText = '$nextMin';
               setState(() {
                 _amount = nextMin;
@@ -633,22 +648,33 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Timer chip (highlights amber/red in final duration) ─────────
+  // ── Timer chip ───────────────────────────────────────────────────
   Widget _timerChip() {
+    final rem = _remaining;
     final Color bg;
     final Color fg;
+    final String label;
+
     if (_ended) {
       bg = const Color(0xFFFDE8E8);
       fg = const Color(0xFFD64545);
-    } else if (_remaining.inMinutes < 1) {
+      label = 'Ended';
+    } else if (rem == null) {
+      bg = const Color(0xFFF3F4F6);
+      fg = const Color(0xFF6B7280);
+      label = '--:--:--';
+    } else if (rem > Duration.zero && rem.inMinutes < 1) {
       bg = const Color(0xFFFFECEC);
       fg = const Color(0xFFDC2626);
-    } else if (_remaining.inMinutes < 60) {
+      label = _fmtTimer(rem);
+    } else if (rem.inMinutes < 60) {
       bg = const Color(0xFFFFF4E5);
       fg = const Color(0xFFB45309);
+      label = _fmtTimer(rem);
     } else {
       bg = const Color(0xFFF3F4F6);
       fg = const Color(0xFF111111);
+      label = _fmtTimer(rem);
     }
 
     final isExtended = (_liveActivity?.auction?.extendedEndTime ?? 0) > 0;
@@ -662,33 +688,40 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(isExtended ? Icons.update_rounded : Icons.timer_outlined,
-              size: 15, color: fg),
+          Icon(
+            isExtended ? Icons.update_rounded : Icons.timer_outlined,
+            size: 15,
+            color: fg,
+          ),
           const SizedBox(width: 4),
           Text(
-            _ended ? 'Ended' : _fmtTimer(_remaining),
+            label,
             style: TextStyle(
-                fontWeight: FontWeight.w800, fontSize: 12.5, color: fg),
+              fontWeight: FontWeight.w800,
+              fontSize: 12.5,
+              color: fg,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ── Price summary: base price / user's highest bid / total bids ──
+  // ── Price summary: Current Bid / Your Bid / Total Bids ───────────
   Widget _summaryTiles() {
     final myBid = _myHighestBid;
     final myBidLabel =
         (myBid != null && myBid > 0) ? _formatAmount(myBid) : 'No bids';
-    final base = widget.vehicle.basePrice;
+    final top = _currentHighestBid;
+    final topLabel = (top != null && top > 0) ? _formatAmount(top) : '₹--';
 
     return Row(
       children: [
-        _summaryTile('Base price', base != null ? _formatAmount(base) : '—'),
+        _summaryTile('Current Bid', topLabel),
         const SizedBox(width: 8),
-        _summaryTile('Your bid', myBidLabel),
+        _summaryTile('Your Bid', myBidLabel),
         const SizedBox(width: 8),
-        _summaryTile('Total bids', '${_sortedBids.length}'),
+        _summaryTile('Total Bids', '${_sortedBids.length}'),
       ],
     );
   }
@@ -730,7 +763,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Status card: derived consistently from dealer rank ──────────
+  // ── Status card ──────────────────────────────────────────────────
   Widget _statusHeader() {
     final hasBids = _topBid != null;
     final mine = _hasMyBid;
@@ -753,13 +786,17 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       bg = const Color(0xFFDFF3E4);
       fg = const Color(0xFF2E9E5B);
       label = 'Winning';
-      sub = 'You\'re the highest bidder';
+      sub = _isAutobidRunning
+          ? 'Autobid active & highest bidder'
+          : 'You\'re the highest bidder';
       icon = Icons.emoji_events_rounded;
     } else if (mine) {
       bg = const Color(0xFFFDE8E8);
       fg = const Color(0xFFD64545);
       label = 'Outbid';
-      sub = 'Another dealer is ahead — raise your bid';
+      sub = _isAutobidExhausted
+          ? 'Ceiling reached. Increase max bid to continue'
+          : 'Another dealer is ahead — raise your bid';
       icon = Icons.trending_down_rounded;
     } else {
       final n = _sortedBids.length;
@@ -842,15 +879,15 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       fg = const Color(0xFF2E9E5B);
       icon = Icons.bolt_rounded;
       text = max != null
-          ? 'Your autobid is active up to ${_formatAmount(max)}. Raise it anytime; manual bidding is disabled until you\'re outbid.'
-          : 'Your autobid is active. Raise it anytime; manual bidding is disabled until you\'re outbid.';
+          ? 'Your autobid is active up to ${_formatAmount(max)}. Incremental bids will be placed automatically.'
+          : 'Your autobid is active. Incremental bids will be placed automatically.';
     } else {
       bg = const Color(0xFFFFF4E5);
       fg = const Color(0xFFB45309);
       icon = Icons.info_outline_rounded;
       text = max != null
-          ? 'Your autobid reached its limit of ${_formatAmount(max)}. Place a new bid or set a higher autobid to continue.'
-          : 'Your autobid has reached its limit. Place a new bid or set a higher autobid to continue.';
+          ? 'Autobid stopped at ${_formatAmount(max)}. Next minimum step exceeds your limit.'
+          : 'Autobid stopped. Increase your max limit to resume automated bidding.';
     }
 
     return Container(
@@ -876,16 +913,16 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Pinned action panel: amount, helper, action button ───────────
+  // ── Action Panel ────────────────────────────────────────────────
   Widget _actionPanel(bool isPlacingBid, bool isEnablingAutobid) {
     final minAmount = _suggestedStartAmount();
-    final tooLow = _amount < minAmount;
+    final tooLow = _amount > 0 && _amount < minAmount;
 
     final helper = tooLow
         ? 'Enter at least ${_formatAmount(minAmount)}'
         : _isAutobidMode
-            ? 'Minimum max bid: ${_formatAmount(minAmount)}'
-            : 'Minimum next bid: ${_formatAmount(minAmount)}';
+            ? 'Minimum max ceiling: ${_formatAmount(minAmount)}'
+            : 'Next valid bid: ${_formatAmount(minAmount)}';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -925,7 +962,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Autobid keeps bidding for you in ${_formatAmount(_minIncrement)} steps, up to your max.',
+                  'System bids in ${_formatAmount(_minIncrement)} increments up to this ceiling.',
                   style:
                       const TextStyle(fontSize: 11.5, color: Color(0xFF9CA3AF)),
                 ),
@@ -945,7 +982,6 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Buttons with Single-Pass Glitter Shimmer ──────────────────────
   Widget _bidButton(bool isPlacingBid, bool isEnablingAutobid) {
     final bool isDisabled =
         _ended || isPlacingBid || isEnablingAutobid || _isAutobidRunning;
@@ -963,9 +999,9 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       text: label,
       icon: isPlacingBid ? null : Icons.gavel_rounded,
       gradientColors: const [
-        Color(0xFF4F46E5), // Indigo
-        Color(0xFF7C3AED), // Violet
-        Color(0xFFDB2777), // Pink
+        Color(0xFF4F46E5),
+        Color(0xFF7C3AED),
+        Color(0xFFDB2777),
       ],
       sweepDuration: const Duration(milliseconds: 1400),
     );
@@ -979,7 +1015,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
         : isEnablingAutobid
             ? 'Enabling...'
             : _isAutobidRunning
-                ? 'Raise autobid'
+                ? 'Raise autobid ceiling'
                 : 'Set autobid';
 
     return GlitterShimmerButton(
@@ -991,15 +1027,14 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
               ? Icons.trending_up_rounded
               : Icons.bolt_rounded),
       gradientColors: const [
-        Color(0xFF16A34A), // Green
-        Color(0xFF10B981), // Emerald
-        Color(0xFF0D9488), // Teal
+        Color(0xFF16A34A),
+        Color(0xFF10B981),
+        Color(0xFF0D9488),
       ],
       sweepDuration: const Duration(milliseconds: 1400),
     );
   }
 
-  // ── Amount field ────────────────────────────────────────────────
   Widget _amountField() {
     return TextField(
       controller: _amountController,
@@ -1009,7 +1044,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       textAlign: TextAlign.left,
       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
       decoration: InputDecoration(
-        labelText: _isAutobidMode ? 'Enter max amount' : 'Enter amount',
+        labelText: _isAutobidMode ? 'Enter max ceiling amount' : 'Enter amount',
         prefixText: '₹ ',
         prefixStyle: const TextStyle(
             fontSize: 20,
@@ -1035,7 +1070,6 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Vehicle + auction details ───────────────────────────────────
   Widget _detailsCard() {
     final v = widget.vehicle;
     final location = [v.cityName, shortState(v.stateName)]
