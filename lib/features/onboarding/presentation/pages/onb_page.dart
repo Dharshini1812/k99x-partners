@@ -1,4 +1,5 @@
 import 'package:dealer/core/route/router.gr.dart';
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/login/presentation/logic/provider.dart';
 import 'package:dealer/features/onboarding/data/model/onb_model.dart';
 import 'package:dealer/features/onboarding/data/onb_data.dart';
@@ -17,7 +18,7 @@ class _DealerOnboardingPageState extends ConsumerState<DealerOnboardingPage> {
   final _pageController = PageController();
   int _currentPage = 0;
 
-  static const _visitedDotColor = Color(0xFF4A55F0);
+  static const _visitedDotColor = AppColors.primary;
   static const _upcomingDotColor = Color(0xFFE2E4EA);
 
   @override

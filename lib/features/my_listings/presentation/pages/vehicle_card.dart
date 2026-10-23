@@ -6,6 +6,7 @@ import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
 import 'package:dealer/features/my_listings/presentation/logic/provider.dart';
 import 'package:dealer/features/my_listings/presentation/widgets/pre-approved_tab.dart';
 import 'package:dealer/features/my_listings/presentation/widgets/veh_media_gallery_page.dart';
+import 'package:dealer/features/upload/presentation/logic/upload_provider.dart';
 import 'package:dealer/features/upload/presentation/logic/vehicle_edit_logic.dart';
 import 'package:dealer/features/upload/presentation/pages/vehicle_details_page.dart';
 import 'package:flutter/material.dart';
@@ -505,6 +506,8 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
             ],
           ),
         ),
+        // lib/features/my_listings/presentation/pages/vehicle_card.dart
+
         if (data.status == 'DRAFT')
           Positioned(
             top: -10,
@@ -513,14 +516,31 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
               color: Colors.transparent,
               child: InkWell(
                 onTap: () {
-                  final logic = widget.data.toListingModel();
+                  final vehicleId = widget.data.id ?? '';
+
+                  // Ensure vehicleId is assigned into the listing model
+                  final logic = widget.data.toListingModel().copyWith(
+                        vehicleId: vehicleId,
+                      );
+
                   ref.read(editVehicleProvider.notifier).update(
                         (state) => (
                           model: logic,
                           refreshKey: state.refreshKey + 1,
                         ),
                       );
+
+                  // 1. Store the vehicleId into listingProvider
                   ref.read(listingProvider.notifier).update((_) => logic);
+
+                  // 2. Fetch edit details via the existing fetcher
+                  if (vehicleId.isNotEmpty) {
+                    ref
+                        .read(editVehicleFetchNotifier.notifier)
+                        .fetchForEdit(vehicleId);
+                  }
+
+                  // 3. Switch bottom navigation to the Upload tab (index 2)
                   ref.read(bottomNavIndexProvider.notifier).state = 2;
                   ref.read(listingStepProvider.notifier).state = 0;
                 },

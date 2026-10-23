@@ -8,6 +8,7 @@ import 'package:dealer/features/upload/data/model/review_response_model.dart';
 import 'package:dealer/features/upload/data/model/upload_model.dart';
 import 'package:dealer/features/upload/data/model/vehicle_request_model.dart';
 import 'package:dealer/features/upload/data/model/vehicle_response_model.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 abstract class UploadDatasource {
@@ -22,6 +23,10 @@ abstract class UploadDatasource {
   Future<CompleteVehicleResponseModel> completeVehicleListing(
       CompleteVehicleRequestModel request);
   Future<EditVehicleResponseModel> getVehicleForEdit(String vehicleId);
+  Future<AddVehicleResponseModel> updateVehicleData({
+    required String vehicleId,
+    required AddVehicleRequestModel formData,
+  });
 }
 
 class UploadDatasourceImpl implements UploadDatasource {
@@ -46,6 +51,7 @@ class UploadDatasourceImpl implements UploadDatasource {
   }
 
   @override
+  @override
   Future<AddVehicleResponseModel> addVehicleData(
       AddVehicleRequestModel request) async {
     try {
@@ -53,9 +59,14 @@ class UploadDatasourceImpl implements UploadDatasource {
       final response =
           await ref.read(apiService).postMultipart(url, request.toFormData());
 
-      return AddVehicleResponseModel.fromJson(
-        response.data,
-      );
+      return AddVehicleResponseModel.fromJson(response.data);
+    } on DioException catch (e) {
+      log("Add Vehicle Dio Error: ${e.response?.data}");
+      final errorMsg =
+          e.response?.data is Map && e.response?.data['message'] != null
+              ? e.response?.data['message']
+              : 'Server returned error ${e.response?.statusCode}';
+      throw Exception(errorMsg);
     } catch (e) {
       log("Add Error : $e");
       rethrow;
@@ -113,6 +124,38 @@ class UploadDatasourceImpl implements UploadDatasource {
       return EditVehicleResponseModel.fromJson(response.data);
     } catch (e) {
       log("Get Vehicle For Edit Error : $e");
+      rethrow;
+    }
+  }
+
+  @override
+  Future<AddVehicleResponseModel> updateVehicleData({
+    required String vehicleId,
+    required AddVehicleRequestModel formData,
+  }) async {
+    try {
+      final form = formData.toFormData();
+
+      // Ensure vehicleId and id are cleanly passed in the multipart body without duplication
+      form.fields.removeWhere((e) => e.key == 'vehicleId' || e.key == 'id');
+      form.fields.add(MapEntry('vehicleId', vehicleId));
+      form.fields.add(MapEntry('id', vehicleId));
+
+      // Append vehicleId as query param to match the Servlet controller mapping
+      final editUrl = "${Url.editVehicleurl}?vehicleId=$vehicleId";
+
+      log("PUT(multipart) => $editUrl");
+      log("FIELDS => ${form.fields}");
+
+      final response = await ref.read(apiService).putMultipart(
+            editUrl,
+            form,
+          );
+
+      log("Response from $editUrl: ${response.statusCode} - ${response.data}");
+      return AddVehicleResponseModel.fromJson(response.data);
+    } catch (e) {
+      log("Edit Vehicle Error: $e");
       rethrow;
     }
   }

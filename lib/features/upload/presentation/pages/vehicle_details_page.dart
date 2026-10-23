@@ -3,6 +3,7 @@
 import 'package:dealer/core/common/presentation/provider.dart';
 import 'package:dealer/features/upload/data/model/vehicle_model.dart';
 import 'package:dealer/features/upload/data/model/vehicle_request_model.dart';
+import 'package:dealer/features/upload/data/model/vehicle_response_model.dart';
 import 'package:dealer/features/upload/presentation/logic/upload_provider.dart';
 import 'package:dealer/features/upload/presentation/logic/vehicle_edit_logic.dart';
 import 'package:dealer/features/upload/presentation/widgets/identification.dart';
@@ -40,8 +41,6 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
       Future.microtask(() => ref
           .read(editVehicleFetchNotifier.notifier)
           .fetchForEdit(widget.editVehicleId!));
-    } else {
-      Future.microtask(() => ref.read(getStateProvider.notifier).getState());
     }
   }
 
@@ -95,38 +94,143 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
     }
   }
 
+  void _showValidationError(String message) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // lib/features/upload/presentation/pages/vehicle_details_page.dart
+
   Future<void> _submitVehicleAndProceed() async {
     if (_isSubmittingVehicle) return;
 
     final listing = ref.read(listingProvider);
     final notifier = ref.read(listingProvider.notifier);
 
+    // Resolve vehicleId from widget parameter or listing state
+    final String? resolvedId = (widget.editVehicleId != null &&
+            widget.editVehicleId!.trim().isNotEmpty)
+        ? widget.editVehicleId!.trim()
+        : (listing.vehicleId != null && listing.vehicleId!.trim().isNotEmpty)
+            ? listing.vehicleId!.trim()
+            : null;
+
+    // ── Mandatory Field Validations ──
+    if ((listing.registrationNumber ?? '').trim().isEmpty) {
+      _showValidationError('Registration number is required.');
+      _goToStep(0);
+      return;
+    }
+    if (listing.year == null || (int.tryParse(listing.year!) ?? 0) <= 0) {
+      _showValidationError('Please select the manufacturing year.');
+      _goToStep(0);
+      return;
+    }
+    if (listing.make == null && (listing.savedMakeName ?? '').trim().isEmpty) {
+      _showValidationError('Please select the vehicle make.');
+      _goToStep(0);
+      return;
+    }
+    if (listing.model == null &&
+        (listing.savedModelName ?? '').trim().isEmpty) {
+      _showValidationError('Please select the vehicle model.');
+      _goToStep(0);
+      return;
+    }
+    if (listing.variant == null &&
+        (listing.savedVariantName ?? '').trim().isEmpty) {
+      _showValidationError('Please select the vehicle variant.');
+      _goToStep(0);
+      return;
+    }
+    if ((listing.bodyStyle ?? '').trim().isEmpty) {
+      _showValidationError('Please select the body style.');
+      _goToStep(0);
+      return;
+    }
+    if ((listing.mileageKm ?? '').trim().isEmpty ||
+        (int.tryParse(listing.mileageKm!) ?? -1) < 0) {
+      _showValidationError('Please enter valid mileage in KM.');
+      _goToStep(0);
+      return;
+    }
+    if ((listing.fuelType ?? '').trim().isEmpty) {
+      _showValidationError('Please select the fuel type.');
+      _goToStep(0);
+      return;
+    }
+    if ((listing.transmission ?? '').trim().isEmpty) {
+      _showValidationError('Please select the transmission.');
+      _goToStep(0);
+      return;
+    }
+    if ((listing.selectedState?.stateId ?? listing.savedStateId ?? 0) <= 0) {
+      _showValidationError('Please select the state.');
+      _goToStep(0);
+      return;
+    }
+    if ((listing.selectedCity?.cityId ?? listing.savedCityId ?? 0) <= 0) {
+      _showValidationError('Please select the city.');
+      _goToStep(0);
+      return;
+    }
+    if ((listing.engineCondition ?? '').trim().isEmpty) {
+      _showValidationError('Please select the engine condition.');
+      return;
+    }
+    if ((listing.exteriorCondition ?? '').trim().isEmpty) {
+      _showValidationError('Please select the exterior condition.');
+      return;
+    }
+    if ((listing.interiorCondition ?? '').trim().isEmpty) {
+      _showValidationError('Please select the interior condition.');
+      return;
+    }
+    if ((listing.numberOfOwners ?? '').trim().isEmpty ||
+        (int.tryParse(listing.numberOfOwners!) ?? -1) < 0) {
+      _showValidationError('Please enter the number of owners.');
+      return;
+    }
+    if ((listing.accidentHistory ?? '').trim().isEmpty) {
+      _showValidationError('Please select the accident history.');
+      return;
+    }
+
     setState(() => _isSubmittingVehicle = true);
 
+    // Pass resolvedId as vehicleId if present
     final request = AddVehicleRequestModel(
-      regNo: listing.registrationNumber ?? '',
-      makeName: listing.make?.name ?? '',
-      modelName: listing.model?.name ?? '',
-      variantName: listing.variant?.name ?? '',
-      mfgYear: int.tryParse(listing.year ?? '') ?? 0,
-      transmission: listing.transmission ?? '',
-      fuelType: listing.fuelType ?? '',
-      kmDriven: int.tryParse(listing.mileageKm ?? '') ?? 0,
-      bodyStyle: listing.bodyStyle ?? '',
-      stateId: listing.selectedState?.stateId ?? 0,
-      cityId: listing.selectedCity?.cityId ?? 0,
+      vehicleId: resolvedId,
+      regNo: listing.registrationNumber!.trim(),
+      makeName: listing.make?.name ?? listing.savedMakeName ?? '',
+      modelName: listing.model?.name ?? listing.savedModelName ?? '',
+      variantName: listing.variant?.name ?? listing.savedVariantName ?? '',
+      mfgYear: int.parse(listing.year!),
+      transmission: listing.transmission!,
+      fuelType: listing.fuelType!,
+      kmDriven: int.parse(listing.mileageKm!),
+      bodyStyle: listing.bodyStyle!,
+      stateId: listing.selectedState?.stateId ?? listing.savedStateId ?? 0,
+      cityId: listing.selectedCity?.cityId ?? listing.savedCityId ?? 0,
       dealerVehicleInspection: DealerVehicleInspection(
         rc: 0,
         engineCondition: _conditionScore(listing.engineCondition),
         interiorCondition: _conditionScore(listing.interiorCondition),
         exteriorCondition: _conditionScore(listing.exteriorCondition),
-        ownerCount: int.tryParse(listing.numberOfOwners ?? '') ?? 0,
-        accidentHistory: listing.accidentHistory ?? '',
+        ownerCount: int.parse(listing.numberOfOwners!),
+        accidentHistory: listing.accidentHistory!,
         remarks: '',
         overallCondition: 0,
       ),
     );
 
+    // Call addVehicleData for both add and edit flows
     final response =
         await ref.read(addVehicleData.notifier).addVehicleData(data: request);
 
@@ -134,17 +238,15 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
     setState(() => _isSubmittingVehicle = false);
 
     if (response == null || !response.success) {
-      final errorMsg = ref.read(addVehicleData).maybeWhen(
-            error: (msg) => msg,
-            orElse: () => 'Could not save vehicle details. Please try again.',
-          );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
-      );
+      final errorMsg = response?.message.isNotEmpty == true
+          ? response!.message
+          : 'Could not save vehicle details. Please try again.';
+      _showValidationError(errorMsg);
       return;
     }
 
-    notifier.update((s) => s.copyWith(vehicleId: response.data.vehicleId));
+    final targetVehicleId = resolvedId ?? (response.data?.vehicleId ?? '');
+    notifier.update((s) => s.copyWith(vehicleId: targetVehicleId));
     _goToStep(2);
   }
 
@@ -186,7 +288,10 @@ class _VehicleListingPageState extends ConsumerState<VehicleListingPage> {
         appBar: AppBar(
           backgroundColor: UploadColors.surface,
           elevation: 0.5,
-          title: const Text('Upload Vehicle', style: UploadText.pageTitle),
+          title: Text(
+            widget.editVehicleId != null ? 'Edit Vehicle' : 'Upload Vehicle',
+            style: UploadText.pageTitle,
+          ),
           leading: step == 0
               ? null
               : IconButton(

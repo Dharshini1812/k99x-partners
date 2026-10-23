@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 class AddVehicleRequestModel {
+  final String? vehicleId;
   final String regNo;
   final String makeName;
   final String modelName;
@@ -15,6 +16,7 @@ class AddVehicleRequestModel {
   final DealerVehicleInspection dealerVehicleInspection;
 
   AddVehicleRequestModel({
+    this.vehicleId,
     required this.regNo,
     required this.makeName,
     required this.modelName,
@@ -31,6 +33,10 @@ class AddVehicleRequestModel {
 
   FormData toFormData() {
     return FormData.fromMap({
+      if (vehicleId != null && vehicleId!.isNotEmpty) ...{
+        'vehicleId': vehicleId,
+        'id': vehicleId,
+      },
       'regNo': regNo,
       'makeName': makeName,
       'modelName': modelName,

@@ -17,9 +17,11 @@
 import 'package:dealer/features/upload/presentation/logic/upload/upload_state_x.dart';
 import 'package:dealer/features/upload/presentation/logic/upload_provider.dart';
 import 'package:dealer/features/upload/presentation/pages/vehicle_details_page.dart';
+import 'package:dealer/features/upload/presentation/widgets/landscape_camera_page.dart';
 import 'package:dealer/features/upload/presentation/widgets/media_card.dart';
 import 'package:dealer/features/upload/presentation/widgets/step_scaffold.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -36,6 +38,26 @@ class MediaCaptureStep extends ConsumerWidget {
     final vehicleId = listing.vehicleId ?? '';
 
     // lib/features/upload/presentation/pages/steps/media_capture_step.dart
+    Future<void> _runInLandscape(Future<void> Function() action) async {
+      try {
+        // 1. Lock screen to landscape orientation
+        await SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+
+        // Small delay to allow window metrics to adjust
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        // 2. Perform the capture action
+        await action();
+      } finally {
+        // 3. Always restore portrait orientation when camera closes
+        await SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+        ]);
+      }
+    }
 
     Future<void> handlePicked(
       String slotKey,
@@ -68,8 +90,19 @@ class MediaCaptureStep extends ConsumerWidget {
       void Function(String? path) onPicked,
       void Function(String? url) onUploaded,
     ) async {
-      final file = await picker.pickImage(source: ImageSource.camera);
-      if (file != null) await handlePicked(slotKey, file, onPicked, onUploaded);
+      final path = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const LandscapeCameraPage(
+            isVideo: false,
+            title: 'Capture Vehicle Photo',
+          ),
+        ),
+      );
+
+      if (path != null && path.isNotEmpty) {
+        await handlePicked(slotKey, XFile(path), onPicked, onUploaded);
+      }
     }
 
     Future<void> uploadImage(
@@ -86,8 +119,19 @@ class MediaCaptureStep extends ConsumerWidget {
       void Function(String? path) onPicked,
       void Function(String? url) onUploaded,
     ) async {
-      final file = await picker.pickVideo(source: ImageSource.camera);
-      if (file != null) await handlePicked(slotKey, file, onPicked, onUploaded);
+      final path = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const LandscapeCameraPage(
+            isVideo: true,
+            title: 'Record Vehicle Walkaround',
+          ),
+        ),
+      );
+
+      if (path != null && path.isNotEmpty) {
+        await handlePicked(slotKey, XFile(path), onPicked, onUploaded);
+      }
     }
 
     Future<void> uploadVideo(

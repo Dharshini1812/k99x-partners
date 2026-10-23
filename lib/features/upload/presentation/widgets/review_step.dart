@@ -25,77 +25,16 @@ class ReviewStep extends ConsumerStatefulWidget {
 class _ReviewStepState extends ConsumerState<ReviewStep> {
   bool _isCompleting = false;
 
-  Future<void> _submit(BuildContext context) async {
-    if (_isCompleting) return;
-
-    final listing = ref.read(listingProvider);
-    final vehicleId = listing.vehicleId;
-
-    if (vehicleId == null || vehicleId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Missing vehicle ID — please restart the listing.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    final dealerPrice =
-        double.tryParse(widget.dealerPriceController.text.trim());
-    if (dealerPrice == null || dealerPrice <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter a valid dealer expected price'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isCompleting = true);
-
-    final response = await ref.read(completeVehicleNotifier.notifier).complete(
-          CompleteVehicleRequestModel(
-            vehicleId: vehicleId,
-            dealerPrice: dealerPrice,
-          ),
-        );
-
-    if (!mounted) return;
-    setState(() => _isCompleting = false);
-
-    if (response == null || !response.success) {
-      final errorMsg = ref.read(completeVehicleNotifier).maybeWhen(
-            error: (msg) => msg,
-            orElse: () => 'Could not submit the listing. Please try again.',
-          );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
-      );
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          response.message.isNotEmpty
-              ? response.message
-              : 'Vehicle listed successfully!',
-        ),
-        backgroundColor: Colors.green,
-      ),
-    );
-
-    // ── 1. Clear All Local Controllers ─────────────────────────────────────────
+  void _resetFormAndGoHome(BuildContext context) {
+    // 1. Clear Local Controllers
     widget.dealerPriceController.clear();
 
-    // ── 2. Reset All Upload Form Riverpod States ──────────────────────────────
+    // 2. Reset All Upload Form Riverpod States
     ref.read(listingStepProvider.notifier).state = 0;
     ref.read(listingProvider.notifier).reset();
     ref.read(editVehicleProvider.notifier).state = (model: null, refreshKey: 0);
 
-    // ── 3. Reset All Media Upload Slot Providers ──────────────────────────────
+    // 3. Reset All Media Upload Slot Providers
     const mediaSlots = [
       MediaSlot.front,
       MediaSlot.odometer,
@@ -108,9 +47,152 @@ class _ReviewStepState extends ConsumerState<ReviewStep> {
       ref.read(uploadProvider(slot).notifier).reset();
     }
 
-    // ── 4. Redirect Back to Dashboard Tab (Index 0) ───────────────────────────
+    // 4. Set Bottom Nav Index to Home (Index 0) and Pop back
     ref.read(bottomNavIndexProvider.notifier).state = 0;
     Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  // lib/features/upload/presentation/widgets/review_step.dart
+
+  Future<void> _showSuccessDialog(
+    BuildContext context, {
+    required bool isEdit,
+    required String message,
+  }) {
+    final title = isEdit
+        ? 'Vehicle Updated Successfully!'
+        : 'Vehicle Listed Successfully!';
+
+    final defaultBody = isEdit
+        ? 'Your vehicle details have been updated successfully.'
+        : 'Your vehicle has been submitted for auction review.';
+
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        icon: const Icon(
+          Icons.check_circle_rounded,
+          color: Color(0xFF2E9E5B),
+          size: 48,
+        ),
+        title: Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+            color: Color(0xFF11142A),
+          ),
+        ),
+        content: Text(
+          message.isNotEmpty ? message : defaultBody,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 13.5,
+            color: Color(0xFF4B5563),
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          SizedBox(
+            width: 140,
+            height: 42,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.of(dialogCtx).pop();
+                _resetFormAndGoHome(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2E9E5B),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'Go to Home',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submit(BuildContext context) async {
+    if (_isCompleting) return;
+
+    final listing = ref.read(listingProvider);
+    final vehicleId = listing.vehicleId;
+
+    if (vehicleId == null || vehicleId.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Missing vehicle ID — please restart the listing flow.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Determine if this session was an edit
+    final isEdit = ref.read(editVehicleProvider).model != null ||
+        (listing.savedMakeName != null && listing.savedMakeName!.isNotEmpty);
+
+    final text = widget.dealerPriceController.text.trim();
+    final double? dealerPrice = text.isNotEmpty ? double.tryParse(text) : 0.0;
+
+    setState(() => _isCompleting = true);
+
+    try {
+      final response =
+          await ref.read(completeVehicleNotifier.notifier).complete(
+                CompleteVehicleRequestModel(
+                  vehicleId: vehicleId,
+                  dealerPrice: dealerPrice ?? 0.0,
+                ),
+              );
+
+      if (!mounted) return;
+      setState(() => _isCompleting = false);
+
+      if (response == null || !response.success) {
+        final errorMsg = ref.read(completeVehicleNotifier).maybeWhen(
+              error: (msg) => msg,
+              orElse: () => 'Could not submit the listing. Please try again.',
+            );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      // Display the dialog with edit/add contextual messaging
+      await _showSuccessDialog(
+        context,
+        isEdit: isEdit,
+        message: response.message,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isCompleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to submit listing: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -129,24 +211,7 @@ class _ReviewStepState extends ConsumerState<ReviewStep> {
           'Review all details before submitting your listing.',
           style: UploadText.stepSubtitle,
         ),
-
-        // reviewState.maybeWhen(
-        //   data: (review) =>
-        //       _EstimatedPrice(amount: review.data.vehicle.marketPrice),
-        //   orElse: () => _EstimatedPrice(amount: listing.estimatedMarketPrice),
-        // ),
-
         const SizedBox(height: 14),
-        CommonTextField(
-          label: 'Dealer Expected Price',
-          hint: 'Enter Dealer Expected Price in ₹',
-          controller: widget.dealerPriceController,
-          keyboardType: TextInputType.number,
-          onChanged: (v) =>
-              notifier.update((s) => s.copyWith(dealerExpectedPrice: v)),
-        ),
-        const SizedBox(height: 20),
-
         reviewState.maybeWhen(
           loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
@@ -218,7 +283,6 @@ class _ReviewStepState extends ConsumerState<ReviewStep> {
             ],
           ),
         ),
-
         const SizedBox(height: 16),
 
         // ── Full-Width Tappable Terms Agreement Row ──────────────────────────
@@ -283,34 +347,3 @@ class _ReviewStepState extends ConsumerState<ReviewStep> {
     );
   }
 }
-
-// class _EstimatedPrice extends StatelessWidget {
-//   final num? amount;
-
-//   const _EstimatedPrice({required this.amount});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Container(
-//       padding: const EdgeInsets.all(14),
-//       decoration: BoxDecoration(
-//         color: UploadColors.successBg,
-//         borderRadius: BorderRadius.circular(12),
-//       ),
-//       child: Column(
-//         children: [
-//           const Text('Your Estimated Market Price', style: UploadText.label),
-//           const SizedBox(height: 4),
-//           Text(
-//             amount != null ? '₹${amount!.toStringAsFixed(0)}' : '₹--',
-//             style: const TextStyle(
-//               fontSize: 22,
-//               fontWeight: FontWeight.w800,
-//               color: UploadColors.success,
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }

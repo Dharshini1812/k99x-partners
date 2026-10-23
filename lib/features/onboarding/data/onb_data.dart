@@ -1,17 +1,18 @@
 import 'dart:ui';
 
+import 'package:auto_route/auto_route.dart';
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/onboarding/data/model/onb_model.dart';
 
 const List<OnboardingPageData> kDealerOnboardingPages = [
   OnboardingPageData(
-    imagePath: 'images/onboarding/img1.jpg',
-    badge: '01',
-    step: 'STEP ONE',
-    title: 'Upload your car stock',
-    description:
-        'Snap two photos, add the videos and condition — your vehicle is live on the floor in minutes.',
-    themeColor: Color(0xFF4A55F0),
-  ),
+      imagePath: 'images/onboarding/img1.jpg',
+      badge: '01',
+      step: 'STEP ONE',
+      title: 'Upload your car stock',
+      description:
+          'Snap two photos, add the videos and condition — your vehicle is live on the floor in minutes.',
+      themeColor: AppColors.primary),
   OnboardingPageData(
     imagePath: 'images/onboarding/img2.jpg',
     badge: '02',

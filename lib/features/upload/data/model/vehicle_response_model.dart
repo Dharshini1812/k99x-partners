@@ -1,17 +1,19 @@
 class AddVehicleResponseModel {
-  final AddVehicleData data;
+  final AddVehicleData? data;
   final bool success;
   final String message;
 
   AddVehicleResponseModel({
-    required this.data,
+    this.data,
     required this.success,
     required this.message,
   });
 
   factory AddVehicleResponseModel.fromJson(Map<String, dynamic> json) {
     return AddVehicleResponseModel(
-      data: AddVehicleData.fromJson(json['data']),
+      data: json['data'] != null && json['data'] is Map<String, dynamic>
+          ? AddVehicleData.fromJson(json['data'])
+          : null,
       success: json['success'] ?? false,
       message: json['message'] ?? '',
     );
@@ -19,7 +21,7 @@ class AddVehicleResponseModel {
 
   Map<String, dynamic> toJson() {
     return {
-      'data': data.toJson(),
+      'data': data?.toJson(),
       'success': success,
       'message': message,
     };
@@ -35,7 +37,7 @@ class AddVehicleData {
 
   factory AddVehicleData.fromJson(Map<String, dynamic> json) {
     return AddVehicleData(
-      vehicleId: json['vehicleId'] ?? '',
+      vehicleId: json['vehicleId']?.toString() ?? '',
     );
   }
 

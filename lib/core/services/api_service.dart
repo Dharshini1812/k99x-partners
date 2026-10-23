@@ -1,8 +1,4 @@
-// Adjust this file's actual location to wherever ApiService/ApiServiceImpl
-// already live in your project — only `get()` changed (now takes an
-// optional `headers` param), everything else is identical to what you
-// pasted. Diff is isolated to the abstract method signature and the
-// get() implementation below.
+// lib/core/services/api_service.dart
 
 import 'dart:convert';
 import 'dart:developer';
@@ -29,14 +25,25 @@ abstract class ApiService {
     required String filePath,
   });
 
-  Future postMultipart(String url, FormData formData,
-      {bool requiresAuth = true});
+  Future postMultipart(
+    String url,
+    FormData formData, {
+    bool requiresAuth = true,
+  });
+
+  Future putMultipart(
+    String url,
+    FormData formData, {
+    bool requiresAuth = true,
+  });
+
   void cancelAllRequests([String reason]);
 }
 
 class ApiServiceImpl extends ApiService {
-  Ref ref;
+  final Ref ref;
   ApiServiceImpl(this.ref);
+
   final Dio dio = Dio(
     BaseOptions(
       headers: {
@@ -67,8 +74,6 @@ class ApiServiceImpl extends ApiService {
       e is DioException && e.type == DioExceptionType.cancel;
 
   Future<Map<String, String>> getAuthHeaders() async {
-    // CURRENT BASIC AUTH
-
     final storage = SecureStorageService();
 
     final username = await storage.getUsername();
@@ -98,10 +103,6 @@ class ApiServiceImpl extends ApiService {
   Future get(String url, {Map<String, String>? headers}) async {
     try {
       log("GET Request to: $url");
-      // Dio merges per-request Options.headers on top of BaseOptions'
-      // headers (Content-Type/Accept/X-API-KEY stay, these just add to
-      // them) — so passing e.g. {'X-USER-ID': '193'} here doesn't drop
-      // anything already set globally.
       final response = await dio.get(
         url,
         options: headers != null ? Options(headers: headers) : null,
@@ -140,11 +141,7 @@ class ApiServiceImpl extends ApiService {
         cancelToken: _activeToken,
       );
 
-      log(
-        'Response from $url: '
-        '${response.statusCode} - ${response.data}',
-      );
-
+      log('Response from $url: ${response.statusCode} - ${response.data}');
       return response;
     } catch (e) {
       if (_isCancellation(e)) {
@@ -193,7 +190,7 @@ class ApiServiceImpl extends ApiService {
       );
 
       log("Response from $url: ${response.statusCode} - ${response.data}");
-      return response.data; // <-- return the body, not the Response wrapper
+      return response.data;
     } catch (e) {
       if (_isCancellation(e)) {
         log("Request cancelled: $url");
@@ -241,7 +238,9 @@ class ApiServiceImpl extends ApiService {
         url,
         data: map,
         options: Options(
-            headers: await getAuthHeaders(), responseType: ResponseType.plain),
+          headers: await getAuthHeaders(),
+          responseType: ResponseType.plain,
+        ),
         cancelToken: _activeToken,
       );
 
@@ -323,6 +322,42 @@ class ApiServiceImpl extends ApiService {
         log("Request cancelled: $url");
       } else {
         log("Error during POST(multipart) request to $url: $e");
+      }
+      rethrow;
+    }
+  }
+
+  // lib/core/services/api_service.dart
+
+  @override
+  Future putMultipart(
+    String url,
+    FormData formData, {
+    bool requiresAuth = true,
+  }) async {
+    try {
+      log('PUT(multipart) => $url');
+      log('FIELDS => ${formData.fields}');
+      log('FILES => ${formData.files.map((f) => f.key)}');
+
+      final response = await dio.put(
+        url,
+        data: formData,
+        options: requiresAuth ? Options(headers: await getAuthHeaders()) : null,
+        cancelToken: _activeToken,
+      );
+
+      log('Response from $url: ${response.statusCode} - ${response.data}');
+      return response;
+    } on DioException catch (e) {
+      log("Dio PUT Error Status => ${e.response?.statusCode}");
+      log("Dio PUT Error Body => ${e.response?.data}");
+      rethrow;
+    } catch (e) {
+      if (_isCancellation(e)) {
+        log("Request cancelled: $url");
+      } else {
+        log("Error during PUT(multipart) request to $url: $e");
       }
       rethrow;
     }
