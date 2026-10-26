@@ -9,7 +9,6 @@ import 'package:dealer/features/live_auction/presentation/widgets/auction_card.d
 import 'package:dealer/features/live_auction/presentation/widgets/auction_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 class AuctionHomePage extends ConsumerStatefulWidget {
   final String eventId;
@@ -50,14 +49,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
 
   Future<void> _fetchVehicles() async {
     if (widget.isUpcoming) {
-      // ── UPCOMING ALONE: Hits admin/live/auction/json strictly without mode ──
-      final fromStr = widget.initialFromDate != null
-          ? DateFormat('yyyy-MM-dd').format(widget.initialFromDate!)
-          : null;
-      final toStr = widget.initialToDate != null
-          ? DateFormat('yyyy-MM-dd').format(widget.initialToDate!)
-          : null;
-
       final params = LiveAuctionParams(
         status: 'UPCOMING',
         lenderId: widget.lenderId,
@@ -67,7 +58,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
 
       await ref.read(liveAuctionNotifier.notifier).getLiveAuctions(params);
     } else {
-      // ── LIVE / QUOTE EVENTS: Hits /servlet/api/dealer/events/live/{eventId}/vehicles ──
       await ref
           .read(eventVehiclesNotifierProvider.notifier)
           .fetchEventVehicles(widget.eventId);
@@ -130,7 +120,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Search Bar
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Container(
@@ -184,8 +173,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
                 ),
               ),
             ),
-
-            // Vehicle Listing
             Expanded(
               child: RefreshIndicator(
                 color: AppColors.primary,
@@ -201,7 +188,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
     );
   }
 
-  // ── Render Upcoming API results (List<LiveAuctionModel>) ──────────
   Widget _buildUpcomingList() {
     final state = ref.watch(liveAuctionNotifier);
 
@@ -233,6 +219,9 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
               vehicle: filtered[i],
               isUpcoming: true,
               isQuotePrice: false,
+              eventId: widget.eventId,
+              eventMode: widget.initialMode,
+              eventLenderId: widget.lenderId,
             );
           },
         );
@@ -240,7 +229,6 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
     );
   }
 
-  // ── Render Normal Live / Quote Event Vehicles ─────────────────────
   Widget _buildLiveEventVehiclesList() {
     final state = ref.watch(eventVehiclesNotifierProvider);
 
@@ -273,8 +261,10 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
             return LiveAuctionCard(
               vehicle: filtered[i],
               isUpcoming: false,
-              isQuotePrice:
-                  _isQuoteMode, // Enables "Quote price" & "Start price (From)"[cite: 1]
+              isQuotePrice: _isQuoteMode,
+              eventId: widget.eventId,
+              eventMode: widget.initialMode,
+              eventLenderId: widget.lenderId,
             );
           },
         );

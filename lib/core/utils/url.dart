@@ -63,6 +63,11 @@ class Url {
   static const String activeBidsUrl = '${baseUrl}dealer/bid/my-bids/active';
   static const String historyUrl = '${baseUrl}dealer/bid/my-bids/history';
 
+  //meta
+
+  static const String metaUrlBid = '${base2url}meta/bid/max';
+  static const String metaUrlInsert = '${base2url}meta/bid/insert';
+
   //clent
 
   static const dashboardStatsUrl = '${baseUrl}client/dashboard';

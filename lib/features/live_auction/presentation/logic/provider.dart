@@ -15,6 +15,8 @@ import 'package:dealer/features/live_auction/domain/usecase/get_event_vehicles_u
 import 'package:dealer/features/live_auction/domain/usecase/get_events_usecae.dart';
 import 'package:dealer/features/live_auction/domain/usecase/get_live_uzecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/get_upcoming_events_usecase.dart';
+import 'package:dealer/features/live_auction/domain/usecase/meta_insert_usecase.dart';
+import 'package:dealer/features/live_auction/domain/usecase/meta_maxbid_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/place_bid_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/watch_add_usecase.dart';
 import 'package:dealer/features/live_auction/domain/usecase/watch_fetch_usecase.dart';
@@ -36,6 +38,8 @@ import 'package:dealer/features/live_auction/presentation/logic/get_live/get_liv
 import 'package:dealer/features/live_auction/presentation/logic/get_upcoming_events/get_up_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/get_upcoming_events/get_up_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/live_service_socket/live_bid_socket.notifier.dart';
+import 'package:dealer/features/live_auction/presentation/logic/meta_insert_max/meta_bid_notifier.dart';
+import 'package:dealer/features/live_auction/presentation/logic/meta_insert_max/meta_bid_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/place_bid/place_bid_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/place_bid/place_bid_state.dart';
 import 'package:dealer/features/live_auction/presentation/logic/vehicle_detail/vehicle_detail_notifier.dart';
@@ -217,4 +221,25 @@ final bidHistoryNotifierProvider =
         (ref) {
   final useCase = ref.read(_getBidHistoryUseCaseProvider);
   return BidHistoryNotifier(useCase);
+});
+
+//meta
+
+final getMetaHighestBidUseCaseProvider =
+    Provider<GetMetaHighestBidUseCase>((ref) {
+  return GetMetaHighestBidUseCase(ref.read(_auctionRepository));
+});
+
+final insertMetaBidUseCaseProvider = Provider<InsertMetaBidUseCase>((ref) {
+  return InsertMetaBidUseCase(ref.read(_auctionRepository));
+});
+
+final metaHighestBidNotifierProvider =
+    StateNotifierProvider<MetaHighestBidNotifier, MetaHighestBidState>((ref) {
+  return MetaHighestBidNotifier(ref.read(getMetaHighestBidUseCaseProvider));
+});
+
+final insertMetaBidNotifierProvider =
+    StateNotifierProvider<InsertMetaBidNotifier, InsertMetaBidState>((ref) {
+  return InsertMetaBidNotifier(ref.read(insertMetaBidUseCaseProvider));
 });

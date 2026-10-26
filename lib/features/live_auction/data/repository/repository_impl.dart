@@ -8,6 +8,7 @@ import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart'
 import 'package:dealer/features/live_auction/data/model/bid_history_model.dart';
 import 'package:dealer/features/live_auction/data/model/event_model.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
+import 'package:dealer/features/live_auction/data/model/meta_model.dart';
 import 'package:dealer/features/live_auction/data/model/new_auction_detail_model.dart';
 import 'package:dealer/features/live_auction/data/model/place_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/watch_request_model.dart';
@@ -134,5 +135,16 @@ class AuctionRepositoryImpl implements AuctionRepository {
     } catch (e) {
       rethrow;
     }
+  }
+
+  @override
+  Future<MetaBidResponseModel> getHighestBid(
+      {required String eventId, required String loanNo}) {
+    return datasource.getHighestBid(eventId: eventId, loanNo: loanNo);
+  }
+
+  @override
+  Future<MetaBidResponseModel> insertBid(InsertMetaBidRequestModel request) {
+    return datasource.insertBid(request);
   }
 }

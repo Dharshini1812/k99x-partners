@@ -6,6 +6,7 @@ import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
+import 'package:dealer/features/live_auction/presentation/logic/meta_insert_max/meta_bid_notifier.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/glitter_shimmer_button.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/place_bid_sheet.dart';
@@ -22,6 +23,9 @@ class LiveAuctionCard extends ConsumerStatefulWidget {
   final bool isQuotePrice;
   final bool isBidHistory;
   final String? statusBadge;
+  final String? eventId;
+  final String? eventMode;
+  final int? eventLenderId;
 
   const LiveAuctionCard({
     super.key,
@@ -30,6 +34,9 @@ class LiveAuctionCard extends ConsumerStatefulWidget {
     this.isQuotePrice = false,
     this.isBidHistory = false,
     this.statusBadge,
+    this.eventId,
+    this.eventMode,
+    this.eventLenderId,
   });
 
   @override
@@ -40,6 +47,17 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
   Timer? _timer;
   Duration _remaining = Duration.zero;
   bool _ended = false;
+
+  bool get _isMetaMode {
+    final m = (widget.eventMode ?? widget.vehicle.mode?.toString())
+        ?.trim()
+        .toUpperCase();
+    return m == '1' || m == 'META';
+  }
+
+  int get _resolvedLenderId {
+    return widget.eventLenderId ?? widget.vehicle.lenderId ?? 0;
+  }
 
   @override
   void initState() {
@@ -112,9 +130,6 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     return dtStr;
   }
 
-  /// Resolves the current bid:
-  /// 1. Prioritizes the live `highestBid` from BidActivityData (if matching vehicleId)
-  /// 2. Falls back to the latest amount in vehicle.bids
   double? _currentBidAmount(LiveAuctionModel v) {
     final liveActivity = ref.watch(bidActivityNotifierProvider).maybeWhen(
           data: (data) =>
@@ -196,7 +211,13 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => PlaceBidSheet(vehicle: widget.vehicle, mode: mode),
+      builder: (_) => PlaceBidSheet(
+        vehicle: widget.vehicle,
+        mode: mode,
+        isMetaMode: _isMetaMode,
+        eventId: widget.eventId,
+        lenderId: _resolvedLenderId,
+      ),
     );
 
     if (result != null && mounted) {
@@ -300,6 +321,41 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
   @override
   Widget build(BuildContext context) {
     final v = widget.vehicle;
+    final bool isMeta = _isMetaMode;
+    final int resolvedLender = _resolvedLenderId;
+    final String currentEventId = widget.eventId ?? '';
+    // Use loanNo/agreementNo for Meta identification, falling back to vehicleId:
+    final String currentLoanNo =
+        (v.loanNo?.isNotEmpty == true ? v.loanNo : v.loanNo) ??
+            v.vehicleId ??
+            '';
+
+    final metaBidState = (isMeta &&
+            currentEventId.isNotEmpty &&
+            currentLoanNo.isNotEmpty &&
+            resolvedLender > 0)
+        ? ref.watch(
+            metaHighestBidFamilyProvider(
+              (
+                eventId: currentEventId,
+                itemId: currentLoanNo,
+              ),
+            ),
+          )
+        : null;
+
+    final metaBidData = metaBidState?.maybeWhen(
+      loaded: (data) => data,
+      orElse: () => null,
+    );
+
+    final currentBid = isMeta
+        ? metaBidData?.highestBidAmount?.toDouble()
+        : _currentBidAmount(v);
+
+    final String? winningStatus =
+        isMeta ? metaBidData?.winningStatus : widget.statusBadge;
+
     final title = [v.mfgYear, v.make, v.model, v.variant]
         .where((e) => e != null && e.toString().trim().isNotEmpty)
         .join(' ');
@@ -313,7 +369,6 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
           ? '${v.ownerCount} owner${v.ownerCount == 1 ? '' : 's'}'
           : null,
     ].where((e) => e != null).join(' • ');
-    final currentBid = _currentBidAmount(v);
 
     final bool isUpcoming = widget.isUpcoming ||
         (v.status ?? '').trim().toUpperCase() == 'UPCOMING';
@@ -322,8 +377,8 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
         v.mode == 3 ||
         (v.status ?? '').trim().toUpperCase() == 'QUOTE';
 
-    final isWinning = widget.statusBadge?.toUpperCase() == 'WINNING';
-    final isOutbid = widget.statusBadge?.toUpperCase() == 'OUTBID';
+    final isWinning = winningStatus?.toUpperCase() == 'WINNING';
+    final isOutbid = winningStatus?.toUpperCase() == 'OUTBID';
 
     final watchlistState = ref.watch(watchlistNotifierProvider);
     final isWatchlisted = watchlistState.maybeWhen(
@@ -363,9 +418,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                 onTap: () => _openImageSliderDialog(context),
                 child: _AuctionThumbnail(imageUrl: v.imageUrl?.url ?? ''),
               ),
-
-              // Status Badge Tile (WINNING / OUTBID)
-              if (widget.statusBadge != null && widget.statusBadge!.isNotEmpty)
+              if (winningStatus != null && winningStatus.isNotEmpty)
                 Positioned(
                   top: 10,
                   left: 10,
@@ -397,7 +450,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          widget.statusBadge!.toUpperCase(),
+                          winningStatus.toUpperCase(),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 11,
@@ -409,7 +462,6 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                     ),
                   ),
                 ),
-
               Positioned(
                 top: 10,
                 right: 10,
@@ -467,35 +519,6 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                   ),
                 ),
               ),
-              if ((v.imageUrls?.length ?? 0) > 1)
-                Positioned(
-                  bottom: 10,
-                  left: 65,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.photo_library_outlined,
-                            size: 12, color: Colors.white),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${v.imageUrls!.length}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
             ],
           ),
           Padding(
@@ -503,18 +526,13 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      location.isNotEmpty ? location : '-',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ],
+                Text(
+                  location.isNotEmpty ? location : '-',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    color: Colors.black54,
+                  ),
                 ),
                 Text(
                   title.isNotEmpty ? title : 'Vehicle',
@@ -526,13 +544,8 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                 if (specs.isNotEmpty)
                   Text(
                     specs,
-                    style: const TextStyle(
-                      color: Colors.black54,
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(color: Colors.black54, fontSize: 12),
                   ),
-
-                // ── LENDER & PRICE ROW ──
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -589,10 +602,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 6),
-
-                // ── SECOND ROW: BID DATE (HISTORY) VS TIMER (ACTIVE) ──
                 if (widget.isBidHistory) ...[
                   Row(
                     children: [
@@ -677,10 +687,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                         ),
                     ],
                   ),
-
                   const SizedBox(height: 10),
-
-                  // Action Buttons (Only for active auctions)
                   if (isUpcoming) ...[
                     Container(
                       width: double.infinity,
@@ -691,34 +698,42 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                         border: Border.all(color: const Color(0xFFE5E7EB)),
                       ),
                       child: const Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.schedule_rounded,
-                                size: 16, color: Color(0xFF6B7280)),
-                            SizedBox(width: 6),
-                            Text(
-                              'Auction Starts Soon',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                color: Color(0xFF6B7280),
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          'Auction Starts Soon',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: Color(0xFF6B7280),
+                          ),
                         ),
                       ),
                     ),
                   ] else if (isQuote) ...[
                     GlitterShimmerButton(
                       onPressed: _ended ? null : _openQuotePriceSheet,
-                      text: 'Quote price',
+                      text: 'QUOTE PRICE',
                       icon: Icons.request_quote_rounded,
                       gradientColors: const [
                         Color(0xFFD97706),
                         Color(0xFFF59E0B),
                         Color(0xFFB45309),
                       ],
+                    ),
+                  ] else if (isMeta) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: GlitterShimmerButton(
+                        onPressed: _ended
+                            ? null
+                            : () => _openBidSheet(BidSheetMode.bid),
+                        text: 'BID NOW',
+                        icon: Icons.gavel_rounded,
+                        gradientColors: const [
+                          Color(0xFF4F46E5),
+                          Color(0xFF7C3AED),
+                          Color(0xFFDB2777),
+                        ],
+                      ),
                     ),
                   ] else ...[
                     Row(
@@ -737,7 +752,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                               ),
                             ),
                             child: const Text(
-                              'Auto bid',
+                              'AUTO BID',
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
@@ -748,7 +763,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                             onPressed: _ended
                                 ? null
                                 : () => _openBidSheet(BidSheetMode.bid),
-                            text: 'Bid',
+                            text: 'BID NOW',
                             icon: Icons.gavel_rounded,
                             gradientColors: const [
                               Color(0xFF4F46E5),

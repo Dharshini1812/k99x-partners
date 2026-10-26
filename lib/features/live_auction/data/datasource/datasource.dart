@@ -8,6 +8,7 @@ import 'package:dealer/features/live_auction/data/model/auto_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/bid_history_model.dart';
 import 'package:dealer/features/live_auction/data/model/event_model.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
+import 'package:dealer/features/live_auction/data/model/meta_model.dart';
 import 'package:dealer/features/live_auction/data/model/new_auction_detail_model.dart';
 import 'package:dealer/features/live_auction/data/model/place_bid_model.dart';
 import 'package:dealer/features/live_auction/data/model/watch_request_model.dart';
@@ -44,6 +45,12 @@ abstract class AuctionDatasource {
   Future<EventVehiclesResponse> fetchEventVehicles(String eventId);
   Future<ActiveBidsResponse> getActiveBids();
   Future<BidHistoryResponse> getBidHistory();
+  Future<MetaBidResponseModel> getHighestBid({
+    required String eventId,
+    required String loanNo,
+  });
+
+  Future<MetaBidResponseModel> insertBid(InsertMetaBidRequestModel request);
 }
 
 class AuctionDatasourceImpl implements AuctionDatasource {
@@ -253,6 +260,56 @@ class AuctionDatasourceImpl implements AuctionDatasource {
     final api = ref.read(apiService);
     final response = await api.get1(Url.historyUrl);
     return BidHistoryResponse.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<MetaBidResponseModel> getHighestBid({
+    required String eventId,
+    required String loanNo,
+  }) async {
+    try {
+      // Required param lenderId appended to query string
+      final url = '${Url.metaUrlBid}$eventId/$loanNo';
+      log('GET => $url');
+
+      final response = await ref.read(apiService).get1(url) as Response;
+      return MetaBidResponseModel.fromJson(
+          response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      log('Meta Highest Bid Dio Error: ${e.response?.data}');
+      if (e.response?.data != null &&
+          e.response!.data is Map<String, dynamic>) {
+        return MetaBidResponseModel.fromJson(
+            e.response!.data as Map<String, dynamic>);
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<MetaBidResponseModel> insertBid(
+      InsertMetaBidRequestModel request) async {
+    try {
+      const url = Url.metaUrlInsert;
+      log('POST => $url');
+      log('BODY => ${request.toJson()}');
+
+      final response = await ref.read(apiService).post1(
+            url,
+            request.toJson(),
+          ) as Response;
+
+      return MetaBidResponseModel.fromJson(
+          response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      log('Meta Insert Bid Dio Error: ${e.response?.data}');
+      if (e.response?.data != null &&
+          e.response!.data is Map<String, dynamic>) {
+        return MetaBidResponseModel.fromJson(
+            e.response!.data as Map<String, dynamic>);
+      }
+      rethrow;
+    }
   }
 }
 
