@@ -5,8 +5,9 @@ import 'package:dealer/core/helper/feedback_helper.dart';
 import 'package:dealer/core/helper/other_helper.dart';
 import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/dashboard/presentation/logic/dasboardlogic.dart';
+import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
 import 'package:dealer/features/live_auction/data/model/live_model.dart';
-import 'package:dealer/features/live_auction/presentation/logic/meta_insert_max/meta_bid_notifier.dart';
+import 'package:dealer/features/live_auction/presentation/logic/auction_logic.dart';
 import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/glitter_shimmer_button.dart';
 import 'package:dealer/features/live_auction/presentation/widgets/place_bid_sheet.dart';
@@ -23,9 +24,6 @@ class LiveAuctionCard extends ConsumerStatefulWidget {
   final bool isQuotePrice;
   final bool isBidHistory;
   final String? statusBadge;
-  final String? eventId;
-  final String? eventMode;
-  final int? eventLenderId;
 
   const LiveAuctionCard({
     super.key,
@@ -34,9 +32,6 @@ class LiveAuctionCard extends ConsumerStatefulWidget {
     this.isQuotePrice = false,
     this.isBidHistory = false,
     this.statusBadge,
-    this.eventId,
-    this.eventMode,
-    this.eventLenderId,
   });
 
   @override
@@ -47,17 +42,6 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
   Timer? _timer;
   Duration _remaining = Duration.zero;
   bool _ended = false;
-
-  bool get _isMetaMode {
-    final m = (widget.eventMode ?? widget.vehicle.mode?.toString())
-        ?.trim()
-        .toUpperCase();
-    return m == '1' || m == 'META';
-  }
-
-  int get _resolvedLenderId {
-    return widget.eventLenderId ?? widget.vehicle.lenderId ?? 0;
-  }
 
   @override
   void initState() {
@@ -130,25 +114,6 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     return dtStr;
   }
 
-  double? _currentBidAmount(LiveAuctionModel v) {
-    final liveActivity = ref.watch(bidActivityNotifierProvider).maybeWhen(
-          data: (data) =>
-              (data.auction?.vehicleId == v.vehicleId) ? data : null,
-          orElse: () => null,
-        );
-
-    if (liveActivity?.highestBid != null && liveActivity!.highestBid! > 0) {
-      return liveActivity.highestBid!.toDouble();
-    }
-
-    final bids = v.bids;
-    if (bids == null || bids.isEmpty) return null;
-
-    final sorted = List<BidsModel>.from(bids)
-      ..sort((a, b) => (b.amount ?? 0).compareTo(a.amount ?? 0));
-    return sorted.first.amount;
-  }
-
   @override
   void dispose() {
     _timer?.cancel();
@@ -211,18 +176,13 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => PlaceBidSheet(
-        vehicle: widget.vehicle,
-        mode: mode,
-        isMetaMode: _isMetaMode,
-        eventId: widget.eventId,
-        lenderId: _resolvedLenderId,
-      ),
+      builder: (_) => PlaceBidSheet(vehicle: widget.vehicle, mode: mode),
     );
 
     if (result != null && mounted) {
       await FeedbackHelper.success();
       if (vehicleId != null && vehicleId.isNotEmpty) {
+        ref.invalidate(cardBidActivityProvider(vehicleId));
         ref
             .read(bidActivityNotifierProvider.notifier)
             .fetchBidActivity(vehicleId, silent: true);
@@ -321,40 +281,49 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
   @override
   Widget build(BuildContext context) {
     final v = widget.vehicle;
-    final bool isMeta = _isMetaMode;
-    final int resolvedLender = _resolvedLenderId;
-    final String currentEventId = widget.eventId ?? '';
-    // Use loanNo/agreementNo for Meta identification, falling back to vehicleId:
-    final String currentLoanNo =
-        (v.loanNo?.isNotEmpty == true ? v.loanNo : v.loanNo) ??
-            v.vehicleId ??
-            '';
+    final vehicleId = v.vehicleId ?? '';
 
-    final metaBidState = (isMeta &&
-            currentEventId.isNotEmpty &&
-            currentLoanNo.isNotEmpty &&
-            resolvedLender > 0)
-        ? ref.watch(
-            metaHighestBidFamilyProvider(
-              (
-                eventId: currentEventId,
-                itemId: currentLoanNo,
-              ),
-            ),
-          )
-        : null;
+    // ── 1. Automatically fetch & watch bid activity for this specific card ──
+    final cardBidAsync = vehicleId.isNotEmpty
+        ? ref.watch(cardBidActivityProvider(vehicleId))
+        : const AsyncValue.data(null);
 
-    final metaBidData = metaBidState?.maybeWhen(
-      loaded: (data) => data,
+    final BidActivityData? liveData = cardBidAsync.maybeWhen(
+      data: (data) => data,
       orElse: () => null,
     );
 
-    final currentBid = isMeta
-        ? metaBidData?.highestBidAmount?.toDouble()
-        : _currentBidAmount(v);
+    // ── 2. Get the logged-in user's highest bid from the fetched bid activity ──
+    final currentUserId = ref.watch(dLogic).user?.userId;
+    double? userCurrentBid;
 
-    final String? winningStatus =
-        isMeta ? metaBidData?.winningStatus : widget.statusBadge;
+    if (liveData?.bids != null &&
+        liveData!.bids!.isNotEmpty &&
+        currentUserId != null) {
+      final userBids = liveData.bids!
+          .where((b) => b.dealerId == currentUserId && (b.amount ?? 0) > 0)
+          .toList()
+        ..sort((a, b) => (b.amount ?? 0).compareTo(a.amount ?? 0));
+
+      if (userBids.isNotEmpty) {
+        userCurrentBid = userBids.first.amount;
+      }
+    }
+
+    // ── 3. Fallback: general highest bid on the vehicle if user has not bid ──
+    double? generalHighestBid;
+    if (liveData?.highestBid != null && liveData!.highestBid! > 0) {
+      generalHighestBid = liveData.highestBid!.toDouble();
+    } else if (v.bids != null && v.bids!.isNotEmpty) {
+      final sorted = List<BidsModel>.from(v.bids!)
+        ..sort((a, b) => (b.amount ?? 0).compareTo(a.amount ?? 0));
+      generalHighestBid = sorted.first.amount;
+    } else if (v.winningBid != null && v.winningBid! > 0) {
+      generalHighestBid = v.winningBid!.toDouble();
+    }
+
+    // Display user's current bid if they have one; otherwise display general highest bid
+    final double? displayCurrentBid = userCurrentBid ?? generalHighestBid;
 
     final title = [v.mfgYear, v.make, v.model, v.variant]
         .where((e) => e != null && e.toString().trim().isNotEmpty)
@@ -377,8 +346,14 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
         v.mode == 3 ||
         (v.status ?? '').trim().toUpperCase() == 'QUOTE';
 
-    final isWinning = winningStatus?.toUpperCase() == 'WINNING';
-    final isOutbid = winningStatus?.toUpperCase() == 'OUTBID';
+    // Status badge (WINNING / OUTBID) strictly for Bid History
+    final bool showHistoryStatusBadge = widget.isBidHistory &&
+        widget.statusBadge != null &&
+        widget.statusBadge!.isNotEmpty;
+    final bool isWinning = showHistoryStatusBadge &&
+        widget.statusBadge!.toUpperCase() == 'WINNING';
+    final bool isOutbid =
+        showHistoryStatusBadge && widget.statusBadge!.toUpperCase() == 'OUTBID';
 
     final watchlistState = ref.watch(watchlistNotifierProvider);
     final isWatchlisted = watchlistState.maybeWhen(
@@ -418,7 +393,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                 onTap: () => _openImageSliderDialog(context),
                 child: _AuctionThumbnail(imageUrl: v.imageUrl?.url ?? ''),
               ),
-              if (winningStatus != null && winningStatus.isNotEmpty)
+              if (showHistoryStatusBadge)
                 Positioned(
                   top: 10,
                   left: 10,
@@ -450,7 +425,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          winningStatus.toUpperCase(),
+                          widget.statusBadge!.toUpperCase(),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 11,
@@ -526,13 +501,18 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  location.isNotEmpty ? location : '-',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11,
-                    color: Colors.black54,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      location.isNotEmpty ? location : '-',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
                 ),
                 Text(
                   title.isNotEmpty ? title : 'Vehicle',
@@ -544,8 +524,13 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                 if (specs.isNotEmpty)
                   Text(
                     specs,
-                    style: const TextStyle(color: Colors.black54, fontSize: 12),
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 12,
+                    ),
                   ),
+
+                // ── LENDER & BASE PRICE ROW ──
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -572,11 +557,9 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                               ),
                             ),
                             TextSpan(
-                              text: currentBid != null
-                                  ? _formatPrice(currentBid.toInt())
-                                  : (v.winningBid != null
-                                      ? _formatPrice(v.winningBid!.toInt())
-                                      : '₹--'),
+                              text: displayCurrentBid != null
+                                  ? _formatPrice(displayCurrentBid.toInt())
+                                  : '₹--',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF0F172A),
@@ -602,7 +585,10 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 6),
+
+                // ── TIMER VS CURRENT BID ──
                 if (widget.isBidHistory) ...[
                   Row(
                     children: [
@@ -660,14 +646,19 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                             style: const TextStyle(
                                 fontSize: 14, color: Colors.black),
                             children: [
-                              const TextSpan(
-                                text: 'Current Bid: ',
-                                style: TextStyle(fontWeight: FontWeight.normal),
+                              TextSpan(
+                                text: userCurrentBid != null
+                                    ? 'Your Bid: '
+                                    : 'Current Bid: ',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.normal),
                               ),
                               TextSpan(
-                                text: currentBid != null
-                                    ? _formatPrice(currentBid.toInt())
-                                    : 'No bids yet',
+                                text: displayCurrentBid != null
+                                    ? _formatPrice(displayCurrentBid.toInt())
+                                    : (cardBidAsync.isLoading
+                                        ? 'Loading...'
+                                        : 'No bids yet'),
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold),
                               ),
@@ -687,7 +678,10 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                         ),
                     ],
                   ),
+
                   const SizedBox(height: 10),
+
+                  // Action Buttons
                   if (isUpcoming) ...[
                     Container(
                       width: double.infinity,
@@ -698,42 +692,34 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                         border: Border.all(color: const Color(0xFFE5E7EB)),
                       ),
                       child: const Center(
-                        child: Text(
-                          'Auction Starts Soon',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                            color: Color(0xFF6B7280),
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.schedule_rounded,
+                                size: 16, color: Color(0xFF6B7280)),
+                            SizedBox(width: 6),
+                            Text(
+                              'Auction Starts Soon',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ] else if (isQuote) ...[
                     GlitterShimmerButton(
                       onPressed: _ended ? null : _openQuotePriceSheet,
-                      text: 'QUOTE PRICE',
+                      text: 'Quote price',
                       icon: Icons.request_quote_rounded,
                       gradientColors: const [
                         Color(0xFFD97706),
                         Color(0xFFF59E0B),
                         Color(0xFFB45309),
                       ],
-                    ),
-                  ] else if (isMeta) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: GlitterShimmerButton(
-                        onPressed: _ended
-                            ? null
-                            : () => _openBidSheet(BidSheetMode.bid),
-                        text: 'BID NOW',
-                        icon: Icons.gavel_rounded,
-                        gradientColors: const [
-                          Color(0xFF4F46E5),
-                          Color(0xFF7C3AED),
-                          Color(0xFFDB2777),
-                        ],
-                      ),
                     ),
                   ] else ...[
                     Row(
@@ -752,7 +738,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                               ),
                             ),
                             child: const Text(
-                              'AUTO BID',
+                              'Auto bid',
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
@@ -763,7 +749,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                             onPressed: _ended
                                 ? null
                                 : () => _openBidSheet(BidSheetMode.bid),
-                            text: 'BID NOW',
+                            text: 'Bid now',
                             icon: Icons.gavel_rounded,
                             gradientColors: const [
                               Color(0xFF4F46E5),
@@ -992,7 +978,7 @@ class _ImageGallerySliderDialogState extends State<_ImageGallerySliderDialog> {
                   border: Border.all(color: Colors.white24, width: 0.8),
                 ),
                 child: Text(
-                  '${_currentIndex + 1} /$total',
+                  '${_currentIndex + 1} / $total',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,

@@ -219,9 +219,9 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
               vehicle: filtered[i],
               isUpcoming: true,
               isQuotePrice: false,
-              eventId: widget.eventId,
-              eventMode: widget.initialMode,
-              eventLenderId: widget.lenderId,
+              // eventId: widget.eventId,
+              // eventMode: widget.initialMode,
+              // eventLenderId: widget.lenderId,
             );
           },
         );
@@ -262,9 +262,9 @@ class _AuctionHomePageState extends ConsumerState<AuctionHomePage> {
               vehicle: filtered[i],
               isUpcoming: false,
               isQuotePrice: _isQuoteMode,
-              eventId: widget.eventId,
-              eventMode: widget.initialMode,
-              eventLenderId: widget.lenderId,
+              // eventId: widget.eventId,
+              // eventMode: widget.initialMode,
+              // eventLenderId: widget.lenderId,
             );
           },
         );

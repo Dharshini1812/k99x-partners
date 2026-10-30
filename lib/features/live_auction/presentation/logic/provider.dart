@@ -2,6 +2,7 @@
 
 import 'package:dealer/features/live_auction/data/datasource/datasource.dart';
 import 'package:dealer/features/live_auction/data/model/active_bid_model.dart';
+import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
 import 'package:dealer/features/live_auction/data/model/bid_history_model.dart';
 import 'package:dealer/features/live_auction/data/repository/repository_impl.dart';
 import 'package:dealer/features/live_auction/domain/repository/repository.dart';
@@ -223,7 +224,29 @@ final bidHistoryNotifierProvider =
   return BidHistoryNotifier(useCase);
 });
 
-//meta
+// lib/features/live_auction/presentation/logic/provider.dart
+
+// lib/features/live_auction/presentation/logic/provider.dart
+
+// lib/features/live_auction/presentation/logic/provider.dart
+
+final cardBidActivityProvider =
+    FutureProvider.autoDispose.family<BidActivityData?, String>(
+  (ref, vehicleId) async {
+    if (vehicleId.trim().isEmpty) return null;
+    try {
+      final res = await ref.read(bidActivityUseCaseProvider).call(vehicleId);
+
+      // Use .fold to extract the right (success) value or null on left (failure)
+      return res.fold(
+        (failure) => null,
+        (bidActivityData) => bidActivityData,
+      );
+    } catch (_) {
+      return null;
+    }
+  },
+);
 
 final getMetaHighestBidUseCaseProvider =
     Provider<GetMetaHighestBidUseCase>((ref) {

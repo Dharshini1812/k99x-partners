@@ -931,7 +931,7 @@ class _TabsRow extends StatelessWidget {
                             item.label,
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 13,
                               fontWeight: item.tab == activeTab
                                   ? FontWeight.w800
                                   : FontWeight.w600,

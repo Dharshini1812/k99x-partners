@@ -319,7 +319,7 @@ class _VehicleFilterBarState extends State<VehicleFilterBar> {
                       Text(
                         make.name,
                         style: TextStyle(
-                          fontSize: 10.5,
+                          fontSize: 11,
                           fontWeight:
                               isSelected ? FontWeight.w700 : FontWeight.w500,
                           color: isSelected
@@ -427,48 +427,27 @@ class _VehicleFilterBarState extends State<VehicleFilterBar> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: _FilterPill(
-                        label: 'Model',
-                        value: _filters.model ?? 'All',
-                        onTap: () => _openPicker(
-                          title: 'Select Model',
-                          options: const [
-                            'All',
-                            'Alto',
-                            'Swift',
-                            'Dzire',
-                            'Baleno'
-                          ],
-                          current: _filters.model ?? 'All',
-                          onPicked: (v) => setState(() {
-                            _filters.model = v;
-                            widget.onFilterChanged?.call(_filters);
-                          }),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _FilterPill(
-                        label: 'Owners',
-                        value: _filters.owners ?? 'All',
-                        onTap: () => _openPicker(
-                          title: 'Select Owners',
-                          options: const ['All', '1', '2', '3+'],
-                          current: _filters.owners ?? 'All',
-                          onPicked: (v) => setState(() {
-                            _filters.owners = v;
-                            widget.onFilterChanged?.call(_filters);
-                          }),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
+                    // Expanded(
+                    //   child: _FilterPill(
+                    //     label: 'Model',
+                    //     value: _filters.model ?? 'All',
+                    //     onTap: () => _openPicker(
+                    //       title: 'Select Model',
+                    //       options: const [
+                    //         'All',
+                    //         'Alto',
+                    //         'Swift',
+                    //         'Dzire',
+                    //         'Baleno'
+                    //       ],
+                    //       current: _filters.model ?? 'All',
+                    //       onPicked: (v) => setState(() {
+                    //         _filters.model = v;
+                    //         widget.onFilterChanged?.call(_filters);
+                    //       }),
+                    //     ),
+                    //   ),
+                    // ),
                     Expanded(
                       child: _FilterPill(
                         label: 'Stock Age',
@@ -492,6 +471,48 @@ class _VehicleFilterBarState extends State<VehicleFilterBar> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                // Row(
+                //   children: [
+                //     Expanded(
+                //       child: _FilterPill(
+                //         label: 'Owners',
+                //         value: _filters.owners ?? 'All',
+                //         onTap: () => _openPicker(
+                //           title: 'Select Owners',
+                //           options: const ['All', '1', '2', '3+'],
+                //           current: _filters.owners ?? 'All',
+                //           onPicked: (v) => setState(() {
+                //             _filters.owners = v;
+                //             widget.onFilterChanged?.call(_filters);
+                //           }),
+                //         ),
+                //       ),
+                //     ),
+                //     const SizedBox(width: 8),
+                //     Expanded(
+                //       child: _FilterPill(
+                //         label: 'Stock Age',
+                //         value: _filters.stockAge ?? 'All',
+                //         onTap: () => _openPicker(
+                //           title: 'Select Stock Age',
+                //           options: const [
+                //             'All',
+                //             '< 7 days',
+                //             '7-15 days',
+                //             '15-30 days',
+                //             '30+ days'
+                //           ],
+                //           current: _filters.stockAge ?? 'All',
+                //           onPicked: (v) => setState(() {
+                //             _filters.stockAge = v;
+                //             widget.onFilterChanged?.call(_filters);
+                //           }),
+                //         ),
+                //       ),
+                //     ),
+                //   ],
+                // ),
                 const SizedBox(height: 16),
                 Row(
                   children: [
