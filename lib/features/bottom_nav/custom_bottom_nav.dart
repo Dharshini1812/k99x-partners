@@ -26,7 +26,7 @@ class BottomNavBar extends StatelessWidget {
     Icons.home_rounded,
     Icons.gavel,
     Icons.upload,
-    Icons.history,
+    Icons.car_rental,
     Icons.person,
   ];
   static const _labels = ['Home', 'Auction', 'Sell', 'Stocks', 'Profile'];

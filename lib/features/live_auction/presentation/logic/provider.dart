@@ -230,23 +230,11 @@ final bidHistoryNotifierProvider =
 
 // lib/features/live_auction/presentation/logic/provider.dart
 
-final cardBidActivityProvider =
-    FutureProvider.autoDispose.family<BidActivityData?, String>(
-  (ref, vehicleId) async {
-    if (vehicleId.trim().isEmpty) return null;
-    try {
-      final res = await ref.read(bidActivityUseCaseProvider).call(vehicleId);
-
-      // Use .fold to extract the right (success) value or null on left (failure)
-      return res.fold(
-        (failure) => null,
-        (bidActivityData) => bidActivityData,
-      );
-    } catch (_) {
-      return null;
-    }
-  },
-);
+final cardBidActivityProvider = StateNotifierProvider.autoDispose
+    .family<CardBidActivityNotifier, AsyncValue<BidActivityData?>, String>(
+        (ref, vehicleId) {
+  return CardBidActivityNotifier(ref, vehicleId);
+});
 
 final getMetaHighestBidUseCaseProvider =
     Provider<GetMetaHighestBidUseCase>((ref) {

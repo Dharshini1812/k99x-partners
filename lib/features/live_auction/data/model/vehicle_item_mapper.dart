@@ -100,9 +100,15 @@ extension VehicleItemMapper on VehicleItem {
       fuel: v?.fuel,
       kmsDriven: v?.kmsDriven,
       ownerCount: v?.ownerCount,
+      // Starting Price is strictly from vehicle
+      startingprice: v?.startingPrice ?? v?.basePrice,
+      // Base Price is strictly vehicle's base price
       basePrice: v?.basePrice,
-      startingprice: v?.startingPrice,
+      // Current Price is strictly from auction
+      currentPrice: a?.currentPrice,
       status: status ?? v?.status,
+      rank: rank,
+      totalBids: a?.totalBids,
       auctionStartDt: a?.startTime != null
           ? DateTime.fromMillisecondsSinceEpoch(a!.startTime!).toIso8601String()
           : null,

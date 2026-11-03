@@ -25,11 +25,20 @@ class PlaceBidSheet extends ConsumerStatefulWidget {
   final LiveAuctionModel vehicle;
   final int? currentDealerId;
   final BidSheetMode mode;
+  final String? eventId;
+  final int? lenderId;
+  final int? initialRank;
+  final int? initialTotalBids;
+
   const PlaceBidSheet({
     super.key,
     required this.vehicle,
     this.currentDealerId,
     this.mode = BidSheetMode.bid,
+    this.eventId,
+    this.lenderId,
+    this.initialRank,
+    this.initialTotalBids,
   });
 
   @override
@@ -44,6 +53,8 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
   Duration? _remaining;
   bool _ended = false;
 
+  int? _lastServerRank;
+
   static const int _minIncrement = 1000;
 
   bool get _isAutobidMode => widget.mode == BidSheetMode.autobid;
@@ -51,51 +62,44 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
   @override
   void initState() {
     super.initState();
-    final staticTop =
-        (widget.vehicle.bids != null && widget.vehicle.bids!.isNotEmpty)
-            ? (List<BidsModel>.from(widget.vehicle.bids!)
-                  ..sort((a, b) {
-                    final ta = DateTime.tryParse(
-                        (a.timestamp ?? '').replaceFirst(' ', 'T'));
-                    final tb = DateTime.tryParse(
-                        (b.timestamp ?? '').replaceFirst(' ', 'T'));
-                    if (ta == null || tb == null) return 0;
-                    return tb.compareTo(ta);
-                  }))
-                .first
-                .amount
-                ?.toInt()
-            : null;
-    final staticBase = widget.vehicle.basePrice?.toInt() ?? 0;
-    final staticFloor =
-        (staticTop != null && staticTop > 0) ? staticTop : staticBase;
 
-    _amount = staticFloor + _minIncrement;
+    _lastServerRank = widget.initialRank ?? widget.vehicle.rank;
+
+    // Starting price is strictly from vehicle
+    final int startingPrice =
+        (widget.vehicle.startingprice ?? widget.vehicle.basePrice ?? 0).toInt();
+
+    // Text box holds Starting Price
+    _amount = startingPrice;
     _amountController = TextEditingController(text: '$_amount');
 
-    _computeRemaining();
-    _timer =
-        Timer.periodic(const Duration(seconds: 1), (_) => _computeRemaining());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _computeRemaining();
+      _timer = Timer.periodic(
+        const Duration(seconds: 1),
+        (_) => _computeRemaining(),
+      );
 
-    final vehicleId = widget.vehicle.vehicleId;
-    if (vehicleId != null && vehicleId.isNotEmpty) {
-      Future.microtask(() {
+      final vehicleId = widget.vehicle.vehicleId;
+      if (vehicleId != null && vehicleId.isNotEmpty) {
         ref
             .read(bidActivityNotifierProvider.notifier)
             .fetchBidActivity(vehicleId);
 
         final socket = ref.read(liveBidSocketProvider);
         socket.connect(
-          onMessage: (data) {
+          onMessage: (data) async {
             if (!mounted) return;
-            ref
+            await ref
                 .read(bidActivityNotifierProvider.notifier)
                 .fetchBidActivity(vehicleId, silent: true);
+            ref.invalidate(cardBidActivityProvider(vehicleId));
+            if (mounted) setState(() {});
           },
         );
         socket.subscribe(vehicleId);
-      });
-    }
+      }
+    });
   }
 
   @override
@@ -111,9 +115,8 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     super.dispose();
   }
 
-  // ── Dynamic End Time & Timer ─────────────────────────────────────
-  DateTime? _resolveTargetEndTime() {
-    final auction = _liveActivity?.auction;
+  DateTime? _resolveTargetEndTime(BidActivityData? liveActivity) {
+    final auction = liveActivity?.auction;
 
     final ext = auction?.extendedEndTime;
     if (ext != null && ext > 0) {
@@ -136,10 +139,16 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
 
   void _computeRemaining() {
     if (!mounted) return;
-    final target = _resolveTargetEndTime();
+
+    final liveActivity = ref.read(bidActivityNotifierProvider).maybeWhen(
+          data: (data) => data,
+          orElse: () => null,
+        );
+
+    final target = _resolveTargetEndTime(liveActivity);
 
     if (target == null) {
-      if (_liveActivity != null) {
+      if (liveActivity != null) {
         setState(() => _ended = true);
       }
       return;
@@ -164,13 +173,6 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     return '$h:$m:$s';
   }
 
-  // ── Live data ────────────────────────────────────────────────────
-  BidActivityData? get _liveActivity =>
-      ref.read(bidActivityNotifierProvider).maybeWhen(
-            data: (data) => data,
-            orElse: () => null,
-          );
-
   List<BidsModel> _withKnownBidderNames(List<BidsModel> liveBids) {
     final staticBids = widget.vehicle.bids ?? const [];
     final nameById = <int, String>{
@@ -178,24 +180,24 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
         if (b.id != null && (b.bidderName ?? '').trim().isNotEmpty)
           b.id!: b.bidderName!,
     };
-    final nameByDealerId = <int, String>{
+    final nameByDealerId = <String, String>{
       for (final b in staticBids)
         if (b.dealerId != null && (b.bidderName ?? '').trim().isNotEmpty)
-          b.dealerId!: b.bidderName!,
+          b.dealerId.toString(): b.bidderName!,
     };
 
     for (final bid in liveBids) {
       if ((bid.bidderName ?? '').trim().isNotEmpty) continue;
       final byId = bid.id != null ? nameById[bid.id] : null;
       final byDealer =
-          bid.dealerId != null ? nameByDealerId[bid.dealerId] : null;
+          bid.dealerId != null ? nameByDealerId[bid.dealerId.toString()] : null;
       bid.bidderName = byId ?? byDealer;
     }
     return liveBids;
   }
 
-  List<BidsModel> get _sortedBids {
-    final liveBids = _liveActivity?.bids;
+  List<BidsModel> _getSortedBids(BidActivityData? liveActivity) {
+    final liveBids = liveActivity?.bids;
     final bids = List<BidsModel>.from(liveBids != null
         ? _withKnownBidderNames(liveBids)
         : (widget.vehicle.bids ?? const []));
@@ -208,24 +210,28 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     return bids;
   }
 
-  BidsModel? get _topBid => _sortedBids.isNotEmpty ? _sortedBids.first : null;
-
-  double? _bestAmountForDealer(int? dealerId) {
-    if (dealerId == null) return null;
+  double? _bestAmountForDealer(
+      List<BidsModel> sortedBids, String? dealerIdStr) {
+    if (dealerIdStr == null || dealerIdStr.isEmpty) return null;
     double? best;
-    for (final b in _sortedBids) {
-      if (b.dealerId != dealerId) continue;
+    for (final b in sortedBids) {
+      if (b.dealerId?.toString() != dealerIdStr) continue;
       final amt = b.amount ?? 0;
       if (best == null || amt > best) best = amt;
     }
     return best;
   }
 
-  int _liveRankForDealer(int? dealerId) {
-    final myBest = _bestAmountForDealer(dealerId) ?? 0;
-    final bestPerDealer = <int, double>{};
-    for (final b in _sortedBids) {
-      final id = b.dealerId;
+  int _liveRankForDealer(List<BidsModel> sortedBids, String? dealerIdStr) {
+    if (dealerIdStr == null || dealerIdStr.isEmpty) {
+      return _lastServerRank ?? widget.initialRank ?? 0;
+    }
+    final myBest = _bestAmountForDealer(sortedBids, dealerIdStr) ?? 0;
+    if (myBest == 0 && _lastServerRank != null) return _lastServerRank!;
+
+    final bestPerDealer = <String, double>{};
+    for (final b in sortedBids) {
+      final id = b.dealerId?.toString();
       if (id == null) continue;
       final amt = b.amount ?? 0;
       if (!bestPerDealer.containsKey(id) || amt > bestPerDealer[id]!) {
@@ -236,39 +242,22 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     return higher + 1;
   }
 
-  int? get _currentDealerId =>
-      widget.currentDealerId ?? ref.read(dLogic).user?.userId;
-
-  bool get _hasMyBid => _bestAmountForDealer(_currentDealerId) != null;
-
-  num? get _myHighestBid => _bestAmountForDealer(_currentDealerId);
-
-  bool get _isCurrentUserWinning {
-    final top = _topBid;
-    final me = _currentDealerId;
-    if (top == null || me == null) return false;
-    return top.dealerId == me;
+  String? get _resolvedCurrentDealerId {
+    final uid = widget.currentDealerId ?? ref.read(dLogic).user?.userId;
+    return uid?.toString();
   }
 
-  AutobidInfo? get _myAutobid => _liveActivity?.autobid;
+  int _suggestedStartAmount(
+      BidActivityData? liveActivity, List<BidsModel> sortedBids) {
+    final topBid = sortedBids.isNotEmpty ? sortedBids.first : null;
+    final top = (liveActivity?.highestBid ?? topBid?.amount)?.toInt();
+    final start =
+        (widget.vehicle.startingprice ?? widget.vehicle.basePrice ?? 0).toInt();
 
-  num? get _currentHighestBid => _liveActivity?.highestBid ?? _topBid?.amount;
-
-  bool get _isAutobidExhausted {
-    final currentHigh = _currentHighestBid ?? 0;
-    final maxBid = _myAutobid?.maxBidAmount ?? 0;
-    if (maxBid <= 0) return false;
-    return (currentHigh + _minIncrement) > maxBid && !_isCurrentUserWinning;
-  }
-
-  bool get _isAutobidRunning =>
-      _myAutobid != null && !_isAutobidExhausted && _myAutobid!.active == true;
-
-  int _suggestedStartAmount() {
-    final top = (_currentHighestBid ?? _topBid?.amount)?.toInt();
-    final base = widget.vehicle.basePrice?.toInt() ?? 0;
-    final floor = (top != null && top > 0) ? top : base;
-    return floor + _minIncrement;
+    if (top != null && top > 0) {
+      return top + _minIncrement;
+    }
+    return start;
   }
 
   void _onAmountChanged(String v) {
@@ -291,25 +280,76 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     required bool success,
     required String title,
     required String message,
+    int? rank,
   }) {
+    // Sound & haptic triggers removed completely; visual dialog only
     return showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         icon: Icon(
           success ? Icons.check_circle_rounded : Icons.error_rounded,
-          color: success ? const Color(0xFF2E9E5B) : const Color(0xFFD64545),
-          size: 40,
+          color: success ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+          size: 44,
         ),
         title: Text(
           title,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
         ),
-        content: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 13.5, color: Color(0xFF4B5563)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13.5, color: Color(0xFF4B5563)),
+            ),
+            if (rank != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: rank == 1
+                      ? const Color(0xFFECFDF5)
+                      : const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: rank == 1
+                        ? const Color(0xFF6EE7B7)
+                        : const Color(0xFFFCA5A5),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      rank == 1
+                          ? Icons.emoji_events_rounded
+                          : Icons.trending_down_rounded,
+                      size: 16,
+                      color: rank == 1
+                          ? const Color(0xFF065F46)
+                          : const Color(0xFF991B1B),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Rank #$rank ${rank == 1 ? "(Winning)" : "(Outbid)"}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                        color: rank == 1
+                            ? const Color(0xFF065F46)
+                            : const Color(0xFF991B1B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
@@ -317,19 +357,16 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
             width: 120,
             child: ElevatedButton(
               onPressed: () {
-                Navigator.of(context).pop();
-                if (success) {
-                  ref.read(auctionLogic).search();
-                  Navigator.of(context).pop(_amount);
-                }
+                Navigator.of(dialogContext).pop();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor:
-                    success ? const Color(0xFF2E9E5B) : const Color(0xFF3F51E8),
+                    success ? const Color(0xFF10B981) : const Color(0xFF3F51E8),
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: const Text('OK',
                   style: TextStyle(fontWeight: FontWeight.w700)),
@@ -340,14 +377,20 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  Future<void> _submitBid() async {
-    if (_isAutobidRunning || _ended) return;
+  Future<void> _submitBid(int minStart, List<BidsModel> sortedBids) async {
+    final liveActivity = ref.read(bidActivityNotifierProvider).maybeWhen(
+          data: (data) => data,
+          orElse: () => null,
+        );
+    final isAutobidRunning = (liveActivity?.autobid?.active == true) &&
+        ((liveActivity?.autobid?.maxBidAmount ?? 0) > 0);
 
-    if (_amount < _suggestedStartAmount()) {
+    if (isAutobidRunning || _ended) return;
+
+    if (_amount < minStart) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-              'Bid must be at least ${_formatAmount(_suggestedStartAmount())}'),
+          content: Text('Bid must be at least ${_formatAmount(minStart)}'),
         ),
       );
       return;
@@ -355,6 +398,9 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
 
     final vehicleId = widget.vehicle.vehicleId;
     if (vehicleId == null || vehicleId.isEmpty) return;
+
+    // Trigger physical vibration on button tap
+    await HapticFeedback.heavyImpact();
 
     await ref.read(placeBidNotifier.notifier).placeBid(
           vehicleId: vehicleId,
@@ -368,28 +414,44 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       initial: () {},
       loading: () {},
       data: (data) {
+        final int resolvedRank = data.rank ??
+            _liveRankForDealer(sortedBids, _resolvedCurrentDealerId);
+        setState(() {
+          _lastServerRank = resolvedRank;
+        });
+
         ref
             .read(bidActivityNotifierProvider.notifier)
             .fetchBidActivity(vehicleId, silent: true);
+        ref.invalidate(cardBidActivityProvider(vehicleId));
+
+        // Open dialog without sound/vibration
         _showResultDialog(
           success: true,
           title: 'Bid Placed!',
           message:
-              'Your bid of ${_formatAmount(_amount)} was placed successfully.\nYour rank: #${data.rank ?? '-'}',
+              'Your bid of ${_formatAmount(_amount)} was placed successfully.',
+          rank: resolvedRank,
         );
       },
-      error: (msg) => _showResultDialog(
-        success: false,
-        title: 'Bid Failed',
-        message: msg,
-      ),
+      error: (msg) {
+        String cleanMsg = msg;
+        if (cleanMsg.contains('status code of 400')) {
+          cleanMsg =
+              'Bid could not be accepted. It must be higher than the current bid.';
+        }
+        _showResultDialog(
+          success: false,
+          title: 'Bid Failed',
+          message: cleanMsg,
+        );
+      },
     );
   }
 
-  Future<void> _submitAutobid() async {
+  Future<void> _submitAutobid(int minStart, AutobidInfo? myAutobid) async {
     if (_ended) return;
 
-    final minStart = _suggestedStartAmount();
     if (_amount < minStart) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -399,8 +461,11 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       return;
     }
 
-    final existingCeiling = _myAutobid?.maxBidAmount;
-    if (_isAutobidRunning &&
+    final existingCeiling = myAutobid?.maxBidAmount;
+    final isAutobidRunning =
+        myAutobid?.active == true && (existingCeiling ?? 0) > 0;
+
+    if (isAutobidRunning &&
         existingCeiling != null &&
         _amount <= existingCeiling) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -414,6 +479,9 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
 
     final vehicleId = widget.vehicle.vehicleId;
     if (vehicleId == null || vehicleId.isEmpty) return;
+
+    // Trigger physical vibration on button tap
+    await HapticFeedback.heavyImpact();
 
     await ref.read(autoBidNotifier.notifier).enableAutoBid(
           vehicleId: vehicleId,
@@ -430,6 +498,9 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
         ref
             .read(bidActivityNotifierProvider.notifier)
             .fetchBidActivity(vehicleId, silent: true);
+        ref.invalidate(cardBidActivityProvider(vehicleId));
+
+        // Open dialog without sound/vibration
         _showResultDialog(
           success: true,
           title: 'Autobid Enabled!',
@@ -450,37 +521,52 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       next.maybeWhen(
         data: (data) {
           _computeRemaining();
-
-          final liveTop = data.highestBid?.toInt();
-          if (liveTop != null) {
-            final nextMin = liveTop + _minIncrement;
-
-            // Only auto-bump the field if in manual BID mode or if current autobid input is below next minimum
-            if (!_isAutobidMode && _amount <= liveTop && mounted) {
-              final newText = '$nextMin';
-              setState(() {
-                _amount = nextMin;
-                _amountController.value = TextEditingValue(
-                  text: newText,
-                  selection: TextSelection.collapsed(offset: newText.length),
-                );
-              });
-            } else if (_isAutobidMode && _amount < nextMin && mounted) {
-              // Ensure autobid ceiling doesn't fall below next valid min
-              final newText = '$nextMin';
-              setState(() {
-                _amount = nextMin;
-                _amountController.value = TextEditingValue(
-                  text: newText,
-                  selection: TextSelection.collapsed(offset: newText.length),
-                );
-              });
-            }
-          }
         },
         orElse: () {},
       );
     });
+
+    final liveActivityState = ref.watch(bidActivityNotifierProvider);
+    final BidActivityData? liveActivity = liveActivityState.maybeWhen(
+      data: (data) => data,
+      orElse: () => null,
+    );
+
+    final List<BidsModel> sortedBids = _getSortedBids(liveActivity);
+    final int minStartAmount = _suggestedStartAmount(liveActivity, sortedBids);
+
+    final currentDealerIdStr = _resolvedCurrentDealerId;
+    final myHighestBid = _bestAmountForDealer(sortedBids, currentDealerIdStr);
+    final userRank = _liveRankForDealer(sortedBids, currentDealerIdStr);
+    final hasMyBid = myHighestBid != null || (userRank > 0);
+    final isCurrentUserWinning = userRank == 1;
+
+    final AutobidInfo? myAutobid = liveActivity?.autobid;
+    final num? currentHighestBid = liveActivity?.highestBid ??
+        (sortedBids.isNotEmpty ? sortedBids.first.amount : null);
+
+    final bool isAutobidExhausted = () {
+      final currentHigh = currentHighestBid ?? 0;
+      final maxBid = myAutobid?.maxBidAmount ?? 0;
+      if (maxBid <= 0) return false;
+      return (currentHigh + _minIncrement) > maxBid && !isCurrentUserWinning;
+    }();
+
+    final bool isAutobidRunning =
+        myAutobid != null && !isAutobidExhausted && myAutobid.active == true;
+
+    final int totalBidsCount = sortedBids.isNotEmpty
+        ? sortedBids.length
+        : (widget.initialTotalBids ?? widget.vehicle.totalBids ?? 0);
+
+    final bool hasBids = totalBidsCount > 0;
+    final String sheetPriceTitle = hasBids ? 'Current Bid' : 'Current Price';
+    final num sheetPriceValue = hasBids
+        ? (currentHighestBid ??
+            widget.vehicle.currentPrice ??
+            widget.vehicle.basePrice ??
+            0)
+        : (widget.vehicle.currentPrice ?? widget.vehicle.basePrice ?? 0);
 
     final v = widget.vehicle;
     final title = [v.mfgYear, v.make, v.model, v.variant]
@@ -489,14 +575,13 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
 
     final placeBidState = ref.watch(placeBidNotifier);
     final autoBidState = ref.watch(autoBidNotifier);
-    ref.watch(bidActivityNotifierProvider);
 
     final isPlacingBid =
         placeBidState.maybeWhen(loading: () => true, orElse: () => false);
     final isEnablingAutobid =
         autoBidState.maybeWhen(loading: () => true, orElse: () => false);
 
-    final showBanner = _isAutobidRunning || _isAutobidExhausted;
+    final showBanner = isAutobidRunning || isAutobidExhausted;
 
     return Padding(
       padding:
@@ -530,21 +615,40 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
                     controller: scrollController,
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
                     children: [
-                      _header(title),
+                      _header(title, liveActivity),
                       const SizedBox(height: 14),
-                      _summaryTiles(),
+                      _summaryTiles(
+                        firstTileLabel: sheetPriceTitle,
+                        firstTileValue: sheetPriceValue,
+                        myBid: myHighestBid,
+                        totalBidsCount: totalBidsCount,
+                      ),
                       const SizedBox(height: 12),
-                      _statusHeader(),
+                      _statusHeader(
+                        sortedBids: sortedBids,
+                        hasMyBid: hasMyBid,
+                        userRank: userRank,
+                        isCurrentUserWinning: isCurrentUserWinning,
+                        isAutobidRunning: isAutobidRunning,
+                        isAutobidExhausted: isAutobidExhausted,
+                      ),
                       if (showBanner) ...[
                         const SizedBox(height: 12),
-                        _autobidStatusBanner(),
+                        _autobidStatusBanner(isAutobidRunning, myAutobid),
                       ],
                       const SizedBox(height: 22),
                       _detailsCard(),
                     ],
                   ),
                 ),
-                _actionPanel(isPlacingBid, isEnablingAutobid),
+                _actionPanel(
+                  minAmount: minStartAmount,
+                  isPlacingBid: isPlacingBid,
+                  isEnablingAutobid: isEnablingAutobid,
+                  isAutobidRunning: isAutobidRunning,
+                  onBid: () => _submitBid(minStartAmount, sortedBids),
+                  onAutobid: () => _submitAutobid(minStartAmount, myAutobid),
+                ),
               ],
             ),
           );
@@ -553,8 +657,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Header: photo + title + reg no / specs + timer ──────────────
-  Widget _header(String title) {
+  Widget _header(String title, BidActivityData? liveActivity) {
     final v = widget.vehicle;
     final imageUrl = (v.imageUrl?.url ?? '').trim();
     final regno = (v.regno ?? '').trim();
@@ -643,13 +746,12 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
           ),
         ),
         const SizedBox(width: 8),
-        _timerChip(),
+        _timerChip(liveActivity),
       ],
     );
   }
 
-  // ── Timer chip ───────────────────────────────────────────────────
-  Widget _timerChip() {
+  Widget _timerChip(BidActivityData? liveActivity) {
     final rem = _remaining;
     final Color bg;
     final Color fg;
@@ -677,7 +779,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       label = _fmtTimer(rem);
     }
 
-    final isExtended = (_liveActivity?.auction?.extendedEndTime ?? 0) > 0;
+    final isExtended = (liveActivity?.auction?.extendedEndTime ?? 0) > 0;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -707,21 +809,25 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Price summary: Current Bid / Your Bid / Total Bids ───────────
-  Widget _summaryTiles() {
-    final myBid = _myHighestBid;
+  Widget _summaryTiles({
+    required String firstTileLabel,
+    required num? firstTileValue,
+    required num? myBid,
+    required int totalBidsCount,
+  }) {
     final myBidLabel =
         (myBid != null && myBid > 0) ? _formatAmount(myBid) : 'No bids';
-    final top = _currentHighestBid;
-    final topLabel = (top != null && top > 0) ? _formatAmount(top) : '₹--';
+    final firstValueLabel = (firstTileValue != null && firstTileValue > 0)
+        ? _formatAmount(firstTileValue)
+        : '₹--';
 
     return Row(
       children: [
-        _summaryTile('Current Bid', topLabel),
+        _summaryTile(firstTileLabel, firstValueLabel),
         const SizedBox(width: 8),
         _summaryTile('Your Bid', myBidLabel),
         const SizedBox(width: 8),
-        _summaryTile('Total Bids', '${_sortedBids.length}'),
+        _summaryTile('Total Bids', '$totalBidsCount'),
       ],
     );
   }
@@ -763,12 +869,16 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Status card ──────────────────────────────────────────────────
-  Widget _statusHeader() {
-    final hasBids = _topBid != null;
-    final mine = _hasMyBid;
-    final rank = mine ? _liveRankForDealer(_currentDealerId) : null;
-    final winning = mine && (rank == 1 || _isCurrentUserWinning);
+  Widget _statusHeader({
+    required List<BidsModel> sortedBids,
+    required bool hasMyBid,
+    required int userRank,
+    required bool isCurrentUserWinning,
+    required bool isAutobidRunning,
+    required bool isAutobidExhausted,
+  }) {
+    final hasBids = sortedBids.isNotEmpty;
+    final winning = hasMyBid && isCurrentUserWinning;
 
     final Color bg;
     final Color fg;
@@ -776,7 +886,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     final String sub;
     final IconData icon;
 
-    if (!hasBids) {
+    if (!hasBids && !hasMyBid) {
       bg = const Color(0xFFF3F4F6);
       fg = const Color(0xFF6B7280);
       label = 'No bids yet';
@@ -786,20 +896,20 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
       bg = const Color(0xFFDFF3E4);
       fg = const Color(0xFF2E9E5B);
       label = 'Winning';
-      sub = _isAutobidRunning
+      sub = isAutobidRunning
           ? 'Autobid active & highest bidder'
           : 'You\'re the highest bidder';
       icon = Icons.emoji_events_rounded;
-    } else if (mine) {
+    } else if (hasMyBid) {
       bg = const Color(0xFFFDE8E8);
       fg = const Color(0xFFD64545);
       label = 'Outbid';
-      sub = _isAutobidExhausted
+      sub = isAutobidExhausted
           ? 'Ceiling reached. Increase max bid to continue'
           : 'Another dealer is ahead — raise your bid';
       icon = Icons.trending_down_rounded;
     } else {
-      final n = _sortedBids.length;
+      final n = sortedBids.length;
       bg = const Color(0xFFEEF2FF);
       fg = const Color(0xFF3F51E8);
       label = 'Bidding live';
@@ -846,7 +956,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
               ],
             ),
           ),
-          if (rank != null)
+          if (hasMyBid && userRank > 0)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
@@ -854,7 +964,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                'Rank #$rank',
+                'Rank #$userRank',
                 style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
@@ -866,15 +976,14 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Autobid banner ──────────────────────────────────────────────
-  Widget _autobidStatusBanner() {
-    final max = _myAutobid?.maxBidAmount;
+  Widget _autobidStatusBanner(bool isAutobidRunning, AutobidInfo? myAutobid) {
+    final max = myAutobid?.maxBidAmount;
     final Color bg;
     final Color fg;
     final IconData icon;
     final String text;
 
-    if (_isAutobidRunning) {
+    if (isAutobidRunning) {
       bg = const Color(0xFFDFF3E4);
       fg = const Color(0xFF2E9E5B);
       icon = Icons.bolt_rounded;
@@ -913,9 +1022,14 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  // ── Action Panel ────────────────────────────────────────────────
-  Widget _actionPanel(bool isPlacingBid, bool isEnablingAutobid) {
-    final minAmount = _suggestedStartAmount();
+  Widget _actionPanel({
+    required int minAmount,
+    required bool isPlacingBid,
+    required bool isEnablingAutobid,
+    required bool isAutobidRunning,
+    required VoidCallback onBid,
+    required VoidCallback onAutobid,
+  }) {
     final tooLow = _amount > 0 && _amount < minAmount;
 
     final helper = tooLow
@@ -973,8 +1087,10 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
               height: 48,
               width: double.infinity,
               child: _isAutobidMode
-                  ? _autobidButton(isPlacingBid, isEnablingAutobid)
-                  : _bidButton(isPlacingBid, isEnablingAutobid),
+                  ? _autobidButton(isPlacingBid, isEnablingAutobid, onAutobid,
+                      isAutobidRunning)
+                  : _bidButton(
+                      isPlacingBid, isEnablingAutobid, isAutobidRunning, onBid),
             ),
           ],
         ),
@@ -982,20 +1098,25 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  Widget _bidButton(bool isPlacingBid, bool isEnablingAutobid) {
+  Widget _bidButton(
+    bool isPlacingBid,
+    bool isEnablingAutobid,
+    bool isAutobidRunning,
+    VoidCallback onBid,
+  ) {
     final bool isDisabled =
-        _ended || isPlacingBid || isEnablingAutobid || _isAutobidRunning;
+        _ended || isPlacingBid || isEnablingAutobid || isAutobidRunning;
 
     final label = _ended
         ? 'Auction ended'
         : isPlacingBid
             ? 'Placing...'
-            : _isAutobidRunning
+            : isAutobidRunning
                 ? 'Auto bidding'
                 : 'Bid now';
 
     return GlitterShimmerButton(
-      onPressed: isDisabled ? null : _submitBid,
+      onPressed: isDisabled ? null : onBid,
       text: label,
       icon: isPlacingBid ? null : Icons.gavel_rounded,
       gradientColors: const [
@@ -1007,25 +1128,28 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     );
   }
 
-  Widget _autobidButton(bool isPlacingBid, bool isEnablingAutobid) {
+  Widget _autobidButton(
+    bool isPlacingBid,
+    bool isEnablingAutobid,
+    VoidCallback onAutobid,
+    bool isAutobidRunning,
+  ) {
     final bool isDisabled = _ended || isPlacingBid || isEnablingAutobid;
 
     final label = _ended
         ? 'Auction ended'
         : isEnablingAutobid
             ? 'Enabling...'
-            : _isAutobidRunning
+            : isAutobidRunning
                 ? 'Raise autobid ceiling'
                 : 'Set autobid';
 
     return GlitterShimmerButton(
-      onPressed: isDisabled ? null : _submitAutobid,
+      onPressed: isDisabled ? null : onAutobid,
       text: label,
       icon: isEnablingAutobid
           ? null
-          : (_isAutobidRunning
-              ? Icons.trending_up_rounded
-              : Icons.bolt_rounded),
+          : (isAutobidRunning ? Icons.trending_up_rounded : Icons.bolt_rounded),
       gradientColors: const [
         Color(0xFF16A34A),
         Color(0xFF10B981),

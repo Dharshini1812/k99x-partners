@@ -100,40 +100,45 @@ class LiveAuctionModel {
   String? extendedEndTime;
   double? startingprice;
   List<String>? imageUrls;
+  int? rank;
+  int? totalBids;
+  double? currentPrice;
 
-  LiveAuctionModel({
-    this.vehicleId,
-    this.loanNo,
-    this.mfgYear,
-    this.make,
-    this.model,
-    this.variant,
-    this.regno,
-    this.fuel,
-    this.kmsDriven,
-    this.ownerCount,
-    this.basePrice,
-    this.status,
-    this.auctionStartDt,
-    this.auctionCloseDt,
-    this.createdDt,
-    this.updatedAt,
-    this.winningBid,
-    this.vehReport,
-    this.lenderId,
-    this.lenderName,
-    this.categoryId,
-    this.categoryName,
-    this.stateName,
-    this.cityName,
-    this.mode,
-    this.bids,
-    this.imageUrl,
-    this.extendedEndTime,
-    this.startingprice,
-    this.imageUrls,
-    this.lotNo,
-  });
+  LiveAuctionModel(
+      {this.vehicleId,
+      this.loanNo,
+      this.mfgYear,
+      this.make,
+      this.model,
+      this.variant,
+      this.regno,
+      this.fuel,
+      this.kmsDriven,
+      this.ownerCount,
+      this.basePrice,
+      this.status,
+      this.auctionStartDt,
+      this.auctionCloseDt,
+      this.createdDt,
+      this.updatedAt,
+      this.winningBid,
+      this.vehReport,
+      this.lenderId,
+      this.lenderName,
+      this.categoryId,
+      this.categoryName,
+      this.stateName,
+      this.cityName,
+      this.mode,
+      this.bids,
+      this.imageUrl,
+      this.extendedEndTime,
+      this.startingprice,
+      this.imageUrls,
+      this.lotNo,
+      this.rank,
+      this.totalBids,
+      this.currentPrice});
 
   LiveAuctionModel.fromJson(Map<String, dynamic> json) {
     vehicleId = json['vehicle_id'];

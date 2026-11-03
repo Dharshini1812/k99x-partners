@@ -1,8 +1,10 @@
 // lib/features/live_auction/presentation/logic/live_auction_vehicles/live_auction_vehicles_notifier.dart
 
 import 'package:dealer/features/live_auction/data/datasource/datasource.dart';
+import 'package:dealer/features/live_auction/data/model/bid_activity_model.dart';
 import 'package:dealer/features/live_auction/domain/usecase/get_live_uzecase.dart';
 import 'package:dealer/features/live_auction/presentation/logic/get_live/get_live_state.dart';
+import 'package:dealer/features/live_auction/presentation/logic/provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class LiveAuctionVehiclesNotifier
@@ -26,5 +28,54 @@ class LiveAuctionVehiclesNotifier
     } catch (e) {
       state = LiveAuctionVehiclesState.error(e.toString());
     }
+  }
+}
+
+class CardBidActivityNotifier
+    extends StateNotifier<AsyncValue<BidActivityData?>> {
+  final Ref ref;
+  final String vehicleId;
+
+  CardBidActivityNotifier(this.ref, this.vehicleId)
+      : super(const AsyncValue.loading()) {
+    _init();
+  }
+
+  Future<void> _init() async {
+    await fetch();
+
+    if (vehicleId.isNotEmpty) {
+      final socket = ref.read(liveBidSocketProvider);
+      socket.subscribe(vehicleId);
+    }
+  }
+
+  Future<void> fetch({bool silent = false}) async {
+    if (vehicleId.trim().isEmpty) {
+      state = const AsyncValue.data(null);
+      return;
+    }
+
+    if (!silent && state.value == null) {
+      state = const AsyncValue.loading();
+    }
+
+    try {
+      final res = await ref.read(bidActivityUseCaseProvider).call(vehicleId);
+      res.fold(
+        (failure) => state = const AsyncValue.data(null),
+        (data) => state = AsyncValue.data(data),
+      );
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (vehicleId.isNotEmpty) {
+      ref.read(liveBidSocketProvider).unsubscribe(vehicleId);
+    }
+    super.dispose();
   }
 }

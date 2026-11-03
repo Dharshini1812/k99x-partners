@@ -211,9 +211,10 @@ class _DashboardHeader extends StatelessWidget {
 
   String _greeting() {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'GOOD MORNING';
-    if (hour < 16) return 'GOOD AFTERNOON';
-    return 'GOOD EVENING';
+
+    if (hour < 12) return '☀️ GOOD MORNING';
+    if (hour < 16) return '🌤️ GOOD AFTERNOON';
+    return '🌙 GOOD EVENING';
   }
 
   @override
@@ -228,10 +229,10 @@ class _DashboardHeader extends StatelessWidget {
               Text(
                 _greeting(),
                 style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 2,
-                  color: _kGrey,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                  color: AppColors.primary,
                 ),
               ),
               const SizedBox(height: 4),

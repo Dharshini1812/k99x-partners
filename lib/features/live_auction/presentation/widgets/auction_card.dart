@@ -24,6 +24,9 @@ class LiveAuctionCard extends ConsumerStatefulWidget {
   final bool isQuotePrice;
   final bool isBidHistory;
   final String? statusBadge;
+  final String? eventId;
+  final String? eventMode;
+  final int? eventLenderId;
 
   const LiveAuctionCard({
     super.key,
@@ -32,6 +35,9 @@ class LiveAuctionCard extends ConsumerStatefulWidget {
     this.isQuotePrice = false,
     this.isBidHistory = false,
     this.statusBadge,
+    this.eventId,
+    this.eventMode,
+    this.eventLenderId,
   });
 
   @override
@@ -42,6 +48,11 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
   Timer? _timer;
   Duration _remaining = Duration.zero;
   bool _ended = false;
+  bool _isExtended = false;
+
+  int get _resolvedLenderId {
+    return widget.eventLenderId ?? widget.vehicle.lenderId ?? 0;
+  }
 
   @override
   void initState() {
@@ -49,7 +60,9 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     if (!widget.isBidHistory) {
       _computeRemaining();
       _timer = Timer.periodic(
-          const Duration(seconds: 1), (_) => _computeRemaining());
+        const Duration(seconds: 1),
+        (_) => _computeRemaining(),
+      );
     }
   }
 
@@ -57,26 +70,52 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
   void didUpdateWidget(covariant LiveAuctionCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!widget.isBidHistory &&
-        oldWidget.vehicle.auctionCloseDt != widget.vehicle.auctionCloseDt) {
+        (oldWidget.vehicle.auctionCloseDt != widget.vehicle.auctionCloseDt ||
+            oldWidget.vehicle.extendedEndTime !=
+                widget.vehicle.extendedEndTime ||
+            oldWidget.vehicle.status != widget.vehicle.status)) {
       _computeRemaining();
     }
   }
 
   void _computeRemaining() {
-    final closeDt =
-        widget.vehicle.extendedEndTime ?? widget.vehicle.auctionCloseDt;
-    final parsed = AuctionDateHelper.parseAuctionDate(closeDt);
-    if (parsed == null) {
-      if (mounted) setState(() => _ended = true);
+    final vStatus = (widget.vehicle.status ?? '').trim().toUpperCase();
+    final bool isExplicitlyLive =
+        vStatus == 'LIVE' || vStatus == 'EXTENDED' || vStatus == 'RUNNING';
+
+    DateTime? targetEnd;
+    final extStr = widget.vehicle.extendedEndTime;
+    if (extStr != null && extStr.toString().trim().isNotEmpty) {
+      targetEnd = AuctionDateHelper.parseAuctionDate(extStr);
+      if (targetEnd != null) {
+        _isExtended = true;
+      }
+    }
+
+    if (targetEnd == null) {
+      targetEnd =
+          AuctionDateHelper.parseAuctionDate(widget.vehicle.auctionCloseDt);
+      _isExtended = false;
+    }
+
+    if (targetEnd == null) {
+      if (mounted) setState(() => _ended = !isExplicitlyLive);
       return;
     }
-    final diff = parsed.difference(DateTime.now());
+
+    final diff = targetEnd.difference(DateTime.now());
     if (!mounted) return;
+
     setState(() {
       if (diff.isNegative) {
-        _ended = true;
-        _remaining = Duration.zero;
-        _timer?.cancel();
+        if (isExplicitlyLive) {
+          _ended = false;
+          _remaining = Duration.zero;
+        } else {
+          _ended = true;
+          _remaining = Duration.zero;
+          _timer?.cancel();
+        }
       } else {
         _ended = false;
         _remaining = diff;
@@ -91,9 +130,9 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     return '$h:$m:$s';
   }
 
-  String _formatPrice(int? amount) {
+  String _formatPrice(num? amount) {
     if (amount == null) return '₹--';
-    final s = amount.toString();
+    final s = amount.toInt().toString();
     final buf = StringBuffer();
     for (int i = 0; i < s.length; i++) {
       final posFromRight = s.length - i;
@@ -164,7 +203,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     }
   }
 
-  Future<void> _openBidSheet(BidSheetMode mode) async {
+  Future<void> _openBidSheet(BidSheetMode mode, int? currentRank) async {
     final vehicleId = widget.vehicle.vehicleId;
     if (vehicleId != null && vehicleId.isNotEmpty) {
       ref
@@ -176,13 +215,22 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => PlaceBidSheet(vehicle: widget.vehicle, mode: mode),
+      builder: (_) => PlaceBidSheet(
+        vehicle: widget.vehicle,
+        mode: mode,
+        eventId: widget.eventId,
+        lenderId: _resolvedLenderId,
+        initialRank: currentRank ?? widget.vehicle.rank,
+        initialTotalBids: widget.vehicle.totalBids,
+      ),
     );
 
     if (result != null && mounted) {
       await FeedbackHelper.success();
       if (vehicleId != null && vehicleId.isNotEmpty) {
-        ref.invalidate(cardBidActivityProvider(vehicleId));
+        final cardNotifier =
+            ref.read(cardBidActivityProvider(vehicleId).notifier);
+        await cardNotifier.fetch(silent: true);
         ref
             .read(bidActivityNotifierProvider.notifier)
             .fetchBidActivity(vehicleId, silent: true);
@@ -283,7 +331,6 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     final v = widget.vehicle;
     final vehicleId = v.vehicleId ?? '';
 
-    // ── 1. Automatically fetch & watch bid activity for this specific card ──
     final cardBidAsync = vehicleId.isNotEmpty
         ? ref.watch(cardBidActivityProvider(vehicleId))
         : const AsyncValue.data(null);
@@ -293,37 +340,73 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
       orElse: () => null,
     );
 
-    // ── 2. Get the logged-in user's highest bid from the fetched bid activity ──
-    final currentUserId = ref.watch(dLogic).user?.userId;
-    double? userCurrentBid;
+    final currentUserIdStr = ref.watch(dLogic).user?.userId?.toString();
 
-    if (liveData?.bids != null &&
-        liveData!.bids!.isNotEmpty &&
-        currentUserId != null) {
-      final userBids = liveData.bids!
-          .where((b) => b.dealerId == currentUserId && (b.amount ?? 0) > 0)
-          .toList()
-        ..sort((a, b) => (b.amount ?? 0).compareTo(a.amount ?? 0));
+    int? userRank = widget.vehicle.rank;
+    bool hasMyBid = (userRank != null && userRank > 0);
+
+    final List<BidsModel> activeBids = List<BidsModel>.from(
+      liveData?.bids ?? v.bids ?? [],
+    );
+
+    if (activeBids.isNotEmpty && currentUserIdStr != null) {
+      final userBids = activeBids
+          .where((b) =>
+              b.dealerId?.toString() == currentUserIdStr && (b.amount ?? 0) > 0)
+          .toList();
 
       if (userBids.isNotEmpty) {
-        userCurrentBid = userBids.first.amount;
+        hasMyBid = true;
+        userBids.sort((a, b) => (b.amount ?? 0).compareTo(a.amount ?? 0));
+        final myHighest = userBids.first.amount ?? 0;
+
+        final Map<String, double> bestPerDealer = {};
+        for (final b in activeBids) {
+          final id = b.dealerId?.toString();
+          if (id == null) continue;
+          final amt = b.amount ?? 0;
+          if (!bestPerDealer.containsKey(id) || amt > bestPerDealer[id]!) {
+            bestPerDealer[id] = amt;
+          }
+        }
+
+        userRank =
+            bestPerDealer.values.where((amt) => amt > myHighest).length + 1;
       }
     }
 
-    // ── 3. Fallback: general highest bid on the vehicle if user has not bid ──
-    double? generalHighestBid;
-    if (liveData?.highestBid != null && liveData!.highestBid! > 0) {
-      generalHighestBid = liveData.highestBid!.toDouble();
-    } else if (v.bids != null && v.bids!.isNotEmpty) {
-      final sorted = List<BidsModel>.from(v.bids!)
-        ..sort((a, b) => (b.amount ?? 0).compareTo(a.amount ?? 0));
-      generalHighestBid = sorted.first.amount;
-    } else if (v.winningBid != null && v.winningBid! > 0) {
-      generalHighestBid = v.winningBid!.toDouble();
+    String? currentCardStatus;
+    if (widget.isBidHistory) {
+      currentCardStatus = widget.statusBadge;
+    } else if (hasMyBid && userRank != null) {
+      currentCardStatus = userRank == 1 ? 'WINNING' : 'OUTBID';
     }
 
-    // Display user's current bid if they have one; otherwise display general highest bid
-    final double? displayCurrentBid = userCurrentBid ?? generalHighestBid;
+    final bool isWinning = currentCardStatus?.toUpperCase() == 'WINNING';
+    final bool isOutbid = currentCardStatus?.toUpperCase() == 'OUTBID';
+
+    // ── Highest Bid / Bids Count Resolution ──
+    double? currentHighestBid;
+    if (liveData?.highestBid != null && liveData!.highestBid! > 0) {
+      currentHighestBid = liveData.highestBid!.toDouble();
+    } else if (activeBids.isNotEmpty) {
+      final sorted = List<BidsModel>.from(activeBids)
+        ..sort((a, b) => (b.amount ?? 0).compareTo(a.amount ?? 0));
+      currentHighestBid = sorted.first.amount;
+    } else if (v.winningBid != null && v.winningBid! > 0) {
+      currentHighestBid = v.winningBid!.toDouble();
+    }
+
+    final int totalBidsCount =
+        activeBids.isNotEmpty ? activeBids.length : (v.totalBids ?? 0);
+
+    // ── Price & Label Logic:
+    // If totalBids == 0: Label is "Current Price", Value is Current Price (or basePrice)
+    // If totalBids > 0: Label is "Current Bid", Value is Highest Bid
+    final bool hasBids = totalBidsCount > 0 && currentHighestBid != null;
+    final String priceLabel = hasBids ? 'Current Bid: ' : 'Current Price: ';
+    final num? displayPrice =
+        hasBids ? currentHighestBid : (v.currentPrice ?? v.basePrice);
 
     final title = [v.mfgYear, v.make, v.model, v.variant]
         .where((e) => e != null && e.toString().trim().isNotEmpty)
@@ -345,15 +428,6 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
     final bool isQuote = widget.isQuotePrice ||
         v.mode == 3 ||
         (v.status ?? '').trim().toUpperCase() == 'QUOTE';
-
-    // Status badge (WINNING / OUTBID) strictly for Bid History
-    final bool showHistoryStatusBadge = widget.isBidHistory &&
-        widget.statusBadge != null &&
-        widget.statusBadge!.isNotEmpty;
-    final bool isWinning = showHistoryStatusBadge &&
-        widget.statusBadge!.toUpperCase() == 'WINNING';
-    final bool isOutbid =
-        showHistoryStatusBadge && widget.statusBadge!.toUpperCase() == 'OUTBID';
 
     final watchlistState = ref.watch(watchlistNotifierProvider);
     final isWatchlisted = watchlistState.maybeWhen(
@@ -393,48 +467,89 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                 onTap: () => _openImageSliderDialog(context),
                 child: _AuctionThumbnail(imageUrl: v.imageUrl?.url ?? ''),
               ),
-              if (showHistoryStatusBadge)
+              if (currentCardStatus != null && currentCardStatus.isNotEmpty)
                 Positioned(
                   top: 10,
                   left: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4.5),
-                    decoration: BoxDecoration(
-                      color: isWinning
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFFEF4444),
-                      borderRadius: BorderRadius.circular(6),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isWinning
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFFEF4444),
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isWinning
-                              ? Icons.emoji_events_rounded
-                              : Icons.trending_down_rounded,
-                          color: Colors.white,
-                          size: 13,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isWinning
+                                  ? Icons.emoji_events_rounded
+                                  : Icons.trending_down_rounded,
+                              color: Colors.white,
+                              size: 13,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              currentCardStatus.toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          widget.statusBadge!.toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.5,
+                      ),
+                      if (userRank != null && userRank > 0) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isWinning
+                                ? const Color(0xFFECFDF5)
+                                : const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: isWinning
+                                  ? const Color(0xFF6EE7B7)
+                                  : const Color(0xFFFCA5A5),
+                              width: 1,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x08000000),
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            'Rank #$userRank',
+                            style: TextStyle(
+                              color: isWinning
+                                  ? const Color(0xFF065F46)
+                                  : const Color(0xFF991B1B),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
                 ),
               Positioned(
@@ -494,6 +609,35 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                   ),
                 ),
               ),
+              if ((v.imageUrls?.length ?? 0) > 1)
+                Positioned(
+                  bottom: 10,
+                  left: 65,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.photo_library_outlined,
+                            size: 12, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${v.imageUrls!.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
           Padding(
@@ -530,7 +674,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                     ),
                   ),
 
-                // ── LENDER & BASE PRICE ROW ──
+                // ── Starting Price / Base Price Row (Does not change) ──
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -557,9 +701,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                               ),
                             ),
                             TextSpan(
-                              text: displayCurrentBid != null
-                                  ? _formatPrice(displayCurrentBid.toInt())
-                                  : '₹--',
+                              text: _formatPrice(currentHighestBid),
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF0F172A),
@@ -575,7 +717,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                                   fontWeight: FontWeight.normal),
                             ),
                             TextSpan(
-                              text: _formatPrice(v.basePrice?.toInt()),
+                              text: _formatPrice(v.basePrice),
                               style:
                                   const TextStyle(fontWeight: FontWeight.bold),
                             ),
@@ -588,7 +730,7 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
 
                 const SizedBox(height: 6),
 
-                // ── TIMER VS CURRENT BID ──
+                // ── Timer vs Current Price / Current Bid Row ──
                 if (widget.isBidHistory) ...[
                   Row(
                     children: [
@@ -619,23 +761,37 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                           Icon(
                             isUpcoming
                                 ? Icons.schedule_rounded
-                                : Icons.timer_outlined,
+                                : (_isExtended
+                                    ? Icons.update_rounded
+                                    : Icons.timer_outlined),
                             size: 18,
                             color: isUpcoming
                                 ? const Color(0xFF6200EE)
-                                : (_ended ? Colors.red : Colors.black87),
+                                : (_ended
+                                    ? Colors.red
+                                    : (_isExtended
+                                        ? const Color(0xFFD97706)
+                                        : Colors.black87)),
                           ),
                           const SizedBox(width: 4),
                           Text(
                             isUpcoming
                                 ? 'Upcoming'
-                                : (_ended ? 'Ended' : _fmt(_remaining)),
+                                : (_ended
+                                    ? 'Ended'
+                                    : (_isExtended
+                                        ? 'Ext: ${_fmt(_remaining)}'
+                                        : _fmt(_remaining))),
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
                               color: isUpcoming
                                   ? const Color(0xFF6200EE)
-                                  : (_ended ? Colors.red : Colors.black87),
+                                  : (_ended
+                                      ? Colors.red
+                                      : (_isExtended
+                                          ? const Color(0xFFD97706)
+                                          : Colors.black87)),
                             ),
                           ),
                         ],
@@ -647,18 +803,12 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                                 fontSize: 14, color: Colors.black),
                             children: [
                               TextSpan(
-                                text: userCurrentBid != null
-                                    ? 'Your Bid: '
-                                    : 'Current Bid: ',
+                                text: priceLabel,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.normal),
                               ),
                               TextSpan(
-                                text: displayCurrentBid != null
-                                    ? _formatPrice(displayCurrentBid.toInt())
-                                    : (cardBidAsync.isLoading
-                                        ? 'Loading...'
-                                        : 'No bids yet'),
+                                text: _formatPrice(displayPrice),
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold),
                               ),
@@ -728,7 +878,8 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                           child: ElevatedButton(
                             onPressed: _ended
                                 ? null
-                                : () => _openBidSheet(BidSheetMode.autobid),
+                                : () => _openBidSheet(
+                                    BidSheetMode.autobid, userRank),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFF3E5F5),
                               foregroundColor: AppColors.primary,
@@ -748,7 +899,8 @@ class _LiveAuctionCardState extends ConsumerState<LiveAuctionCard> {
                           child: GlitterShimmerButton(
                             onPressed: _ended
                                 ? null
-                                : () => _openBidSheet(BidSheetMode.bid),
+                                : () =>
+                                    _openBidSheet(BidSheetMode.bid, userRank),
                             text: 'Bid now',
                             icon: Icons.gavel_rounded,
                             gradientColors: const [

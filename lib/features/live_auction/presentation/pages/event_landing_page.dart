@@ -44,14 +44,38 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
 
   /// Returns true if the event has not ended yet.
   /// Uses `auctionEndDate` (epoch ms), the same value shown on the card.
+  /// Returns true if the event has not ended yet or is explicitly LIVE / EXTENDED.
+  /// Filters events strictly based on status.
+  /// If status is closed, ended, completed, or inactive, it is excluded.
   bool _isEventActive(EventModel event) {
-    final endMs = event.auctionEndDate;
+    final status = (event.status ?? '').trim().toUpperCase();
 
-    // No valid end date -> keep the event (change to `false` to hide it)
-    if (endMs <= 0) return true;
+    // 1. Explicitly hide if closed, ended, or inactive
+    if (status == 'CLOSED' ||
+        status == 'ENDED' ||
+        status == 'COMPLETED' ||
+        status == 'EXPIRED' ||
+        status == 'INACTIVE' ||
+        status == 'CANCELLED') {
+      return false;
+    }
 
-    final endTime = DateTime.fromMillisecondsSinceEpoch(endMs);
-    return endTime.isAfter(DateTime.now());
+    // 2. Explicitly keep if active or live
+    if (status == 'LIVE' ||
+        status == 'ACTIVE' ||
+        status == 'RUNNING' ||
+        status == 'OPEN' ||
+        status == 'UPCOMING') {
+      return true;
+    }
+
+    // 3. Fallback: if status string is empty or unmapped, check if auctionEndDate is still in the future
+    if (event.auctionEndDate > 0) {
+      final endTime = DateTime.fromMillisecondsSinceEpoch(event.auctionEndDate);
+      return endTime.isAfter(DateTime.now());
+    }
+
+    return true;
   }
 
   @override
@@ -882,6 +906,7 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
       ),
     );
   }
+// lib/features/live_auction/presentation/pages/events_landing_page.dart
 
   Widget _buildEventList({
     required dynamic state,
@@ -893,13 +918,50 @@ class _EventsLandingPageState extends ConsumerState<EventsLandingPage>
     return state.when(
       initial: () => const LiveAuctionListSkeleton(),
       loading: () => const LiveAuctionListSkeleton(),
-      error: (msg) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(msg,
-              style: const TextStyle(color: Colors.red, fontSize: 13)),
-        ),
-      ),
+      // Suppress error text completely in the UI:
+      error: (msg) {
+        debugPrint("Silent event fetch error: $msg");
+        return RefreshIndicator(
+          onRefresh: _fetchData,
+          color: AppColors.primary,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              SizedBox(
+                height: MediaQuery.of(context).size.height * 0.4,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: const Icon(
+                        Icons.directions_car_filled_outlined,
+                        size: 26,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      emptyMessage,
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
       data: (response) {
         final List<EventModel> rawList =
             (response.data?.events as List<EventModel>?) ?? [];

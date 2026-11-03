@@ -12,10 +12,10 @@
 // fixed to a single slash like the rest.
 
 class Url {
-  // static const String baseUrl = "https://dev.k99x.com/servlet/api/";
-  // static const String base2url = "https://dev.k99x.com/servlet/";
-  static const String baseUrl = "https://k99x.com/servlet/api/";
-  static const String base2url = "https://k99x.com/servlet/";
+  static const String baseUrl = "https://dev.k99x.com/servlet/api/";
+  static const String base2url = "https://dev.k99x.com/servlet/";
+  // static const String baseUrl = "https://k99x.com/servlet/api/";
+  // static const String base2url = "https://k99x.com/servlet/";
   static const String sendOtp = "${baseUrl}auth/otp/send";
   static const String verifyOtp = "${baseUrl}auth/otp/verify";
   static const String stateUrl = "${base2url}vehicle/getStateList";
