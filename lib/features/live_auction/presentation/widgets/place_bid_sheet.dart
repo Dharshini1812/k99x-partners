@@ -282,7 +282,6 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     required String message,
     int? rank,
   }) {
-    // Sound & haptic triggers removed completely; visual dialog only
     return showDialog(
       context: context,
       barrierDismissible: false,
@@ -399,8 +398,11 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     final vehicleId = widget.vehicle.vehicleId;
     if (vehicleId == null || vehicleId.isEmpty) return;
 
-    // Trigger physical vibration on button tap
-    await HapticFeedback.heavyImpact();
+    // Physical double-pulse vibration on button press
+    HapticFeedback.vibrate();
+    Future.delayed(const Duration(milliseconds: 120), () {
+      HapticFeedback.vibrate();
+    });
 
     await ref.read(placeBidNotifier.notifier).placeBid(
           vehicleId: vehicleId,
@@ -425,7 +427,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
             .fetchBidActivity(vehicleId, silent: true);
         ref.invalidate(cardBidActivityProvider(vehicleId));
 
-        // Open dialog without sound/vibration
+        // Dialog opens silently without vibration or sound
         _showResultDialog(
           success: true,
           title: 'Bid Placed!',
@@ -480,8 +482,11 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
     final vehicleId = widget.vehicle.vehicleId;
     if (vehicleId == null || vehicleId.isEmpty) return;
 
-    // Trigger physical vibration on button tap
-    await HapticFeedback.heavyImpact();
+    // Physical double-pulse vibration on button press
+    HapticFeedback.vibrate();
+    Future.delayed(const Duration(milliseconds: 120), () {
+      HapticFeedback.vibrate();
+    });
 
     await ref.read(autoBidNotifier.notifier).enableAutoBid(
           vehicleId: vehicleId,
@@ -500,7 +505,6 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
             .fetchBidActivity(vehicleId, silent: true);
         ref.invalidate(cardBidActivityProvider(vehicleId));
 
-        // Open dialog without sound/vibration
         _showResultDialog(
           success: true,
           title: 'Autobid Enabled!',
@@ -559,6 +563,7 @@ class _PlaceBidSheetState extends ConsumerState<PlaceBidSheet> {
         ? sortedBids.length
         : (widget.initialTotalBids ?? widget.vehicle.totalBids ?? 0);
 
+    // Rule: totalBids == 0 -> "Current Price", totalBids > 0 -> "Current Bid"
     final bool hasBids = totalBidsCount > 0;
     final String sheetPriceTitle = hasBids ? 'Current Bid' : 'Current Price';
     final num sheetPriceValue = hasBids

@@ -231,7 +231,7 @@ class _DashboardHeader extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
+                  letterSpacing: 1,
                   color: AppColors.primary,
                 ),
               ),
