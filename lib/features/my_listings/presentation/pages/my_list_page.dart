@@ -100,7 +100,7 @@ class _TabItem {
 
 double _lerp(double a, double b, double t) => a + (b - a) * t;
 
-// ── DEDUP HELPER (Includes Manufacturing Year + Make + Model + Variant) ──────
+// ── DEDUP HELPER ─────────────────────────────────────────────────────────────
 
 ({List<VehicleData> display, Map<String, List<VehicleData>> groups})
     dedupeByVariant(List<VehicleData> items) {
@@ -134,6 +134,36 @@ double _lerp(double a, double b, double t) => a + (b - a) * t;
   return (display: display, groups: groups);
 }
 
+// ── STOCK AGE FILTER HELPER ──────────────────────────────────────────────────
+
+bool matchesStockAge(int? createdAt, String? stockAgeFilter) {
+  if (stockAgeFilter == null ||
+      stockAgeFilter.isEmpty ||
+      stockAgeFilter.toUpperCase() == 'ALL') {
+    return true;
+  }
+  if (createdAt == null || createdAt <= 0) return true;
+
+  final created = DateTime.fromMillisecondsSinceEpoch(createdAt);
+  final days = DateTime.now().difference(created).inDays;
+
+  final filter = stockAgeFilter.trim();
+  if (filter == '0-15') {
+    return days <= 15;
+  } else if (filter == '16-30') {
+    return days >= 16 && days <= 30;
+  } else if (filter == '30+' || filter == '>30') {
+    return days > 30;
+  }
+
+  final parsedNumber = int.tryParse(filter);
+  if (parsedNumber != null) {
+    return days <= parsedNumber;
+  }
+
+  return true;
+}
+
 // ── PEEK TAB BAR ─────────────────────────────────────────────────────────────
 
 class _PeekTabBar extends StatelessWidget {
@@ -151,14 +181,11 @@ class _PeekTabBar extends StatelessWidget {
   static const double _cardTopRadius = 15;
 
   static const Color _railBg = Color(0xFFE4E4FF);
-
   static const Color _activeColor = Color(0xFF8000FF);
-
   static const Color _inactiveBorder = Color(0xFFCC99FF);
-
   static const Color _textInactive = Color(0xFF9933FF);
-
   static const Color _textActive = Colors.white;
+
   @override
   Widget build(BuildContext context) {
     const totalHeight = _baseHeight + _peekHeight;
@@ -335,6 +362,8 @@ class SellVehicleTab extends ConsumerStatefulWidget {
 }
 
 class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
+  String? _currentStockAge;
+
   @override
   void initState() {
     super.initState();
@@ -344,6 +373,10 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
   }
 
   void _search(VehicleFilterState filters) {
+    setState(() {
+      _currentStockAge = filters.stockAge;
+    });
+
     ref.read(liveStockNotifier.notifier).applyFilter(
           LiveStockFilter(
             query: filters.query,
@@ -370,6 +403,9 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
           onSearch: _search,
           onFilterChanged: _search,
           onClear: () {
+            setState(() {
+              _currentStockAge = null;
+            });
             ref.read(liveStockNotifier.notifier).clearFilter();
           },
         ),
@@ -403,7 +439,12 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
           ),
           orElse: () => const SizedBox.shrink(),
           data: (vehicle) {
-            if (vehicle.data.isEmpty) {
+            // Apply client-side fallback stock age filtering if API doesn't handle it
+            final filteredVehicles = vehicle.data.where((v) {
+              return matchesStockAge(v.createdAt, _currentStockAge);
+            }).toList();
+
+            if (filteredVehicles.isEmpty) {
               return const Padding(
                 padding: EdgeInsets.only(top: 40),
                 child: Center(
@@ -415,8 +456,7 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
               );
             }
 
-            // ── Fixed: Deduplicate Live Stock by (Year + Make + Model + Variant) ──
-            final deduped = dedupeByVariant(vehicle.data);
+            final deduped = dedupeByVariant(filteredVehicles);
 
             return ListView.separated(
               physics: const NeverScrollableScrollPhysics(),
@@ -440,8 +480,6 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
 
 // ── MY STOCK TAB ─────────────────────────────────────────────────────────────
 
-// ── MY STOCK TAB ─────────────────────────────────────────────────────────────
-
 class MyStockTab extends ConsumerStatefulWidget {
   const MyStockTab({super.key});
 
@@ -452,6 +490,7 @@ class MyStockTab extends ConsumerStatefulWidget {
 class _MyStockTabState extends ConsumerState<MyStockTab>
     with SingleTickerProviderStateMixin {
   late final TabController _subTabController;
+  String? _currentStockAge;
 
   static const List<String> _subTabs = [
     'My LiveStock',
@@ -484,6 +523,10 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
   }
 
   void _search(VehicleFilterState filters) {
+    setState(() {
+      _currentStockAge = filters.stockAge;
+    });
+
     ref.read(myStockNotifierProvider.notifier).applyFilter(
           LiveStockFilter(
             query: filters.query,
@@ -505,7 +548,6 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
     final myListingAsync = ref.watch(myStockNotifierProvider);
     final liveListingAsync = ref.watch(liveStockNotifier);
 
-    // Sync sub-tab animation when triggered from Dashboard
     ref.listen<int>(myStockSubTabProvider, (prev, next) {
       if (next != _subTabController.index) {
         _subTabController.animateTo(next);
@@ -518,6 +560,9 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
           onSearch: _search,
           onFilterChanged: _search,
           onClear: () {
+            setState(() {
+              _currentStockAge = null;
+            });
             ref.read(myStockNotifierProvider.notifier).clearFilter();
           },
         ),
@@ -560,26 +605,34 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
               }
               final combinedList = mergedMap.values.toList();
 
-              // 1. My LiveStock (Approved & Live vehicles)
+              // 1. My LiveStock (Approved & Live vehicles) + Age Filter
               final approvedList = combinedList.where((v) {
                 final status = (v.status ?? '').trim().toUpperCase();
-                return status == 'LIVE' || status == 'APPROVED';
+                final statusMatch = status == 'LIVE' || status == 'APPROVED';
+                return statusMatch &&
+                    matchesStockAge(v.createdAt, _currentStockAge);
               }).toList()
                 ..sort(
                     (a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
 
-              // 2. Pre-Approved Loans
+              // 2. Pre-Approved Loans + Age Filter
               final preApprovedList = combinedList.where((v) {
-                return v.approvedLoanDetails != null &&
+                final isPreApproved = v.approvedLoanDetails != null &&
                     v.approvedLoanDetails!.trim().isNotEmpty;
+                return isPreApproved &&
+                    matchesStockAge(v.createdAt, _currentStockAge);
               }).toList()
                 ..sort(
                     (a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
 
-              // 3. Pending Stock (Draft & Pending)
+              // 3. Pending Stock (REVIEW & PENDING) + Age Filter
               final pendingList = vehicleResponse.data.where((v) {
                 final status = (v.status ?? '').trim().toUpperCase();
-                return status == 'DRAFT' || status == 'PENDING';
+                // Status changed from DRAFT to REVIEW
+                final isReviewOrPending =
+                    status == 'REVIEW' || status == 'PENDING';
+                return isReviewOrPending &&
+                    matchesStockAge(v.createdAt, _currentStockAge);
               }).toList()
                 ..sort(
                     (a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));

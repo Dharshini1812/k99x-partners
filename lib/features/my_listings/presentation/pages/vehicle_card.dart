@@ -16,19 +16,21 @@ import 'package:url_launcher/url_launcher.dart';
 
 enum _CardTab { pricing, details, market }
 
-enum StockStatus { live, approved, pending }
+enum StockStatus { live, approved, pending, review }
 
 extension StockStatusX on StockStatus {
   String get label => switch (this) {
         StockStatus.live => 'LIVE',
         StockStatus.approved => 'APPROVED',
         StockStatus.pending => 'PENDING',
+        StockStatus.review => 'REVIEW',
       };
 
   Color get color => switch (this) {
         StockStatus.live => const Color(0xFF27AE60),
         StockStatus.approved => const Color(0xFF2E86DE),
         StockStatus.pending => const Color(0xFFF39C12),
+        StockStatus.review => const Color(0xFFE67E22),
       };
 }
 
@@ -239,19 +241,23 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
       return makeMatches && modelMatches && variantMatches && yearMatches;
     }
 
-    final bool selfIsDraft = (data.status ?? '').toUpperCase() == 'DRAFT';
-    bool isDraft(VehicleData v) => (v.status ?? '').toUpperCase() == 'DRAFT';
+    final String statusUpper = (data.status ?? '').toUpperCase();
+    final bool selfIsReview = statusUpper == 'REVIEW' || statusUpper == 'DRAFT';
+    bool isReview(VehicleData v) {
+      final s = (v.status ?? '').toUpperCase();
+      return s == 'REVIEW' || s == 'DRAFT';
+    }
 
     final matchingLive = liveList
         .where((v) =>
-            v.id != data.id && sameVariant(v) && (selfIsDraft || !isDraft(v)))
+            v.id != data.id && sameVariant(v) && (selfIsReview || !isReview(v)))
         .toList();
     final idsAlreadyCounted = {data.id, ...matchingLive.map((v) => v.id)};
     final matchingMyStock = myStockList
         .where((v) =>
             sameVariant(v) &&
             v.id != data.id &&
-            (selfIsDraft || !isDraft(v)) &&
+            (selfIsReview || !isReview(v)) &&
             !idsAlreadyCounted.contains(v.id))
         .toList();
 
@@ -302,10 +308,14 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                         imagePath: data.dealerVehicleInspection
                                 ?.frontVehicleImageUrl?.url ??
                             '',
-                        statusLabel: data.status ?? '',
-                        statusColor: (data.status ?? '').toUpperCase() == 'LIVE'
+                        statusLabel: statusUpper == 'DRAFT'
+                            ? 'REVIEW'
+                            : (data.status ?? ''),
+                        statusColor: statusUpper == 'LIVE'
                             ? const Color(0xFF27AE60)
-                            : const Color(0xFFF39C12),
+                            : (statusUpper == 'APPROVED'
+                                ? const Color(0xFF2E86DE)
+                                : const Color(0xFFF39C12)),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -329,7 +339,7 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            '${titleCase(data.fuelType)} · ${titleCase(data.transmission)}· ${titleCase(data.bodyStyle)}',
+                            '${titleCase(data.fuelType)} · ${titleCase(data.transmission)} · ${titleCase(data.bodyStyle)}',
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
@@ -506,9 +516,9 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
             ],
           ),
         ),
-        // lib/features/my_listings/presentation/pages/vehicle_card.dart
 
-        if (data.status == 'DRAFT')
+        // ── Show Edit Icon on REVIEW or legacy DRAFT items ──
+        if (statusUpper == 'REVIEW' || statusUpper == 'DRAFT')
           Positioned(
             top: -10,
             right: -2,
@@ -518,7 +528,6 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                 onTap: () {
                   final vehicleId = widget.data.id ?? '';
 
-                  // Ensure vehicleId is assigned into the listing model
                   final logic = widget.data.toListingModel().copyWith(
                         vehicleId: vehicleId,
                       );
@@ -530,17 +539,14 @@ class _CarInspectionCardState extends ConsumerState<CarInspectionCard> {
                         ),
                       );
 
-                  // 1. Store the vehicleId into listingProvider
                   ref.read(listingProvider.notifier).update((_) => logic);
 
-                  // 2. Fetch edit details via the existing fetcher
                   if (vehicleId.isNotEmpty) {
                     ref
                         .read(editVehicleFetchNotifier.notifier)
                         .fetchForEdit(vehicleId);
                   }
 
-                  // 3. Switch bottom navigation to the Upload tab (index 2)
                   ref.read(bottomNavIndexProvider.notifier).state = 2;
                   ref.read(listingStepProvider.notifier).state = 0;
                 },
@@ -1184,7 +1190,8 @@ class _MarketDemandSheetState extends State<_MarketDemandSheet> {
       final status = (v.status ?? '').toUpperCase();
       final statusMatch = _selectedStatusFilter == 'ALL' ||
           (_selectedStatusFilter == 'LIVE' && status == 'LIVE') ||
-          (_selectedStatusFilter == 'DRAFT' && status == 'DRAFT');
+          (_selectedStatusFilter == 'REVIEW' &&
+              (status == 'REVIEW' || status == 'DRAFT'));
 
       final reg = (v.regNo ?? '').toLowerCase();
       final fuel = (v.fuelType ?? '').toLowerCase();
@@ -1518,8 +1525,8 @@ class _MarketDemandSheetState extends State<_MarketDemandSheet> {
                           ),
                           const SizedBox(width: 6),
                           _buildFilterChip(
-                            status: 'DRAFT',
-                            label: 'Pending / Draft',
+                            status: 'REVIEW',
+                            label: 'Pending / Review',
                             activeColor: const Color(0xFFF39C12),
                           ),
                         ],
@@ -1647,7 +1654,6 @@ class _DemandRow extends ConsumerWidget {
   }
 
   Future<void> _makePhoneCall(String phoneNumber) async {
-    // Strip non-digit characters except leading '+'
     final cleanNumber = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
     final uri = Uri(scheme: 'tel', path: cleanNumber);
     if (await canLaunchUrl(uri)) {
@@ -1727,8 +1733,7 @@ class _DemandRow extends ConsumerWidget {
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: Color(
-                                  0xFF1E88E5), // Blue tint to indicate clickability
+                              color: Color(0xFF1E88E5),
                               decoration: TextDecoration.underline,
                             ),
                           ),

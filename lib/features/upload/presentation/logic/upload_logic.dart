@@ -8,12 +8,7 @@ class UploadLogic extends ChangeNotifier {
 
   UploadLogic({required this.ref});
 
-  final bodyStyleOptions = [
-    'Sedan',
-    'SUV',
-    'Coupe',
-    'Truck',
-  ];
+  final bodyStyleOptions = ['Sedan', 'SUV', 'Coupe', 'Truck', 'HatchBack'];
 
   final fuelOptions = [
     'Petrol',

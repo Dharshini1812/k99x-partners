@@ -19,6 +19,7 @@ import 'package:dealer/features/upload/presentation/widgets/step_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 final RegExp _regNoPattern = RegExp(r'^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$');
 
@@ -424,18 +425,127 @@ class _IdentificationSpecsStepState
   Widget _bodyStyle(UploadLogic logic, ListingNotifier notifier) {
     final listing = ref.watch(listingProvider);
 
-    return CommonDropdown<String>(
-      label: 'Body Style',
-      hint: 'Select Body Style',
-      searchable: false,
-      value: listing.bodyStyle,
-      options: logic.bodyStyleOptions
-          .map((b) => DropdownOption(value: b, label: titleCase(b)))
-          .toList(),
-      onChanged: (v) {
-        _unfocusAll();
-        notifier.update((s) => s.copyWith(bodyStyle: v));
-      },
+    final bodyStyles = [
+      {'name': 'Hatchback', 'asset': 'images/hatchback.svg'},
+      {'name': 'Sedan', 'asset': 'images/sedan.svg'},
+      {'name': 'SUV', 'asset': 'images/suv.svg'},
+      {'name': 'Coupe', 'asset': 'images/coupe.svg'},
+      {'name': 'Wagon', 'asset': 'images/wagon.svg'},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Body Style',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF344054),
+          ),
+        ),
+        const SizedBox(height: 8),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final cardWidth = (constraints.maxWidth - (8 * 2)) / 3;
+
+            return Wrap(
+              spacing: 8,
+              runSpacing: 10,
+              children: bodyStyles.map((item) {
+                final name = item['name']!;
+                final assetPath = item['asset']!;
+                final isSelected = listing.bodyStyle?.trim().toLowerCase() ==
+                    name.toLowerCase();
+
+                return SizedBox(
+                  width: cardWidth,
+                  height: 82,
+                  child: InkWell(
+                    onTap: () {
+                      _unfocusAll();
+                      notifier.update((s) => s.copyWith(bodyStyle: name));
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.primary.withOpacity(0.08)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.primary
+                              : const Color(0xFFD0D5DD),
+                          width: isSelected ? 1.8 : 1,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: AppColors.primary.withOpacity(0.12),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : [
+                                const BoxShadow(
+                                  color: Color(0x06000000),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: SvgPicture.asset(
+                              assetPath,
+                              fit: BoxFit.contain,
+                              colorFilter: ColorFilter.mode(
+                                isSelected
+                                    ? AppColors.primary
+                                    : const Color(0xFF475467),
+                                BlendMode.srcIn,
+                              ),
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.directions_car_rounded,
+                                size: 28,
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : const Color(0xFF98A2B3),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : const Color(0xFF344054),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+      ],
     );
   }
 
@@ -587,7 +697,7 @@ class InlineSegmentSelector extends StatelessWidget {
         ),
         const SizedBox(height: 8),
 
-        // ── 2 or 3 Items (e.g. Manual / Automatic)
+        // 2 or 3 Items (e.g. Manual / Automatic)
         if (options.length <= 3)
           Container(
             height: 44,
@@ -643,7 +753,7 @@ class InlineSegmentSelector extends StatelessWidget {
             ),
           )
 
-        // ── 5 Items (Petrol, Diesel, CNG / Electric, Hybrid)
+        // 5 Items (Petrol, Diesel, CNG / Electric, Hybrid)
         else if (options.length == 5)
           Column(
             children: [
@@ -667,7 +777,7 @@ class InlineSegmentSelector extends StatelessWidget {
             ],
           )
 
-        // ── Generic Fallback Grid
+        // Generic Fallback Grid
         else
           Wrap(
             spacing: 8,
