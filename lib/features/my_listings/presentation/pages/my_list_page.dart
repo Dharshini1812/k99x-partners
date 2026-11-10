@@ -7,7 +7,6 @@ import 'package:dealer/features/my_listings/data/model/vehicle_list_model.dart';
 import 'package:dealer/features/my_listings/presentation/logic/provider.dart';
 import 'package:dealer/features/my_listings/presentation/pages/add_wanted_vehicle_page.dart';
 import 'package:dealer/features/my_listings/presentation/pages/vehicle_card.dart';
-
 import 'package:dealer/features/my_listings/presentation/widgets/vehcile_card_skeleton.dart';
 import 'package:dealer/features/my_listings/presentation/widgets/vehicle_filter.dart';
 import 'package:flutter/material.dart';
@@ -134,29 +133,45 @@ double _lerp(double a, double b, double t) => a + (b - a) * t;
   return (display: display, groups: groups);
 }
 
-// ── STOCK AGE FILTER HELPER ──────────────────────────────────────────────────
+// ── ROBUST STOCK AGE FILTER HELPER ───────────────────────────────────────────
 
-bool matchesStockAge(int? createdAt, String? stockAgeFilter) {
+bool matchesStockAge(dynamic rawCreatedAt, String? stockAgeFilter) {
   if (stockAgeFilter == null ||
       stockAgeFilter.isEmpty ||
       stockAgeFilter.toUpperCase() == 'ALL') {
     return true;
   }
-  if (createdAt == null || createdAt <= 0) return true;
+  if (rawCreatedAt == null) return true;
 
-  final created = DateTime.fromMillisecondsSinceEpoch(createdAt);
+  DateTime? created;
+  if (rawCreatedAt is int && rawCreatedAt > 0) {
+    // If timestamp is in seconds (10 digits), convert to milliseconds (13 digits)
+    final ms = rawCreatedAt < 10000000000 ? rawCreatedAt * 1000 : rawCreatedAt;
+    created = DateTime.fromMillisecondsSinceEpoch(ms);
+  } else if (rawCreatedAt is String && rawCreatedAt.trim().isNotEmpty) {
+    final parsedNum = int.tryParse(rawCreatedAt);
+    if (parsedNum != null && parsedNum > 0) {
+      final ms = parsedNum < 10000000000 ? parsedNum * 1000 : parsedNum;
+      created = DateTime.fromMillisecondsSinceEpoch(ms);
+    } else {
+      created = DateTime.tryParse(rawCreatedAt.replaceFirst(' ', 'T'));
+    }
+  }
+
+  if (created == null) return true;
+
   final days = DateTime.now().difference(created).inDays;
-
   final filter = stockAgeFilter.trim();
+
   if (filter == '0-15') {
-    return days <= 15;
+    return days >= 0 && days <= 15;
   } else if (filter == '16-30') {
     return days >= 16 && days <= 30;
-  } else if (filter == '30+' || filter == '>30') {
+  } else if (filter == '30+' || filter == '>30' || filter.contains('30')) {
     return days > 30;
   }
 
-  final parsedNumber = int.tryParse(filter);
+  final parsedNumber = int.tryParse(filter.replaceAll(RegExp(r'[^0-9]'), ''));
   if (parsedNumber != null) {
     return days <= parsedNumber;
   }
@@ -439,7 +454,7 @@ class _SellVehicleTabState extends ConsumerState<SellVehicleTab> {
           ),
           orElse: () => const SizedBox.shrink(),
           data: (vehicle) {
-            // Apply client-side fallback stock age filtering if API doesn't handle it
+            // Apply stock age filtering
             final filteredVehicles = vehicle.data.where((v) {
               return matchesStockAge(v.createdAt, _currentStockAge);
             }).toList();
@@ -628,7 +643,6 @@ class _MyStockTabState extends ConsumerState<MyStockTab>
               // 3. Pending Stock (REVIEW & PENDING) + Age Filter
               final pendingList = vehicleResponse.data.where((v) {
                 final status = (v.status ?? '').trim().toUpperCase();
-                // Status changed from DRAFT to REVIEW
                 final isReviewOrPending =
                     status == 'REVIEW' || status == 'PENDING';
                 return isReviewOrPending &&

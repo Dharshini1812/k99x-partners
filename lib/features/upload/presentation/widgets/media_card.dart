@@ -1,6 +1,7 @@
 // lib/features/upload/presentation/widgets/media_card.dart
 
 import 'dart:io';
+import 'package:dealer/core/theme/colors.dart';
 import 'package:dealer/features/upload/presentation/widgets/upload_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -396,7 +397,7 @@ class _CaptureActions extends StatelessWidget {
           child: ElevatedButton(
             onPressed: onCapture,
             style: ElevatedButton.styleFrom(
-              backgroundColor: UploadColors.primary,
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 10),
               shape: RoundedRectangleBorder(
@@ -418,7 +419,7 @@ class _CaptureActions extends StatelessWidget {
             isVideo ? 'Upload Video' : 'Upload Photo',
             style: const TextStyle(
               fontSize: 12,
-              color: UploadColors.primary,
+              color: AppColors.primary,
             ),
           ),
         ),
@@ -446,8 +447,8 @@ class _EditActions extends StatelessWidget {
           child: OutlinedButton(
             onPressed: isUploading ? null : onRetake,
             style: OutlinedButton.styleFrom(
-              foregroundColor: UploadColors.primary,
-              side: const BorderSide(color: UploadColors.primary),
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.primary),
               padding: const EdgeInsets.symmetric(vertical: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
