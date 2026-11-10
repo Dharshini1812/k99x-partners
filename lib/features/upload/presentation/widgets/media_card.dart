@@ -456,21 +456,21 @@ class _EditActions extends StatelessWidget {
             child: const Text('Retake'),
           ),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: OutlinedButton(
-            onPressed: isUploading ? null : onRemove,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: UploadColors.danger,
-              side: const BorderSide(color: UploadColors.danger),
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text('Remove'),
-          ),
-        ),
+        // const SizedBox(width: 8),
+        // Expanded(
+        //   child: OutlinedButton(
+        //     onPressed: isUploading ? null : onRemove,
+        //     style: OutlinedButton.styleFrom(
+        //       foregroundColor: UploadColors.danger,
+        //       side: const BorderSide(color: UploadColors.danger),
+        //       padding: const EdgeInsets.symmetric(vertical: 10),
+        //       shape: RoundedRectangleBorder(
+        //         borderRadius: BorderRadius.circular(10),
+        //       ),
+        //     ),
+        //     child: const Text('Remove'),
+        //   ),
+        // ),
       ],
     );
   }

@@ -1,18 +1,4 @@
 // lib/features/upload/presentation/pages/steps/media_capture_step.dart
-//
-// Step 3 of the listing flow: photos + walkaround videos.
-//
-// Upload integration: picking a file (capture or gallery) immediately
-// kicks off a network upload via uploadProvider(slotKey) — a family
-// provider, so each of the 6 slots has its own isolated loading/
-// success/error state (see logic/upload/upload_provider.dart).
-//
-// vehicleId now comes from listing.vehicleId — set by
-// _submitVehicleAndProceed() in VehicleListingPage right before this
-// step is shown, so by the time this widget builds it should always be
-// populated. (Previously this was a hardcoded placeholder string, which
-// meant every upload here silently went to the wrong vehicle regardless
-// of which one the user was actually listing.)
 
 import 'package:dealer/features/upload/presentation/logic/upload/upload_state_x.dart';
 import 'package:dealer/features/upload/presentation/logic/upload_provider.dart';
@@ -21,7 +7,6 @@ import 'package:dealer/features/upload/presentation/widgets/landscape_camera_pag
 import 'package:dealer/features/upload/presentation/widgets/media_card.dart';
 import 'package:dealer/features/upload/presentation/widgets/step_scaffold.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -36,28 +21,6 @@ class MediaCaptureStep extends ConsumerWidget {
     final notifier = ref.read(listingProvider.notifier);
     final picker = ImagePicker();
     final vehicleId = listing.vehicleId ?? '';
-
-    // lib/features/upload/presentation/pages/steps/media_capture_step.dart
-    Future<void> _runInLandscape(Future<void> Function() action) async {
-      try {
-        // 1. Lock screen to landscape orientation
-        await SystemChrome.setPreferredOrientations([
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]);
-
-        // Small delay to allow window metrics to adjust
-        await Future.delayed(const Duration(milliseconds: 100));
-
-        // 2. Perform the capture action
-        await action();
-      } finally {
-        // 3. Always restore portrait orientation when camera closes
-        await SystemChrome.setPreferredOrientations([
-          DeviceOrientation.portraitUp,
-        ]);
-      }
-    }
 
     Future<void> handlePicked(
       String slotKey,
@@ -78,7 +41,6 @@ class MediaCaptureStep extends ConsumerWidget {
       final result = ref.read(uploadProvider(slotKey));
       if (result.isSuccess) {
         final remoteUrl = result.uploadedModel?.data?.url;
-        // Only overwrite local path if the server returns a valid URL string
         if (remoteUrl != null && remoteUrl.trim().isNotEmpty) {
           storeUrl(remoteUrl);
         }
@@ -160,19 +122,15 @@ class MediaCaptureStep extends ConsumerWidget {
                 isVideo: false,
                 path: listing.frontImagePath,
                 onCapture: () => captureImage(
-                    MediaSlot.front,
-                    (p) =>
-                        notifier.update((s) => s.copyWith(frontImagePath: p)),
-                    (u) =>
-                        notifier.update((s) => s.copyWith(frontImagePath: u))),
+                  MediaSlot.front,
+                  (p) => notifier.update((s) => s.copyWith(frontImagePath: p)),
+                  (u) => notifier.update((s) => s.copyWith(frontImagePath: u)),
+                ),
                 onUpload: () => uploadImage(
-                    MediaSlot.front,
-                    (p) =>
-                        notifier.update((s) => s.copyWith(frontImagePath: p)),
-                    (u) =>
-                        notifier.update((s) => s.copyWith(frontImagePath: u))),
-                onRemove: () =>
-                    notifier.update((s) => s.copyWith(frontImagePath: null)),
+                  MediaSlot.front,
+                  (p) => notifier.update((s) => s.copyWith(frontImagePath: p)),
+                  (u) => notifier.update((s) => s.copyWith(frontImagePath: u)),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -186,19 +144,19 @@ class MediaCaptureStep extends ConsumerWidget {
                 isVideo: false,
                 path: listing.odometerImagePath,
                 onCapture: () => captureImage(
-                    MediaSlot.odometer,
-                    (p) => notifier
-                        .update((s) => s.copyWith(odometerImagePath: p)),
-                    (u) => notifier
-                        .update((s) => s.copyWith(odometerImagePath: u))),
+                  MediaSlot.odometer,
+                  (p) =>
+                      notifier.update((s) => s.copyWith(odometerImagePath: p)),
+                  (u) =>
+                      notifier.update((s) => s.copyWith(odometerImagePath: u)),
+                ),
                 onUpload: () => uploadImage(
-                    MediaSlot.odometer,
-                    (p) => notifier
-                        .update((s) => s.copyWith(odometerImagePath: p)),
-                    (u) => notifier
-                        .update((s) => s.copyWith(odometerImagePath: u))),
-                onRemove: () =>
-                    notifier.update((s) => s.copyWith(odometerImagePath: null)),
+                  MediaSlot.odometer,
+                  (p) =>
+                      notifier.update((s) => s.copyWith(odometerImagePath: p)),
+                  (u) =>
+                      notifier.update((s) => s.copyWith(odometerImagePath: u)),
+                ),
               ),
             ),
           ],
@@ -216,19 +174,19 @@ class MediaCaptureStep extends ConsumerWidget {
                 isVideo: true,
                 path: listing.exteriorVideoPath,
                 onCapture: () => captureVideo(
-                    MediaSlot.exteriorVideo,
-                    (p) => notifier
-                        .update((s) => s.copyWith(exteriorVideoPath: p)),
-                    (u) => notifier
-                        .update((s) => s.copyWith(exteriorVideoPath: u))),
+                  MediaSlot.exteriorVideo,
+                  (p) =>
+                      notifier.update((s) => s.copyWith(exteriorVideoPath: p)),
+                  (u) =>
+                      notifier.update((s) => s.copyWith(exteriorVideoPath: u)),
+                ),
                 onUpload: () => uploadVideo(
-                    MediaSlot.exteriorVideo,
-                    (p) => notifier
-                        .update((s) => s.copyWith(exteriorVideoPath: p)),
-                    (u) => notifier
-                        .update((s) => s.copyWith(exteriorVideoPath: u))),
-                onRemove: () =>
-                    notifier.update((s) => s.copyWith(exteriorVideoPath: null)),
+                  MediaSlot.exteriorVideo,
+                  (p) =>
+                      notifier.update((s) => s.copyWith(exteriorVideoPath: p)),
+                  (u) =>
+                      notifier.update((s) => s.copyWith(exteriorVideoPath: u)),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -242,19 +200,19 @@ class MediaCaptureStep extends ConsumerWidget {
                 isVideo: true,
                 path: listing.interiorVideoPath,
                 onCapture: () => captureVideo(
-                    MediaSlot.interiorVideo,
-                    (p) => notifier
-                        .update((s) => s.copyWith(interiorVideoPath: p)),
-                    (u) => notifier
-                        .update((s) => s.copyWith(interiorVideoPath: u))),
+                  MediaSlot.interiorVideo,
+                  (p) =>
+                      notifier.update((s) => s.copyWith(interiorVideoPath: p)),
+                  (u) =>
+                      notifier.update((s) => s.copyWith(interiorVideoPath: u)),
+                ),
                 onUpload: () => uploadVideo(
-                    MediaSlot.interiorVideo,
-                    (p) => notifier
-                        .update((s) => s.copyWith(interiorVideoPath: p)),
-                    (u) => notifier
-                        .update((s) => s.copyWith(interiorVideoPath: u))),
-                onRemove: () =>
-                    notifier.update((s) => s.copyWith(interiorVideoPath: null)),
+                  MediaSlot.interiorVideo,
+                  (p) =>
+                      notifier.update((s) => s.copyWith(interiorVideoPath: p)),
+                  (u) =>
+                      notifier.update((s) => s.copyWith(interiorVideoPath: u)),
+                ),
               ),
             ),
           ],
@@ -272,19 +230,19 @@ class MediaCaptureStep extends ConsumerWidget {
                 isVideo: true,
                 path: listing.engineBayVideoPath,
                 onCapture: () => captureVideo(
-                    MediaSlot.engineBayVideo,
-                    (p) => notifier
-                        .update((s) => s.copyWith(engineBayVideoPath: p)),
-                    (u) => notifier
-                        .update((s) => s.copyWith(engineBayVideoPath: u))),
+                  MediaSlot.engineBayVideo,
+                  (p) =>
+                      notifier.update((s) => s.copyWith(engineBayVideoPath: p)),
+                  (u) =>
+                      notifier.update((s) => s.copyWith(engineBayVideoPath: u)),
+                ),
                 onUpload: () => uploadVideo(
-                    MediaSlot.engineBayVideo,
-                    (p) => notifier
-                        .update((s) => s.copyWith(engineBayVideoPath: p)),
-                    (u) => notifier
-                        .update((s) => s.copyWith(engineBayVideoPath: u))),
-                onRemove: () => notifier
-                    .update((s) => s.copyWith(engineBayVideoPath: null)),
+                  MediaSlot.engineBayVideo,
+                  (p) =>
+                      notifier.update((s) => s.copyWith(engineBayVideoPath: p)),
+                  (u) =>
+                      notifier.update((s) => s.copyWith(engineBayVideoPath: u)),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -298,19 +256,15 @@ class MediaCaptureStep extends ConsumerWidget {
                 isVideo: true,
                 path: listing.tyresVideoPath,
                 onCapture: () => captureVideo(
-                    MediaSlot.tyresVideo,
-                    (p) =>
-                        notifier.update((s) => s.copyWith(tyresVideoPath: p)),
-                    (u) =>
-                        notifier.update((s) => s.copyWith(tyresVideoPath: u))),
+                  MediaSlot.tyresVideo,
+                  (p) => notifier.update((s) => s.copyWith(tyresVideoPath: p)),
+                  (u) => notifier.update((s) => s.copyWith(tyresVideoPath: u)),
+                ),
                 onUpload: () => uploadVideo(
-                    MediaSlot.tyresVideo,
-                    (p) =>
-                        notifier.update((s) => s.copyWith(tyresVideoPath: p)),
-                    (u) =>
-                        notifier.update((s) => s.copyWith(tyresVideoPath: u))),
-                onRemove: () =>
-                    notifier.update((s) => s.copyWith(tyresVideoPath: null)),
+                  MediaSlot.tyresVideo,
+                  (p) => notifier.update((s) => s.copyWith(tyresVideoPath: p)),
+                  (u) => notifier.update((s) => s.copyWith(tyresVideoPath: u)),
+                ),
               ),
             ),
           ],
@@ -329,7 +283,6 @@ class MediaCaptureStep extends ConsumerWidget {
     required String? path,
     required VoidCallback onCapture,
     required VoidCallback onUpload,
-    required VoidCallback onRemove,
   }) {
     final uploadState = ref.watch(uploadProvider(slotKey));
 
@@ -349,10 +302,6 @@ class MediaCaptureStep extends ConsumerWidget {
       path: path,
       onCapture: onCapture,
       onUpload: onUpload,
-      onRemove: () {
-        ref.read(uploadProvider(slotKey).notifier).reset();
-        onRemove();
-      },
       isUploading: uploadState.isLoading,
       isUploadError: uploadState.isError,
       uploadErrorMessage: uploadState.errorMessage,
